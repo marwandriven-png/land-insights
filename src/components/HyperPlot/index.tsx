@@ -46,7 +46,7 @@ export function HyperPlotAI() {
         setLoadProgress(prev => Math.min(prev + 10, 90));
       }, 200);
 
-      const gisPlots = await gisService.fetchPlots(null, 100);
+      const gisPlots = await gisService.fetchPlots(100);
 
       clearInterval(progressInterval);
       setLoadProgress(100);
