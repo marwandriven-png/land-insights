@@ -1,10 +1,4 @@
-// DDA GIS API Configuration
-const DDA_GIS_CONFIG = {
-  baseUrl: 'https://gis.dda.gov.ae/server/rest/services/DDA/BASIC_LAND_BASE/MapServer',
-  plotLayerId: 2,
-  spatialReference: 3997,
-  maxRecordCount: 2000,
-};
+import { supabase } from "@/integrations/supabase/client";
 
 export interface PlotData {
   id: string;
@@ -44,53 +38,71 @@ export interface FeasibilityResult {
 }
 
 class DDAGISService {
-  private baseUrl: string;
-  private plotLayerId: number;
-  private spatialReference: number;
-
-  constructor() {
-    this.baseUrl = DDA_GIS_CONFIG.baseUrl;
-    this.plotLayerId = DDA_GIS_CONFIG.plotLayerId;
-    this.spatialReference = DDA_GIS_CONFIG.spatialReference;
-  }
-
-  async fetchPlots(bounds: { xmin: number; ymin: number; xmax: number; ymax: number } | null = null, limit: number = 50): Promise<PlotData[]> {
+  async testConnection(): Promise<boolean> {
     try {
-      const whereClause = '1=1';
-
-      const params = new URLSearchParams({
-        where: whereClause,
-        outFields: [
-          'OBJECTID', 'PLOT_NUMBER', 'ENTITY_NAME', 'DEVELOPER_NAME',
-          'PROJECT_NAME', 'AREA_SQM', 'AREA_SQFT', 'GFA_SQM', 'GFA_SQFT',
-          'MAX_HEIGHT_FLOORS', 'MAX_HEIGHT_METERS', 'MAIN_LANDUSE', 'SUB_LANDUSE',
-          'LANDUSE_DETAILS', 'LANDUSE_CATEGORY', 'CONSTRUCTION_STATUS', 'SITE_STATUS',
-          'MAX_PLOT_COVERAGE', 'PLOT_COVERAGE', 'IS_FROZEN', 'FREEZE_REASON'
-        ].join(','),
-        returnGeometry: 'true',
-        outSR: this.spatialReference.toString(),
-        f: 'json',
-        resultRecordCount: limit.toString()
+      console.log('Testing GIS connection via edge function...');
+      
+      const { data, error } = await supabase.functions.invoke('dda-gis-proxy', {
+        body: null,
+        headers: { 'Content-Type': 'application/json' }
       });
 
-      const url = `${this.baseUrl}/${this.plotLayerId}/query?${params}`;
-      const response = await fetch(url, {
-        method: 'GET',
-        headers: {
-          'Accept': 'application/json',
+      // Construct the URL with query params
+      const response = await fetch(
+        `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/dda-gis-proxy?action=test`,
+        {
+          method: 'GET',
+          headers: {
+            'Authorization': `Bearer ${import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY}`,
+            'Content-Type': 'application/json'
+          }
         }
-      });
+      );
 
       if (!response.ok) {
-        throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+        console.error('GIS test failed:', response.status);
+        return false;
+      }
+
+      const result = await response.json();
+      console.log('GIS test result:', result);
+      return result.connected === true;
+    } catch (error) {
+      console.error('GIS connection test failed:', error);
+      return false;
+    }
+  }
+
+  async fetchPlots(limit: number = 100): Promise<PlotData[]> {
+    try {
+      console.log(`Fetching plots via edge function (limit: ${limit})...`);
+
+      const response = await fetch(
+        `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/dda-gis-proxy?action=fetch&limit=${limit}`,
+        {
+          method: 'GET',
+          headers: {
+            'Authorization': `Bearer ${import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY}`,
+            'Content-Type': 'application/json'
+          }
+        }
+      );
+
+      if (!response.ok) {
+        throw new Error(`Edge function returned ${response.status}`);
       }
 
       const data = await response.json();
+
+      if (data.error) {
+        throw new Error(data.error);
+      }
 
       if (!data.features || !Array.isArray(data.features)) {
         throw new Error('Invalid response format from GIS service');
       }
 
+      console.log(`Received ${data.features.length} features from GIS`);
       return this.transformGISData(data.features);
     } catch (error) {
       console.error('DDA GIS API Error:', error);
@@ -100,16 +112,21 @@ class DDAGISService {
 
   async fetchPlotById(plotId: string): Promise<PlotData | null> {
     try {
-      const params = new URLSearchParams({
-        where: `PLOT_NUMBER='${plotId}'`,
-        outFields: '*',
-        returnGeometry: 'true',
-        outSR: this.spatialReference.toString(),
-        f: 'json'
-      });
+      const response = await fetch(
+        `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/dda-gis-proxy?action=plot&plotId=${encodeURIComponent(plotId)}`,
+        {
+          method: 'GET',
+          headers: {
+            'Authorization': `Bearer ${import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY}`,
+            'Content-Type': 'application/json'
+          }
+        }
+      );
 
-      const url = `${this.baseUrl}/${this.plotLayerId}/query?${params}`;
-      const response = await fetch(url);
+      if (!response.ok) {
+        throw new Error(`Edge function returned ${response.status}`);
+      }
+
       const data = await response.json();
 
       if (data.features && data.features.length > 0) {
@@ -141,8 +158,8 @@ class DDAGISService {
         floors: (attrs.MAX_HEIGHT_FLOORS as string) || 'G+1',
         zoning: this.getZoningCategory(mainLanduse, subLanduse),
         location: (attrs.PROJECT_NAME as string) || (attrs.ENTITY_NAME as string) || 'Dubai South',
-        x: this.normalizeCoordinate(geometry?.x || (495261 + (index % 8) * 100), 'x'),
-        y: this.normalizeCoordinate(geometry?.y || (2766577 + Math.floor(index / 8) * 100), 'y'),
+        x: this.normalizeCoordinate(geometry?.x || (495261 + (index % 10) * 80), 'x'),
+        y: this.normalizeCoordinate(geometry?.y || (2766577 + Math.floor(index / 10) * 60), 'y'),
         color: this.getZoningColor(mainLanduse, subLanduse),
         status: this.getPlotStatus(
           attrs.CONSTRUCTION_STATUS as string | undefined,
@@ -244,29 +261,6 @@ class DDAGISService {
 
     const areaFactor = (area || 850) > 2000 ? 1.2 : (area || 850) > 1000 ? 1.1 : 1.0;
     return basePrice * areaFactor;
-  }
-
-  async testConnection(): Promise<boolean> {
-    try {
-      const params = new URLSearchParams({
-        where: '1=1',
-        returnCountOnly: 'true',
-        f: 'json'
-      });
-
-      const url = `${this.baseUrl}/${this.plotLayerId}/query?${params}`;
-      const controller = new AbortController();
-      const timeoutId = setTimeout(() => controller.abort(), 5000);
-      
-      const response = await fetch(url, { signal: controller.signal });
-      clearTimeout(timeoutId);
-      
-      const data = await response.json();
-      return data.count !== undefined;
-    } catch (error) {
-      console.error('GIS connection test failed:', error);
-      return false;
-    }
   }
 }
 
