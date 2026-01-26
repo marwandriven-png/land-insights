@@ -1,7 +1,9 @@
-import { X, MapPin, Building2, Layers, TrendingUp, FileText, Download, AlertCircle, CheckCircle } from 'lucide-react';
-import { PlotData, calculateFeasibility } from '@/services/DDAGISService';
+import { X, MapPin, Building2, Layers, TrendingUp, FileText, Download, AlertCircle, CheckCircle, Shield, Clock, Hash } from 'lucide-react';
+import { PlotData, calculateFeasibility, VerificationSource } from '@/services/DDAGISService';
 import { Button } from '@/components/ui/button';
+import { Badge } from '@/components/ui/badge';
 import { generatePlotPDF } from '@/utils/pdfGenerator';
+import { forwardRef } from 'react';
 
 interface PlotDetailPanelProps {
   plot: PlotData;
@@ -17,6 +19,15 @@ function getStatusBadge(status: string) {
     'Frozen': 'bg-destructive/20 text-destructive border-destructive/30',
   };
   return styles[status] || styles['Available'];
+}
+
+function getVerificationBadge(source: VerificationSource) {
+  const styles: Record<VerificationSource, { bg: string; text: string; label: string }> = {
+    'DDA': { bg: 'bg-primary/20', text: 'text-primary', label: 'Verified via DDA' },
+    'DLD': { bg: 'bg-secondary/20', text: 'text-secondary', label: 'Verified via Dubai Land Department' },
+    'Demo': { bg: 'bg-muted', text: 'text-muted-foreground', label: 'Demo Data' },
+  };
+  return styles[source] || styles['Demo'];
 }
 
 export function PlotDetailPanel({ plot, onClose }: PlotDetailPanelProps) {
@@ -130,6 +141,38 @@ export function PlotDetailPanel({ plot, onClose }: PlotDetailPanelProps) {
               <span className="text-foreground font-medium">{plot.plotCoverage}%</span>
             </div>
           )}
+        </div>
+
+        {/* Verification Source */}
+        <div className="border-t border-border/50 pt-4 mb-4">
+          <div className="flex items-center gap-2 mb-3">
+            <Shield className="w-4 h-4 text-primary" />
+            <h3 className="text-sm font-bold text-foreground">Data Verification</h3>
+          </div>
+          <div className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-medium ${getVerificationBadge(plot.verificationSource).bg} ${getVerificationBadge(plot.verificationSource).text} border border-border/30`}>
+            <CheckCircle className="w-3.5 h-3.5" />
+            {getVerificationBadge(plot.verificationSource).label}
+          </div>
+          <div className="mt-2 space-y-1 text-xs text-muted-foreground">
+            {plot.verificationDate && (
+              <div className="flex items-center gap-2">
+                <Clock className="w-3 h-3" />
+                Verified: {new Date(plot.verificationDate).toLocaleDateString()}
+              </div>
+            )}
+            {plot.municipalityNumber && (
+              <div className="flex items-center gap-2">
+                <Hash className="w-3 h-3" />
+                Municipality: {plot.municipalityNumber} / Sub: {plot.subNumber}
+              </div>
+            )}
+            {plot.isApproximateLocation && (
+              <div className="flex items-center gap-2 text-warning">
+                <AlertCircle className="w-3 h-3" />
+                Approximate Location
+              </div>
+            )}
+          </div>
         </div>
 
         {/* Feasibility Summary */}
