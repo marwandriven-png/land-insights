@@ -41,13 +41,7 @@ class DDAGISService {
   async testConnection(): Promise<boolean> {
     try {
       console.log('Testing GIS connection via edge function...');
-      
-      const { data, error } = await supabase.functions.invoke('dda-gis-proxy', {
-        body: null,
-        headers: { 'Content-Type': 'application/json' }
-      });
 
-      // Construct the URL with query params
       const response = await fetch(
         `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/dda-gis-proxy?action=test`,
         {
