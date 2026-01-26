@@ -133,7 +133,7 @@ class DDAGISService {
     }
   }
 
-  private transformGISData(features: Array<{ attributes: Record<string, unknown>; geometry?: { x?: number; y?: number } }>): PlotData[] {
+  private transformGISData(features: Array<{ attributes: Record<string, unknown>; geometry?: { rings?: number[][][]; x?: number; y?: number } }>): PlotData[] {
     return features.map((feature, index) => {
       const attrs = feature.attributes;
       const geometry = feature.geometry;
@@ -145,6 +145,20 @@ class DDAGISService {
       const gfaSqm = attrs.GFA_SQM as number | undefined;
       const gfaSqft = attrs.GFA_SQFT as number | undefined;
 
+      // Calculate centroid from geometry rings if available
+      let centroidX = 495261 + (index % 10) * 80;
+      let centroidY = 2766577 + Math.floor(index / 10) * 60;
+
+      if (geometry?.rings && geometry.rings.length > 0) {
+        const ring = geometry.rings[0];
+        if (ring.length > 0) {
+          const sumX = ring.reduce((acc, coord) => acc + coord[0], 0);
+          const sumY = ring.reduce((acc, coord) => acc + coord[1], 0);
+          centroidX = sumX / ring.length;
+          centroidY = sumY / ring.length;
+        }
+      }
+
       return {
         id: (attrs.PLOT_NUMBER as string) || `PLOT_${index}`,
         area: areaSqm || (areaSqft ? areaSqft / 10.764 : 850),
@@ -152,8 +166,8 @@ class DDAGISService {
         floors: (attrs.MAX_HEIGHT_FLOORS as string) || 'G+1',
         zoning: this.getZoningCategory(mainLanduse, subLanduse),
         location: (attrs.PROJECT_NAME as string) || (attrs.ENTITY_NAME as string) || 'Dubai South',
-        x: this.normalizeCoordinate(geometry?.x || (495261 + (index % 10) * 80), 'x'),
-        y: this.normalizeCoordinate(geometry?.y || (2766577 + Math.floor(index / 10) * 60), 'y'),
+        x: centroidX,
+        y: centroidY,
         color: this.getZoningColor(mainLanduse, subLanduse),
         status: this.getPlotStatus(
           attrs.CONSTRUCTION_STATUS as string | undefined,
@@ -172,16 +186,18 @@ class DDAGISService {
         freezeReason: attrs.FREEZE_REASON as string | undefined,
         constructionStatus: attrs.CONSTRUCTION_STATUS as string | undefined,
         siteStatus: attrs.SITE_STATUS as string | undefined,
-        rawAttributes: attrs
+        rawAttributes: { ...attrs, geometry }
       };
     });
   }
 
-  private normalizeCoordinate(coord: number, axis: 'x' | 'y'): number {
-    const minX = 495261;
-    const maxX = 496080;
-    const minY = 2766577;
-    const maxY = 2767203;
+  // Normalize coordinates for display (if needed for non-map views)
+  normalizeCoordinate(coord: number, axis: 'x' | 'y'): number {
+    // Use wider range for Dubai coordinates (EPSG:3997)
+    const minX = 480000;
+    const maxX = 520000;
+    const minY = 2760000;
+    const maxY = 2800000;
 
     if (axis === 'x') {
       const normalized = ((coord - minX) / (maxX - minX)) * 80 + 10;
