@@ -1,5 +1,7 @@
 import { supabase } from "@/integrations/supabase/client";
 
+export type VerificationSource = 'DDA' | 'DLD' | 'Demo';
+
 export interface PlotData {
   id: string;
   area: number;
@@ -24,6 +26,12 @@ export interface PlotData {
   constructionStatus?: string;
   siteStatus?: string;
   rawAttributes?: Record<string, unknown>;
+  // DLD Fallback fields
+  verificationSource: VerificationSource;
+  verificationDate?: string;
+  municipalityNumber?: string;
+  subNumber?: string;
+  isApproximateLocation?: boolean;
 }
 
 export interface FeasibilityResult {
@@ -186,7 +194,9 @@ class DDAGISService {
         freezeReason: attrs.FREEZE_REASON as string | undefined,
         constructionStatus: attrs.CONSTRUCTION_STATUS as string | undefined,
         siteStatus: attrs.SITE_STATUS as string | undefined,
-        rawAttributes: { ...attrs, geometry }
+        rawAttributes: { ...attrs, geometry },
+        verificationSource: 'DDA' as VerificationSource,
+        verificationDate: new Date().toISOString()
       };
     });
   }
@@ -312,70 +322,157 @@ export function generateDemoPlots(): PlotData[] {
       location: 'Dubai South', x: 15, y: 12, color: '#10b981', status: 'Available',
       constructionCost: 800, salePrice: 1500, developer: 'Dubai South',
       project: 'Phase 1', entity: 'Dubai South Entity', maxHeight: 12,
-      constructionStatus: 'Not Started', siteStatus: 'Available for Development', isFrozen: false
+      constructionStatus: 'Not Started', siteStatus: 'Available for Development', isFrozen: false,
+      verificationSource: 'Demo' as VerificationSource
     },
     {
       id: 'PA2_015', area: 920, gfa: 1380, floors: 'G+1', zoning: 'Residential Villa',
       location: 'Dubai South', x: 28, y: 20, color: '#10b981', status: 'Available',
       constructionCost: 800, salePrice: 1550, developer: 'Emaar Properties',
       project: 'Phase 2', entity: 'Emaar South', maxHeight: 12,
-      constructionStatus: 'Not Started', siteStatus: 'Available for Development', isFrozen: false
+      constructionStatus: 'Not Started', siteStatus: 'Available for Development', isFrozen: false,
+      verificationSource: 'Demo' as VerificationSource
     },
     {
       id: 'PA4_042', area: 780, gfa: 1170, floors: 'G+1', zoning: 'Residential Villa',
       location: 'Dubai South', x: 42, y: 28, color: '#10b981', status: 'Available',
       constructionCost: 850, salePrice: 1600, developer: 'Nakheel',
       project: 'Phase 4', entity: 'Nakheel Communities', maxHeight: 12,
-      constructionStatus: 'Not Started', siteStatus: 'Available for Development', isFrozen: false
+      constructionStatus: 'Not Started', siteStatus: 'Available for Development', isFrozen: false,
+      verificationSource: 'Demo' as VerificationSource
     },
     {
       id: 'PA5_089', area: 1200, gfa: 3600, floors: 'G+2', zoning: 'Residential Apartments',
       location: 'Dubai South', x: 20, y: 45, color: '#ef4444', status: 'Under Construction',
       constructionCost: 900, salePrice: 1800, developer: 'Damac Properties',
       project: 'Phase 5', entity: 'Damac Towers', maxHeight: 24,
-      constructionStatus: '50% Complete', siteStatus: 'Under Development', isFrozen: false
+      constructionStatus: '50% Complete', siteStatus: 'Under Development', isFrozen: false,
+      verificationSource: 'Demo' as VerificationSource
     },
     {
       id: 'PA8_301', area: 2500, gfa: 7500, floors: 'G+2', zoning: 'Residential Apartments',
       location: 'Dubai South', x: 65, y: 42, color: '#ef4444', status: 'Premium',
       constructionCost: 950, salePrice: 1900, developer: 'Sobha Realty',
       project: 'Phase 8', entity: 'Sobha Hartland', maxHeight: 24,
-      constructionStatus: 'Not Started', siteStatus: 'Premium Location', isFrozen: false
+      constructionStatus: 'Not Started', siteStatus: 'Premium Location', isFrozen: false,
+      verificationSource: 'Demo' as VerificationSource
     },
     {
       id: 'PA11_082', area: 1850, gfa: 5550, floors: 'G+2', zoning: 'Mixed Use',
       location: 'Dubai South', x: 48, y: 72, color: '#8b5cf6', status: 'Hot',
       constructionCost: 1000, salePrice: 2100, developer: 'Meraas Development',
       project: 'Phase 11', entity: 'City Walk Expansion', maxHeight: 32,
-      constructionStatus: 'Approved', siteStatus: 'High Demand Area', isFrozen: false
+      constructionStatus: 'Approved', siteStatus: 'High Demand Area', isFrozen: false,
+      verificationSource: 'Demo' as VerificationSource
     },
     {
       id: 'PA3_017', area: 1100, gfa: 2200, floors: 'G+1', zoning: 'Commercial',
       location: 'Dubai South', x: 75, y: 25, color: '#3b82f6', status: 'Available',
       constructionCost: 1200, salePrice: 2500, developer: 'Dubai Properties',
       project: 'Business Bay', entity: 'DPG', maxHeight: 18,
-      constructionStatus: 'Not Started', siteStatus: 'Prime Commercial', isFrozen: false
+      constructionStatus: 'Not Started', siteStatus: 'Prime Commercial', isFrozen: false,
+      verificationSource: 'Demo' as VerificationSource
     },
     {
       id: 'PA6_055', area: 3200, gfa: 6400, floors: 'G+1', zoning: 'Industrial',
       location: 'Dubai South', x: 85, y: 60, color: '#f59e0b', status: 'Available',
       constructionCost: 600, salePrice: 1000, developer: 'Jafza',
       project: 'Industrial Zone', entity: 'Jafza FZE', maxHeight: 15,
-      constructionStatus: 'Not Started', siteStatus: 'Industrial Zone', isFrozen: false
+      constructionStatus: 'Not Started', siteStatus: 'Industrial Zone', isFrozen: false,
+      verificationSource: 'Demo' as VerificationSource
     },
     {
       id: 'PA7_033', area: 1450, gfa: 4350, floors: 'G+2', zoning: 'Mixed Use',
       location: 'Dubai South', x: 35, y: 85, color: '#8b5cf6', status: 'Frozen',
       constructionCost: 1000, salePrice: 2000, developer: 'TBD',
       project: 'Phase 7', entity: 'Reserved', maxHeight: 28,
-      constructionStatus: 'On Hold', siteStatus: 'Frozen', isFrozen: true, freezeReason: 'Pending regulatory approval'
+      constructionStatus: 'On Hold', siteStatus: 'Frozen', isFrozen: true, freezeReason: 'Pending regulatory approval',
+      verificationSource: 'Demo' as VerificationSource
     },
     {
       id: 'PA9_121', area: 680, gfa: 1020, floors: 'G+1', zoning: 'Residential Villa',
       location: 'Dubai South', x: 55, y: 55, color: '#10b981', status: 'Completed',
       constructionCost: 800, salePrice: 1650, developer: 'Azizi Developments',
       project: 'Phase 9', entity: 'Azizi Riviera', maxHeight: 12,
-      constructionStatus: 'Completed', siteStatus: 'Ready for Handover', isFrozen: false
+      constructionStatus: 'Completed', siteStatus: 'Ready for Handover', isFrozen: false,
+      verificationSource: 'Demo' as VerificationSource
     },
   ];
 }
+
+// DLD Fallback Service
+export interface DLDResponse {
+  plotNumber: string;
+  municipalityNumber: string;
+  subNumber: string;
+  status: string | null;
+  location: string | null;
+  registrationConfirmed: boolean;
+  verificationDate: string;
+  source: 'DLD';
+}
+
+class DLDFallbackService {
+  private cache = new Map<string, { data: DLDResponse; timestamp: number }>();
+  private readonly CACHE_TTL_MS = 30 * 60 * 1000; // 30 minutes
+
+  async lookupPlot(plotNumber: string): Promise<DLDResponse | null> {
+    // Check local cache first
+    const cached = this.cache.get(plotNumber);
+    if (cached && Date.now() - cached.timestamp < this.CACHE_TTL_MS) {
+      console.log(`DLD Cache hit for plot ${plotNumber}`);
+      return cached.data;
+    }
+
+    try {
+      console.log(`Querying DLD fallback for plot ${plotNumber}`);
+      
+      const response = await fetch(
+        `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/dld-status-proxy?action=lookup&plotNumber=${encodeURIComponent(plotNumber)}`,
+        {
+          method: 'GET',
+          headers: {
+            'Authorization': `Bearer ${import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY}`,
+            'Content-Type': 'application/json'
+          }
+        }
+      );
+
+      if (!response.ok) {
+        console.warn(`DLD lookup failed: ${response.status}`);
+        return null;
+      }
+
+      const result = await response.json();
+      
+      if (result.success && result.data) {
+        this.cache.set(plotNumber, { data: result.data, timestamp: Date.now() });
+        return result.data;
+      }
+      
+      return null;
+    } catch (error) {
+      console.error('DLD fallback error:', error);
+      return null;
+    }
+  }
+
+  parsePlotNumber(plotNumber: string): { municipality: string; sub: string } {
+    const cleaned = plotNumber.replace(/[^0-9]/g, '');
+    
+    if (cleaned.length === 7) {
+      return {
+        municipality: cleaned.substring(0, 3),
+        sub: cleaned.substring(3, 7)
+      };
+    } else if (cleaned.length >= 4 && cleaned.length <= 10) {
+      const municipality = cleaned.substring(0, 3);
+      const sub = cleaned.substring(3).padStart(4, '0');
+      return { municipality, sub };
+    }
+    
+    return { municipality: cleaned, sub: '' };
+  }
+}
+
+export const dldService = new DLDFallbackService();
