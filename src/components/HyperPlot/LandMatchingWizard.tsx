@@ -11,6 +11,7 @@ import { ScrollArea } from '@/components/ui/scroll-area';
 import { PlotData } from '@/services/DDAGISService';
 import {
   parseTextFile,
+  parseFreeFormText,
   matchParcels,
   buildParcelFromForm,
   ParcelInput,
@@ -129,7 +130,7 @@ export function LandMatchingWizard({
     }
   }, [canQuickSearch, formArea, formPlotArea, formPlotUnit, formGfa, formGfaUnit, formZoning, formFloors, plots, onHighlightPlots]);
 
-  const handleParse = useCallback(() => {
+  const handleParse = useCallback(async () => {
     if (!textContent.trim()) {
       setError('Please upload or paste a text file first');
       return;
@@ -140,7 +141,14 @@ export function LandMatchingWizard({
     setError(null);
 
     try {
-      const inputs = parseTextFile(textContent);
+      // Try structured parsing first
+      let inputs = parseTextFile(textContent);
+      
+      // If structured parsing fails, try smart free-form parsing
+      if (inputs.length === 0 || inputs.every(i => i.plotAreaSqm === 0 && i.gfaSqm === 0)) {
+        inputs = parseFreeFormText(textContent);
+      }
+
       if (inputs.length === 0) {
         setError('No valid parcels found in the input');
         setStep('upload');
@@ -155,14 +163,67 @@ export function LandMatchingWizard({
       }
 
       setParsedInputs(inputs);
-      setIsProcessing(false);
+      
+      // Auto-run matching immediately instead of showing intermediate step
       setStep('matching');
+      
+      try {
+        let results = matchParcels(inputs, plots);
+
+        // If no local matches, try live GIS API
+        if (results.length === 0) {
+          const { gisService } = await import('@/services/DDAGISService');
+          for (const input of inputs) {
+            if (!input.area) continue;
+            const isPlotNumber = /^\d+$/.test(input.area.trim());
+            if (isPlotNumber) {
+              try {
+                const plot = await gisService.fetchPlotById(input.area.trim());
+                if (plot) {
+                  results = [{
+                    input,
+                    matchedPlotId: plot.id,
+                    matchedPlotArea: plot.area,
+                    matchedGfa: plot.gfa,
+                    matchedZoning: plot.zoning,
+                    matchedStatus: plot.status,
+                    matchedLocation: plot.location,
+                    areaDeviation: input.plotAreaSqm > 0 ? parseFloat((Math.abs(plot.area - input.plotAreaSqm) / input.plotAreaSqm * 100).toFixed(2)) : 0,
+                    gfaDeviation: input.gfaSqm > 0 ? parseFloat((Math.abs(plot.gfa - input.gfaSqm) / input.gfaSqm * 100).toFixed(2)) : 0,
+                    confidenceScore: 100,
+                  }];
+                  break;
+                }
+              } catch { /* continue */ }
+            }
+            const tolerance = 0.06;
+            const minArea = input.plotAreaSqm > 0 ? input.plotAreaSqm * (1 - tolerance) : undefined;
+            const maxArea = input.plotAreaSqm > 0 ? input.plotAreaSqm * (1 + tolerance) : undefined;
+            try {
+              const apiPlots = await gisService.searchByArea(minArea, maxArea, input.area);
+              if (apiPlots.length > 0) {
+                const allPlots = [...plots, ...apiPlots.filter(ap => !plots.find(p => p.id === ap.id))];
+                results = matchParcels(inputs, allPlots);
+                if (results.length > 0) break;
+              }
+            } catch { /* continue */ }
+          }
+        }
+
+        setMatchResults(results);
+        setStep('results');
+        onHighlightPlots(results.map(r => r.matchedPlotId));
+      } catch {
+        setError('Matching failed. Please try again.');
+        setStep('upload');
+      }
     } catch {
-      setError('Failed to parse input file');
+      setError('Failed to parse input');
       setStep('upload');
+    } finally {
       setIsProcessing(false);
     }
-  }, [textContent]);
+  }, [textContent, plots, onHighlightPlots]);
 
   const handleMatch = useCallback(async () => {
     setIsProcessing(true);
@@ -433,7 +494,7 @@ export function LandMatchingWizard({
                         <SelectTrigger className="w-24 text-xs">
                           <SelectValue />
                         </SelectTrigger>
-                        <SelectContent>
+                        <SelectContent className="z-[100]">
                           <SelectItem value="sqm">SQM</SelectItem>
                           <SelectItem value="sqft">SQFT</SelectItem>
                         </SelectContent>
@@ -458,7 +519,7 @@ export function LandMatchingWizard({
                         <SelectTrigger className="w-24 text-xs">
                           <SelectValue />
                         </SelectTrigger>
-                        <SelectContent>
+                        <SelectContent className="z-[100]">
                           <SelectItem value="sqm">SQM</SelectItem>
                           <SelectItem value="sqft">SQFT</SelectItem>
                         </SelectContent>
