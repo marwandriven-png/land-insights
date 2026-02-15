@@ -154,7 +154,7 @@ export function HyperPlotAI() {
   }, []);
 
   return (
-    <div className="min-h-screen bg-background text-foreground">
+    <div className="h-screen bg-background text-foreground flex flex-col overflow-hidden">
       {/* Header */}
       <header className="border-b border-border/50 bg-card/50 backdrop-blur-xl sticky top-0 z-50">
         <div className="container mx-auto px-4 py-3">
@@ -250,8 +250,8 @@ export function HyperPlotAI() {
       )}
 
       {/* Main Content */}
-      <div className="container mx-auto px-4 py-4">
-        <div className="grid grid-cols-12 gap-4 h-[calc(100vh-140px)]">
+      <div className="container mx-auto px-4 py-4 flex-1 min-h-0">
+        <div className="grid grid-cols-12 gap-4 h-full">
           {/* Sidebar Navigation */}
           <div className="col-span-1 space-y-2">
             {TABS.map((tab) => (
