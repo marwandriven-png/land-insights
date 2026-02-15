@@ -1,10 +1,9 @@
-import { X, MapPin, Building2, Layers, TrendingUp, FileText, Download, AlertCircle, CheckCircle, Shield, Clock, Hash, Loader2, FileWarning, Ruler, LayoutGrid } from 'lucide-react';
+import { X, MapPin, Building2, Layers, TrendingUp, FileText, Download, AlertCircle, CheckCircle, Shield, Clock, Hash, Loader2, FileWarning, LayoutGrid, Navigation } from 'lucide-react';
 import { PlotData, calculateFeasibility, VerificationSource, AffectionPlanData, gisService } from '@/services/DDAGISService';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { generatePlotPDF } from '@/utils/pdfGenerator';
-import { forwardRef, useState, useEffect, useCallback } from 'react';
-import { ScrollArea } from '@/components/ui/scroll-area';
+import { useState, useEffect } from 'react';
 import { SimilarLandPanel } from './SimilarLandPanel';
 import { FeasibilityCalculator } from './FeasibilityCalculator';
 
@@ -12,6 +11,7 @@ interface PlotDetailPanelProps {
   plot: PlotData;
   onClose: () => void;
   onSelectPlot?: (plot: PlotData) => void;
+  onGoToLocation?: (plot: PlotData) => void;
 }
 
 function getStatusBadge(status: string) {
@@ -231,7 +231,7 @@ function AffectionPlanSection({ plotId }: { plotId: string }) {
   );
 }
 
-export function PlotDetailPanel({ plot, onClose, onSelectPlot }: PlotDetailPanelProps) {
+export function PlotDetailPanel({ plot, onClose, onSelectPlot, onGoToLocation }: PlotDetailPanelProps) {
   const feasibility = calculateFeasibility(plot);
 
   const handleExportPDF = async () => {
@@ -241,7 +241,7 @@ export function PlotDetailPanel({ plot, onClose, onSelectPlot }: PlotDetailPanel
   return (
     <div className="fixed right-4 top-1/2 -translate-y-1/2 w-96 max-h-[85vh] z-[1001] animate-in slide-in-from-right duration-300">
       <div className="glass-card glow-border shadow-2xl flex flex-col max-h-[85vh]">
-        <ScrollArea className="flex-1 p-5">
+        <div className="flex-1 overflow-y-auto p-5">
           {/* Header */}
           <div className="flex items-start justify-between mb-4">
             <div>
@@ -261,8 +261,8 @@ export function PlotDetailPanel({ plot, onClose, onSelectPlot }: PlotDetailPanel
             </button>
           </div>
 
-          {/* Status Badge */}
-          <div className="mb-4">
+          {/* Status Badge & Go to Location */}
+          <div className="mb-4 flex items-center justify-between">
             <span className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-sm font-medium border ${getStatusBadge(plot.status)}`}>
               {plot.status === 'Available' ? (
                 <CheckCircle className="w-4 h-4" />
@@ -273,10 +273,21 @@ export function PlotDetailPanel({ plot, onClose, onSelectPlot }: PlotDetailPanel
               )}
               {plot.status}
             </span>
-            {plot.isFrozen && plot.freezeReason && (
-              <p className="text-xs text-destructive mt-2">⚠️ {plot.freezeReason}</p>
+            {onGoToLocation && (
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => onGoToLocation(plot)}
+                className="gap-1.5 text-xs h-8"
+              >
+                <Navigation className="w-3.5 h-3.5" />
+                Go to Land
+              </Button>
             )}
           </div>
+          {plot.isFrozen && plot.freezeReason && (
+            <p className="text-xs text-destructive mb-4">⚠️ {plot.freezeReason}</p>
+          )}
 
           {/* Plot Details Grid */}
           <div className="grid grid-cols-2 gap-3 mb-4">
@@ -397,7 +408,7 @@ export function PlotDetailPanel({ plot, onClose, onSelectPlot }: PlotDetailPanel
             <Download className="w-4 h-4" />
             Export Plot Report (PDF)
           </Button>
-        </ScrollArea>
+        </div>
       </div>
     </div>
   );

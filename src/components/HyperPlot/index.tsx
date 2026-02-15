@@ -349,6 +349,14 @@ export function HyperPlotAI() {
                 plot={selectedPlot}
                 onClose={handleCloseDetailPanel}
                 onSelectPlot={handlePlotFound}
+                onGoToLocation={(plot) => {
+                  setActiveTab('map');
+                  // Re-select to trigger map zoom
+                  setSelectedPlot(null);
+                  setTimeout(() => {
+                    setSelectedPlot(plot);
+                  }, 50);
+                }}
               />
             )}
           </div>
