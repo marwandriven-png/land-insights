@@ -239,9 +239,9 @@ export function PlotDetailPanel({ plot, onClose, onSelectPlot, onGoToLocation }:
   };
 
   return (
-    <div className="fixed right-4 top-1/2 -translate-y-1/2 w-96 max-h-[85vh] z-[1001] animate-in slide-in-from-right duration-300">
-      <div className="glass-card glow-border shadow-2xl flex flex-col max-h-[85vh]">
-        <div className="flex-1 overflow-y-auto p-5">
+    <div className="fixed right-4 top-4 bottom-4 w-96 z-[1001] animate-in slide-in-from-right duration-300">
+      <div className="glass-card glow-border shadow-2xl flex flex-col h-full">
+        <div className="flex-1 overflow-y-auto p-5 min-h-0">
           {/* Header */}
           <div className="flex items-start justify-between mb-4">
             <div>
