@@ -182,9 +182,11 @@ export function SearchFilters({ plots, onSearch, onFilterChange, onPlotFound }: 
 
       {/* Live search result feedback */}
       {liveSearchResult === 'found' && (
-        <div className="text-xs text-success flex items-center gap-1.5 px-1">
-          <MapPin className="w-3 h-3" />
-          Plot found — zooming to location
+        <div className="text-xs text-success flex items-center justify-between px-1">
+          <div className="flex items-center gap-1.5">
+            <MapPin className="w-3 h-3" />
+            Plot found — zooming to location
+          </div>
         </div>
       )}
       {liveSearchResult === 'not_found' && (
