@@ -1,6 +1,6 @@
 import { useState, useCallback } from 'react';
-import { Search, Filter, X, ChevronDown } from 'lucide-react';
-import { PlotData } from '@/services/DDAGISService';
+import { Search, Filter, X, ChevronDown, Loader2, MapPin } from 'lucide-react';
+import { PlotData, gisService } from '@/services/DDAGISService';
 import { Button } from '@/components/ui/button';
 import {
   DropdownMenu,
@@ -41,14 +41,17 @@ export function SearchFilters({ plots, onSearch, onFilterChange, onPlotFound }: 
     maxGFA: null
   });
   const [showAdvanced, setShowAdvanced] = useState(false);
+  const [isSearchingLive, setIsSearchingLive] = useState(false);
+  const [liveSearchResult, setLiveSearchResult] = useState<string | null>(null);
 
   const handleSearch = useCallback((query: string) => {
     setSearchQuery(query);
     onSearch(query);
+    setLiveSearchResult(null);
 
-    // Check for exact plot number match
+    // Check for exact plot number match in loaded data
     if (query.trim()) {
-      const exactMatch = plots.find(p => 
+      const exactMatch = plots.find(p =>
         p.id.toLowerCase() === query.toLowerCase().trim()
       );
       if (exactMatch) {
@@ -57,22 +60,44 @@ export function SearchFilters({ plots, onSearch, onFilterChange, onPlotFound }: 
     }
   }, [plots, onSearch, onPlotFound]);
 
-  const handleKeyDown = useCallback((e: React.KeyboardEvent) => {
-    if (e.key === 'Enter') {
-      const query = searchQuery.trim();
-      if (query) {
-        // Find plot by number or area name
-        const match = plots.find(p => 
-          p.id.toLowerCase() === query.toLowerCase() ||
-          p.location?.toLowerCase().includes(query.toLowerCase()) ||
-          p.project?.toLowerCase().includes(query.toLowerCase())
-        );
-        if (match) {
-          onPlotFound(match);
-        }
+  // Live GIS lookup for plot number not in loaded data
+  const handleLiveLookup = useCallback(async () => {
+    const query = searchQuery.trim();
+    if (!query) return;
+
+    // First check loaded data
+    const localMatch = plots.find(p =>
+      p.id.toLowerCase() === query.toLowerCase()
+    );
+    if (localMatch) {
+      onPlotFound(localMatch);
+      setLiveSearchResult('found');
+      return;
+    }
+
+    // Query DDA GIS API directly for this plot number
+    setIsSearchingLive(true);
+    setLiveSearchResult(null);
+    try {
+      const plot = await gisService.fetchPlotById(query);
+      if (plot) {
+        onPlotFound(plot);
+        setLiveSearchResult('found');
+      } else {
+        setLiveSearchResult('not_found');
       }
+    } catch {
+      setLiveSearchResult('error');
+    } finally {
+      setIsSearchingLive(false);
     }
   }, [searchQuery, plots, onPlotFound]);
+
+  const handleKeyDown = useCallback((e: React.KeyboardEvent) => {
+    if (e.key === 'Enter') {
+      handleLiveLookup();
+    }
+  }, [handleLiveLookup]);
 
   const updateFilters = useCallback((newFilters: Partial<FilterState>) => {
     const updated = { ...filters, ...newFilters };
@@ -107,12 +132,13 @@ export function SearchFilters({ plots, onSearch, onFilterChange, onPlotFound }: 
     onFilterChange(cleared);
     setSearchQuery('');
     onSearch('');
+    setLiveSearchResult(null);
   };
 
-  const hasActiveFilters = 
-    filters.status.length > 0 || 
-    filters.zoning.length > 0 || 
-    filters.minArea !== null || 
+  const hasActiveFilters =
+    filters.status.length > 0 ||
+    filters.zoning.length > 0 ||
+    filters.minArea !== null ||
     filters.maxArea !== null ||
     filters.minGFA !== null ||
     filters.maxGFA !== null;
@@ -128,17 +154,51 @@ export function SearchFilters({ plots, onSearch, onFilterChange, onPlotFound }: 
           value={searchQuery}
           onChange={(e) => handleSearch(e.target.value)}
           onKeyDown={handleKeyDown}
-          className="w-full pl-10 pr-10 py-2.5 bg-muted/50 border border-border/50 rounded-xl text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-primary/50 focus:border-primary/50"
+          className="w-full pl-10 pr-20 py-2.5 bg-muted/50 border border-border/50 rounded-xl text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-primary/50 focus:border-primary/50"
         />
-        {searchQuery && (
-          <button
-            onClick={() => handleSearch('')}
-            className="absolute right-3 top-1/2 -translate-y-1/2 p-1 hover:bg-muted rounded"
-          >
-            <X className="w-4 h-4 text-muted-foreground" />
-          </button>
-        )}
+        <div className="absolute right-2 top-1/2 -translate-y-1/2 flex items-center gap-1">
+          {searchQuery && !isSearchingLive && (
+            <button
+              onClick={() => handleSearch('')}
+              className="p-1 hover:bg-muted rounded"
+            >
+              <X className="w-4 h-4 text-muted-foreground" />
+            </button>
+          )}
+          {isSearchingLive && (
+            <Loader2 className="w-4 h-4 animate-spin text-primary" />
+          )}
+          {searchQuery && !isSearchingLive && (
+            <button
+              onClick={handleLiveLookup}
+              className="p-1 hover:bg-primary/20 rounded text-primary"
+              title="Search DDA GIS live"
+            >
+              <MapPin className="w-4 h-4" />
+            </button>
+          )}
+        </div>
       </div>
+
+      {/* Live search result feedback */}
+      {liveSearchResult === 'found' && (
+        <div className="text-xs text-success flex items-center gap-1.5 px-1">
+          <MapPin className="w-3 h-3" />
+          Plot found — zooming to location
+        </div>
+      )}
+      {liveSearchResult === 'not_found' && (
+        <div className="text-xs text-warning flex items-center gap-1.5 px-1">
+          <MapPin className="w-3 h-3" />
+          Plot not found in DDA GIS database
+        </div>
+      )}
+      {liveSearchResult === 'error' && (
+        <div className="text-xs text-destructive flex items-center gap-1.5 px-1">
+          <MapPin className="w-3 h-3" />
+          Error connecting to GIS — try again
+        </div>
+      )}
 
       {/* Quick Filters */}
       <div className="flex flex-wrap gap-2">

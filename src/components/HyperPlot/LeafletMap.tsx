@@ -3,7 +3,7 @@ import L from 'leaflet';
 import 'leaflet/dist/leaflet.css';
 import proj4 from 'proj4';
 import { PlotData } from '@/services/DDAGISService';
-import { Loader2, Home, Search, Layers, Printer, Mail, Share2, MapPin } from 'lucide-react';
+import { Loader2, Home, Search, Layers, Printer, Mail, Share2 } from 'lucide-react';
 
 // Define Dubai Local Transverse Mercator (EPSG:3997)
 proj4.defs('EPSG:3997', '+proj=tmerc +lat_0=0 +lon_0=55.33333333333334 +k=1 +x_0=500000 +y_0=0 +ellps=WGS84 +towgs84=0,0,0,0,0,0,0 +units=m +no_defs');
@@ -18,24 +18,23 @@ interface LeafletMapProps {
 
 // Dubai Bounds - strictly lock to Dubai
 const DUBAI_BOUNDS = L.latLngBounds(
-  [24.7000, 54.8000], // Southwest
-  [25.4000, 55.6000]  // Northeast
+  [24.7000, 54.8000],
+  [25.4000, 55.6000]
 );
 
 // Convert EPSG:3997 coordinates to WGS84 (lat/lng)
 function convertToLatLng(x: number, y: number): [number, number] {
   try {
     const result = proj4('EPSG:3997', 'EPSG:4326', [x, y]);
-    return [result[1], result[0]]; // [lat, lng]
+    return [result[1], result[0]];
   } catch (e) {
     console.error('Coordinate conversion error:', e);
-    return [25.0657, 55.1713]; // Default Dubai coordinates
+    return [25.0657, 55.1713];
   }
 }
 
 // DDA Blue Color
 const DDA_BLUE = '#2b5a9e';
-const DDA_BLUE_LIGHT = '#3d79cc';
 
 export function LeafletMap({
   plots,
@@ -47,14 +46,13 @@ export function LeafletMap({
   const mapContainerRef = useRef<HTMLDivElement>(null);
   const mapRef = useRef<L.Map | null>(null);
   const plotLayersRef = useRef<Map<string, L.Layer>>(new Map());
-  const selectedLayerRef = useRef<L.Layer | null>(null);
+  const glowLayersRef = useRef<Map<string, L.Layer>>(new Map());
   const [isLoading, setIsLoading] = useState(true);
 
   // Initialize map
   useEffect(() => {
     if (!mapContainerRef.current || mapRef.current) return;
 
-    // Create map centered on Dubai
     const map = L.map(mapContainerRef.current, {
       center: [25.075, 55.20],
       zoom: 13,
@@ -63,20 +61,17 @@ export function LeafletMap({
       zoomControl: false,
       attributionControl: false,
       maxBounds: DUBAI_BOUNDS,
-      maxBoundsViscosity: 1.0, // Strict bounce back
+      maxBoundsViscosity: 1.0,
       bounceAtZoomLimits: true,
       worldCopyJump: false
     });
 
-    // Satellite Imagery Layer - MATCHING DDA VIBE
     L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}', {
       maxZoom: 19,
-      noWrap: true // Fix infinite scrolling
+      noWrap: true
     }).addTo(map);
 
-    // Zoom and Custom Controls in top-left as per DDA
-    const zoomControl = L.control.zoom({ position: 'topleft' });
-    zoomControl.addTo(map);
+    L.control.zoom({ position: 'topleft' }).addTo(map);
 
     mapRef.current = map;
     setIsLoading(false);
@@ -99,6 +94,8 @@ export function LeafletMap({
     // Clear existing layers
     plotLayersRef.current.forEach(layer => map.removeLayer(layer));
     plotLayersRef.current.clear();
+    glowLayersRef.current.forEach(layer => map.removeLayer(layer));
+    glowLayersRef.current.clear();
 
     function isSelectedOrHighlighted(id: string) {
       return selectedPlot?.id === id || highlightedPlots.includes(id);
@@ -107,6 +104,9 @@ export function LeafletMap({
     plots.forEach(plot => {
       const rawAttrs = plot.rawAttributes;
       let polygon: L.Polygon | L.CircleMarker;
+      let glowLayer: L.Polygon | L.CircleMarker | null = null;
+      const active = isSelectedOrHighlighted(plot.id);
+      const isSelected = selectedPlot?.id === plot.id;
 
       if (rawAttrs && (rawAttrs as Record<string, unknown>).geometry) {
         const geom = (rawAttrs as Record<string, unknown>).geometry as { rings?: number[][][] };
@@ -116,40 +116,81 @@ export function LeafletMap({
             return L.latLng(lat, lng);
           });
 
+          // Glow layer (rendered behind main polygon)
+          if (active) {
+            glowLayer = L.polygon(latLngs, {
+              color: '#00e5ff',
+              weight: 8,
+              opacity: 0.4,
+              fillColor: 'transparent',
+              fillOpacity: 0,
+              interactive: false,
+              className: 'plot-glow-layer'
+            });
+          }
+
           polygon = L.polygon(latLngs, {
-            color: selectedPlot?.id === plot.id ? '#ffffff' : DDA_BLUE,
-            weight: selectedPlot?.id === plot.id ? 2 : 1,
+            color: isSelected ? '#ffffff' : active ? '#00e5ff' : DDA_BLUE,
+            weight: isSelected ? 2.5 : active ? 2 : 1,
             opacity: 1,
             fillColor: DDA_BLUE,
-            fillOpacity: isSelectedOrHighlighted(plot.id) ? 0.7 : 0.4
+            fillOpacity: active ? 0.65 : 0.35
           });
         } else {
           const [lat, lng] = convertToLatLng(plot.x * 10 + 495000, plot.y * 10 + 2766000);
           polygon = L.circleMarker([lat, lng], {
             radius: 8,
-            color: selectedPlot?.id === plot.id ? '#ffffff' : DDA_BLUE,
+            color: isSelected ? '#ffffff' : active ? '#00e5ff' : DDA_BLUE,
             weight: 2,
             fillColor: DDA_BLUE,
-            fillOpacity: 0.6
+            fillOpacity: 0.6,
+            className: active ? 'plot-glow-circle' : ''
           });
         }
       } else {
         const [lat, lng] = convertToLatLng(plot.x * 10 + 495000, plot.y * 10 + 2766000);
         polygon = L.circleMarker([lat, lng], {
           radius: 8,
-          color: selectedPlot?.id === plot.id ? '#ffffff' : DDA_BLUE,
+          color: isSelected ? '#ffffff' : active ? '#00e5ff' : DDA_BLUE,
           weight: 2,
           fillColor: DDA_BLUE,
-          fillOpacity: 0.6
+          fillOpacity: 0.6,
+          className: active ? 'plot-glow-circle' : ''
         });
       }
 
+      // Add tooltip
+      polygon.bindTooltip(`
+        <div class="p-2 min-w-[180px]">
+          <div class="font-bold text-sm">${plot.id}</div>
+          <div class="text-xs text-gray-400">${plot.location || plot.project || 'Dubai'}</div>
+          <hr class="my-1 border-gray-600" />
+          <div class="grid grid-cols-2 gap-1 text-xs">
+            <span class="text-gray-400">Area:</span>
+            <span>${plot.area.toLocaleString()} m²</span>
+            <span class="text-gray-400">GFA:</span>
+            <span>${plot.gfa.toLocaleString()} m²</span>
+            <span class="text-gray-400">Status:</span>
+            <span>${plot.status}</span>
+          </div>
+        </div>
+      `, {
+        permanent: false,
+        className: 'plot-tooltip'
+      });
+
       polygon.on('click', () => onPlotClick(plot));
+
+      // Add glow layer first (behind), then main polygon
+      if (glowLayer) {
+        glowLayer.addTo(map);
+        glowLayersRef.current.set(plot.id, glowLayer);
+      }
       polygon.addTo(map);
       plotLayersRef.current.set(plot.id, polygon);
     });
 
-    // Auto-zoom if specific plot number was found (from wizard)
+    // Auto-zoom to selected plot
     if (selectedPlot && plotLayersRef.current.has(selectedPlot.id)) {
       const layer = plotLayersRef.current.get(selectedPlot.id);
       if (layer) {
@@ -182,13 +223,9 @@ export function LeafletMap({
         style={{ minHeight: '400px' }}
       />
 
-      {/* DDA Style Floating Controls top-left */}
+      {/* DDA Style Home Control */}
       <div className="absolute top-20 left-2 z-[1000] flex flex-col gap-1">
-        <button
-          onClick={resetView}
-          className="dda-map-btn"
-          title="Reset View"
-        >
+        <button onClick={resetView} className="dda-map-btn" title="Reset View">
           <Home className="w-4 h-4" />
         </button>
       </div>
@@ -204,20 +241,17 @@ export function LeafletMap({
         </div>
       </div>
 
-      {/* DDA Style Scale Bar bottom-left */}
+      {/* DDA Style Scale Bar */}
       <div className="absolute bottom-3 left-3 z-[1000]">
         <div className="flex items-end gap-1.5 text-[10px] font-mono text-white/80">
           <div className="flex flex-col items-start">
-            <div
-              className="h-[2px] bg-white/70"
-              style={{ width: '60px' }}
-            />
+            <div className="h-[2px] bg-white/70" style={{ width: '60px' }} />
           </div>
           500 m
         </div>
       </div>
 
-      {/* Map control styles */}
+      {/* Styles */}
       <style>{`
         .dda-map-btn {
           width: 32px;
@@ -256,6 +290,23 @@ export function LeafletMap({
           background: hsl(217 33% 17%) !important;
           color: hsl(187 94% 43%) !important;
           border-color: hsl(187 94% 43% / 0.4) !important;
+        }
+        .plot-tooltip {
+          background: hsl(222 47% 8% / 0.95) !important;
+          border: 1px solid hsl(187 94% 43% / 0.3) !important;
+          border-radius: 0.75rem !important;
+          box-shadow: 0 4px 20px hsla(222, 47%, 5%, 0.5) !important;
+          color: hsl(210 40% 98%) !important;
+          padding: 0 !important;
+        }
+        .plot-tooltip::before {
+          border-top-color: hsl(187 94% 43% / 0.3) !important;
+        }
+        .plot-glow-layer {
+          filter: drop-shadow(0 0 6px rgba(0, 229, 255, 0.7)) drop-shadow(0 0 14px rgba(0, 229, 255, 0.35));
+        }
+        .plot-glow-circle {
+          filter: drop-shadow(0 0 6px rgba(0, 229, 255, 0.7)) drop-shadow(0 0 12px rgba(0, 229, 255, 0.4));
         }
       `}</style>
     </div>

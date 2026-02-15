@@ -141,6 +141,38 @@ class DDAGISService {
     }
   }
 
+  async searchByArea(minArea?: number, maxArea?: number, projectName?: string): Promise<PlotData[]> {
+    try {
+      const params = new URLSearchParams({ action: 'search' });
+      if (minArea !== undefined) params.set('minArea', String(minArea));
+      if (maxArea !== undefined) params.set('maxArea', String(maxArea));
+      if (projectName) params.set('project', projectName);
+      params.set('limit', '50');
+
+      const response = await fetch(
+        `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/dda-gis-proxy?${params.toString()}`,
+        {
+          method: 'GET',
+          headers: {
+            'Authorization': `Bearer ${import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY}`,
+            'Content-Type': 'application/json'
+          }
+        }
+      );
+
+      if (!response.ok) throw new Error(`Edge function returned ${response.status}`);
+
+      const data = await response.json();
+      if (data.features && data.features.length > 0) {
+        return this.transformGISData(data.features);
+      }
+      return [];
+    } catch (error) {
+      console.error('Error searching by area:', error);
+      return [];
+    }
+  }
+
   private transformGISData(features: Array<{ attributes: Record<string, unknown>; geometry?: { rings?: number[][][]; x?: number; y?: number } }>): PlotData[] {
     return features.map((feature, index) => {
       const attrs = feature.attributes;
