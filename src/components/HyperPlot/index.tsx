@@ -348,6 +348,7 @@ export function HyperPlotAI() {
               <PlotDetailPanel
                 plot={selectedPlot}
                 onClose={handleCloseDetailPanel}
+                onSelectPlot={handlePlotFound}
               />
             )}
           </div>
@@ -389,10 +390,16 @@ export function HyperPlotAI() {
                       return (
                         <button
                           key={entry.plotId}
-                          onClick={() => matchedPlot && handlePlotClick(matchedPlot)}
-                          className={`w-full text-left mb-1.5 px-3 py-2 rounded-lg border transition-all text-xs ${
-                            matchedPlot ? 'border-border/50 bg-muted/20 hover:bg-muted/40 cursor-pointer' : 'border-border/30 bg-muted/10 opacity-60 cursor-default'
-                          }`}
+                          onClick={async () => {
+                            if (matchedPlot) {
+                              handlePlotClick(matchedPlot);
+                            } else {
+                              // Fetch from API if not in local plots
+                              const fetched = await gisService.fetchPlotById(entry.plotId);
+                              if (fetched) handlePlotFound(fetched);
+                            }
+                          }}
+                          className="w-full text-left mb-1.5 px-3 py-2 rounded-lg border transition-all text-xs border-border/50 bg-muted/20 hover:bg-muted/40 cursor-pointer"
                         >
                           <div className="flex items-center justify-between">
                             <span className="font-semibold text-foreground">{entry.plotId}</span>
