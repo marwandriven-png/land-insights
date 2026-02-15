@@ -163,6 +163,11 @@ export function HyperPlotAI() {
   }, [saveLastSeen]);
 
   const handlePlotFound = useCallback((plot: PlotData) => {
+    // If this plot isn't in the loaded plots array (e.g. live API lookup), add it
+    setPlots(prev => {
+      if (prev.find(p => p.id === plot.id)) return prev;
+      return [...prev, plot];
+    });
     setSelectedPlot(plot);
     setShowDetailPanel(true);
     setActiveTab('map');
@@ -438,9 +443,15 @@ export function HyperPlotAI() {
         plots={plots}
         onHighlightPlots={setHighlightedPlots}
         onSelectPlot={(plot) => {
+          // Add to plots array if not present (live API result)
+          setPlots(prev => {
+            if (prev.find(p => p.id === plot.id)) return prev;
+            return [...prev, plot];
+          });
           setSelectedPlot(plot);
           setShowDetailPanel(true);
           setActiveTab('map');
+          saveLastSeen(plot);
         }}
       />
     </div>

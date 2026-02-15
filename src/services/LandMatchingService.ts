@@ -157,11 +157,17 @@ export function matchParcels(
     if (!hasPlotArea && !hasGfa) continue;
     
     for (const plot of plots) {
-      // 1. Area name filter (mandatory) — match location
-      const inputArea = input.area.toLowerCase().trim();
-      const plotLocation = (plot.location || '').toLowerCase();
-      if (!plotLocation.includes(inputArea) && !inputArea.includes(plotLocation)) {
-        // If area name is very short (3 chars or less), allow through
+      // 1. Area name filter (mandatory) — fuzzy match location
+      const inputArea = input.area.toLowerCase().trim().replace(/[^a-z0-9\s]/g, '');
+      const plotLocation = (plot.location || '').toLowerCase().replace(/[^a-z0-9\s]/g, '');
+      
+      // Tokenize and check if most input words appear in plot location (handles "sport" vs "sports")
+      const inputWords = inputArea.split(/\s+/).filter(w => w.length > 2);
+      const locationMatches = inputWords.length > 0 && inputWords.filter(word => 
+        plotLocation.includes(word) || plotLocation.includes(word + 's') || plotLocation.includes(word.replace(/s$/, ''))
+      ).length >= Math.ceil(inputWords.length * 0.6);
+      
+      if (!plotLocation.includes(inputArea) && !inputArea.includes(plotLocation) && !locationMatches) {
         if (inputArea.length > 3) continue;
       }
       
@@ -218,8 +224,8 @@ export function matchParcels(
         }
       }
 
-      // Area name exact match bonus (+10)
-      if (plotLocation === inputArea) {
+  // Area name exact/fuzzy match bonus (+10)
+      if (locationMatches || plotLocation === inputArea) {
         confidenceScore += 10;
       }
 

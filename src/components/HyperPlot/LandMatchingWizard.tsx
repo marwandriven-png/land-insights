@@ -146,7 +146,28 @@ export function LandMatchingWizard({
     setStep('matching');
 
     try {
-      const results = matchParcels(parsedInputs, plots);
+      // First try matching against loaded plots
+      let results = matchParcels(parsedInputs, plots);
+
+      // If no local matches, try live GIS API search by area name
+      if (results.length === 0 && parsedInputs.length > 0) {
+        const { gisService } = await import('@/services/DDAGISService');
+        for (const input of parsedInputs) {
+          if (!input.area) continue;
+          const tolerance = 0.06;
+          const minArea = input.plotAreaSqm > 0 ? input.plotAreaSqm * (1 - tolerance) : undefined;
+          const maxArea = input.plotAreaSqm > 0 ? input.plotAreaSqm * (1 + tolerance) : undefined;
+          try {
+            const apiPlots = await gisService.searchByArea(minArea, maxArea, input.area);
+            if (apiPlots.length > 0) {
+              // Re-run matching with API results merged
+              const allPlots = [...plots, ...apiPlots.filter(ap => !plots.find(p => p.id === ap.id))];
+              results = matchParcels(parsedInputs, allPlots);
+              break;
+            }
+          } catch { /* continue */ }
+        }
+      }
 
       // Cross-check with Google Sheet if connected
       if (sheetConnected && sheetId) {
@@ -231,9 +252,18 @@ export function LandMatchingWizard({
     }
   }, [sheetId]);
 
-  const handlePlotClick = useCallback((plotId: string) => {
-    const plot = plots.find(p => p.id === plotId);
-    if (plot) onSelectPlot(plot);
+  const handlePlotClick = useCallback(async (plotId: string) => {
+    let plot = plots.find(p => p.id === plotId);
+    if (plot) {
+      onSelectPlot(plot);
+      return;
+    }
+    // If not in local plots, fetch from API
+    try {
+      const { gisService } = await import('@/services/DDAGISService');
+      const fetched = await gisService.fetchPlotById(plotId);
+      if (fetched) onSelectPlot(fetched);
+    } catch { /* silent */ }
   }, [plots, onSelectPlot]);
 
   const handleReset = useCallback(() => {
@@ -604,7 +634,10 @@ export function LandMatchingWizard({
                   <div className="flex items-center justify-between mb-2">
                     <div className="flex items-center gap-2">
                       <Building2 className="w-4 h-4 text-primary" />
-                      <span className="font-bold text-sm">{result.matchedPlotId}</span>
+                      <div>
+                        <span className="font-bold text-sm">Plot {result.matchedPlotId}</span>
+                        <div className="text-[10px] text-muted-foreground">{result.matchedLocation}</div>
+                      </div>
                     </div>
                     <div className="flex items-center gap-1.5">
                       <div className="px-2 py-0.5 rounded-full text-[10px] font-bold" style={{
@@ -674,11 +707,12 @@ export function LandMatchingWizard({
                     onClick={(e) => {
                       e.stopPropagation();
                       handlePlotClick(result.matchedPlotId);
+                      onClose();
                     }}
-                    className="mt-2 w-full text-xs flex items-center justify-center gap-1.5 py-1.5 rounded-lg bg-primary/10 text-primary hover:bg-primary/20 transition-colors"
+                    className="mt-2 w-full text-xs flex items-center justify-center gap-1.5 py-2 rounded-lg bg-primary text-primary-foreground hover:bg-primary/90 transition-colors font-medium"
                   >
-                    <ArrowRight className="w-3 h-3" />
-                    Zoom to Plot on Map
+                    <MapPin className="w-3.5 h-3.5" />
+                    Go to Location on Map
                   </button>
                 </div>
               ))}
