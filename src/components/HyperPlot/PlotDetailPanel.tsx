@@ -5,10 +5,13 @@ import { Badge } from '@/components/ui/badge';
 import { generatePlotPDF } from '@/utils/pdfGenerator';
 import { forwardRef, useState, useEffect, useCallback } from 'react';
 import { ScrollArea } from '@/components/ui/scroll-area';
+import { SimilarLandPanel } from './SimilarLandPanel';
+import { FeasibilityCalculator } from './FeasibilityCalculator';
 
 interface PlotDetailPanelProps {
   plot: PlotData;
   onClose: () => void;
+  onSelectPlot?: (plot: PlotData) => void;
 }
 
 function getStatusBadge(status: string) {
@@ -228,7 +231,7 @@ function AffectionPlanSection({ plotId }: { plotId: string }) {
   );
 }
 
-export function PlotDetailPanel({ plot, onClose }: PlotDetailPanelProps) {
+export function PlotDetailPanel({ plot, onClose, onSelectPlot }: PlotDetailPanelProps) {
   const feasibility = calculateFeasibility(plot);
 
   const handleExportPDF = async () => {
@@ -377,31 +380,13 @@ export function PlotDetailPanel({ plot, onClose }: PlotDetailPanelProps) {
             </div>
           </div>
 
-          {/* Feasibility Summary */}
-          <div className="border-t border-border/50 pt-4 mb-4">
-            <h3 className="text-sm font-bold text-primary mb-3">Feasibility Analysis</h3>
-            <div className="grid grid-cols-3 gap-2 text-center">
-              <div className="data-card py-2">
-                <div className="text-xs text-muted-foreground">ROI</div>
-                <div className="text-lg font-bold text-success">{feasibility.roi}%</div>
-              </div>
-              <div className="data-card py-2">
-                <div className="text-xs text-muted-foreground">Profit</div>
-                <div className="text-sm font-bold text-foreground">
-                  {(feasibility.profit / 1000000).toFixed(1)}M
-                </div>
-              </div>
-              <div className="data-card py-2">
-                <div className="text-xs text-muted-foreground">Risk</div>
-                <div className={`text-sm font-bold ${
-                  feasibility.riskLevel === 'Low' ? 'text-success' :
-                  feasibility.riskLevel === 'Medium' ? 'text-warning' : 'text-destructive'
-                }`}>
-                  {feasibility.riskLevel}
-                </div>
-              </div>
-            </div>
-          </div>
+          {/* Feasibility Calculator - Editable */}
+          <FeasibilityCalculator plot={plot} />
+
+          {/* Similar Land */}
+          {onSelectPlot && (
+            <SimilarLandPanel plot={plot} onSelectPlot={onSelectPlot} />
+          )}
 
           {/* Export Button */}
           <Button
