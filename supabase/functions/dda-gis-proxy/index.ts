@@ -116,6 +116,54 @@ serve(async (req) => {
       });
     }
 
+    if (action === 'affection') {
+      const plotId = url.searchParams.get('plotId');
+
+      if (!plotId) {
+        return new Response(JSON.stringify({ error: 'plotId required' }), {
+          status: 400,
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+        });
+      }
+
+      const sanitizedPlotId = plotId.replace(/[^a-zA-Z0-9_\-]/g, '');
+
+      const affectionFields = [
+        'PLOT_NUMBER', 'ENTITY_NAME', 'PROJECT_NAME', 'LAND_NAME',
+        'AREA_SQM', 'GFA_SQM', 'MAX_HEIGHT_FLOORS', 'MAX_HEIGHT_METERS', 'MAX_HEIGHT', 'HEIGHT_CATEGORY',
+        'MAX_PLOT_COVERAGE', 'MIN_PLOT_COVERAGE', 'PLOT_COVERAGE',
+        'BUILDING_SETBACK_SIDE1', 'BUILDING_SETBACK_SIDE2', 'BUILDING_SETBACK_SIDE3', 'BUILDING_SETBACK_SIDE4',
+        'PODIUM_SETBACK_SIDE1', 'PODIUM_SETBACK_SIDE2', 'PODIUM_SETBACK_SIDE3', 'PODIUM_SETBACK_SIDE4',
+        'MAIN_LANDUSE', 'SUB_LANDUSE', 'LANDUSE_DETAILS', 'LANDUSE_CATEGORY',
+        'GENERAL_NOTES', 'SITEPLAN_ISSUE_DATE', 'SITEPLAN_EXPIRY_DATE',
+        'SITE_STATUS', 'IS_FROZEN', 'FREEZE_REASON', 'GFA_TYPE'
+      ].join(',');
+
+      const params = new URLSearchParams({
+        where: `PLOT_NUMBER='${sanitizedPlotId}'`,
+        outFields: affectionFields,
+        returnGeometry: 'true',
+        outSR: '3997',
+        f: 'json'
+      });
+
+      console.log(`Fetching affection plan for plot ${sanitizedPlotId}`);
+
+      const response = await fetch(`${DDA_GIS_BASE_URL}/2/query?${params}`, {
+        method: 'GET',
+        headers: { 'Accept': 'application/json', 'User-Agent': 'HyperPlot-AI/1.0' }
+      });
+
+      if (!response.ok) throw new Error(`GIS API returned ${response.status}`);
+
+      const data = await response.json();
+      console.log(`Affection plan for ${sanitizedPlotId}: ${data.features?.length || 0} features`);
+
+      return new Response(JSON.stringify(data), {
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+      });
+    }
+
     if (action === 'search') {
       // Search by area range or project name
       const minArea = url.searchParams.get('minArea');
@@ -167,7 +215,7 @@ serve(async (req) => {
     }
 
     return new Response(JSON.stringify({
-      error: 'Invalid action. Use: test, fetch, plot, or search'
+      error: 'Invalid action. Use: test, fetch, plot, affection, or search'
     }), {
       status: 400,
       headers: { ...corsHeaders, 'Content-Type': 'application/json' }
