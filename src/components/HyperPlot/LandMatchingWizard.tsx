@@ -2,18 +2,27 @@ import { useState, useCallback, useRef } from 'react';
 import {
   X, Upload, Search, FileText, CheckCircle, AlertTriangle,
   Target, Loader2, MapPin, Building2, Sparkles, ArrowRight,
-  Link2
+  Link2, LayoutGrid
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { PlotData } from '@/services/DDAGISService';
 import {
   parseTextFile,
   matchParcels,
+  buildParcelFromForm,
   ParcelInput,
   MatchResult
 } from '@/services/LandMatchingService';
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue
+} from '@/components/ui/select';
 
 interface LandMatchingWizardProps {
   isOpen: boolean;
@@ -24,6 +33,7 @@ interface LandMatchingWizardProps {
 }
 
 type WizardStep = 'upload' | 'parsing' | 'matching' | 'results';
+type InputMode = 'form' | 'text';
 
 export function LandMatchingWizard({
   isOpen,
@@ -33,6 +43,7 @@ export function LandMatchingWizard({
   onSelectPlot
 }: LandMatchingWizardProps) {
   const [step, setStep] = useState<WizardStep>('upload');
+  const [inputMode, setInputMode] = useState<InputMode>('form');
   const [textContent, setTextContent] = useState('');
   const [parsedInputs, setParsedInputs] = useState<ParcelInput[]>([]);
   const [matchResults, setMatchResults] = useState<MatchResult[]>([]);
@@ -44,10 +55,23 @@ export function LandMatchingWizard({
   const [isConnectingSheet, setIsConnectingSheet] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
+  // Quick search form fields
+  const [formArea, setFormArea] = useState('');
+  const [formPlotArea, setFormPlotArea] = useState('');
+  const [formPlotUnit, setFormPlotUnit] = useState<'sqm' | 'sqft'>('sqm');
+  const [formGfa, setFormGfa] = useState('');
+  const [formGfaUnit, setFormGfaUnit] = useState<'sqm' | 'sqft'>('sqm');
+  const [formZoning, setFormZoning] = useState('');
+  const [formFloors, setFormFloors] = useState('');
+
+  const canQuickSearch = formArea.trim().length > 0 && (
+    (formPlotArea.trim().length > 0 && parseFloat(formPlotArea) > 0) ||
+    (formGfa.trim().length > 0 && parseFloat(formGfa) > 0)
+  );
+
   const handleFileUpload = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
-
     const reader = new FileReader();
     reader.onload = (event) => {
       const content = event.target?.result as string;
@@ -56,6 +80,31 @@ export function LandMatchingWizard({
     };
     reader.readAsText(file);
   }, []);
+
+  const handleQuickSearch = useCallback(() => {
+    if (!canQuickSearch) return;
+    setIsProcessing(true);
+    setError(null);
+
+    try {
+      const parcel = buildParcelFromForm({
+        areaName: formArea.trim(),
+        plotArea: formPlotArea ? parseFloat(formPlotArea) : undefined,
+        plotAreaUnit: formPlotUnit,
+        gfa: formGfa ? parseFloat(formGfa) : undefined,
+        gfaUnit: formGfaUnit,
+        zoning: formZoning || undefined,
+        floors: formFloors ? parseInt(formFloors, 10) : undefined,
+      });
+
+      setParsedInputs([parcel]);
+      setIsProcessing(false);
+      setStep('matching');
+    } catch {
+      setError('Invalid input values');
+      setIsProcessing(false);
+    }
+  }, [canQuickSearch, formArea, formPlotArea, formPlotUnit, formGfa, formGfaUnit, formZoning, formFloors]);
 
   const handleParse = useCallback(() => {
     if (!textContent.trim()) {
@@ -76,18 +125,16 @@ export function LandMatchingWizard({
         return;
       }
 
-      // Flag unknown units
-      const unknownUnits = inputs.filter(
-        i => i.plotAreaUnit === 'unknown' || i.gfaUnit === 'unknown'
-      );
-      if (unknownUnits.length > 0) {
-        setError(`${unknownUnits.length} parcel(s) have unknown units and will be excluded`);
+      // Flag parcels missing both area and GFA
+      const incomplete = inputs.filter(i => i.plotAreaSqm === 0 && i.gfaSqm === 0);
+      if (incomplete.length > 0) {
+        setError(`${incomplete.length} parcel(s) missing both Area and GFA — will be excluded`);
       }
 
       setParsedInputs(inputs);
       setIsProcessing(false);
       setStep('matching');
-    } catch (err) {
+    } catch {
       setError('Failed to parse input file');
       setStep('upload');
       setIsProcessing(false);
@@ -140,11 +187,9 @@ export function LandMatchingWizard({
 
       setMatchResults(results);
       setStep('results');
-
-      // Highlight matched plots on map
       const matchedIds = results.map(r => r.matchedPlotId);
       onHighlightPlots(matchedIds);
-    } catch (err) {
+    } catch {
       setError('Matching failed. Please try again.');
     } finally {
       setIsProcessing(false);
@@ -179,7 +224,7 @@ export function LandMatchingWizard({
       } else {
         setError('Failed to verify spreadsheet access');
       }
-    } catch (err) {
+    } catch {
       setError('Connection test failed');
     } finally {
       setIsConnectingSheet(false);
@@ -204,10 +249,8 @@ export function LandMatchingWizard({
 
   return (
     <div className="fixed inset-y-0 right-0 w-[480px] z-[60] flex">
-      {/* Backdrop */}
       <div className="fixed inset-0 bg-background/60 backdrop-blur-sm" onClick={onClose} />
 
-      {/* Panel */}
       <div className="relative ml-auto w-full h-full glass-card border-l border-border/50 animate-in slide-in-from-right duration-300 flex flex-col">
         {/* Header */}
         <div className="flex items-center justify-between p-4 border-b border-border/50">
@@ -219,7 +262,7 @@ export function LandMatchingWizard({
             </div>
             <div>
               <h2 className="font-bold text-sm">Land Matching Wizard</h2>
-              <p className="text-xs text-muted-foreground">±6% tolerance • Strict config</p>
+              <p className="text-xs text-muted-foreground">Area + Land Area or GFA</p>
             </div>
           </div>
           <button onClick={onClose} className="p-2 rounded-lg hover:bg-muted/50 transition-colors">
@@ -253,43 +296,183 @@ export function LandMatchingWizard({
         <ScrollArea className="flex-1 p-4">
           {step === 'upload' && (
             <div className="space-y-4">
-              {/* File upload */}
-              <div className="space-y-2">
-                <label className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">
-                  Input File
-                </label>
-                <div
-                  onClick={() => fileInputRef.current?.click()}
-                  className="border-2 border-dashed border-border/50 rounded-xl p-6 text-center cursor-pointer hover:border-primary/50 hover:bg-primary/5 transition-all"
+              {/* Input mode toggle */}
+              <div className="flex gap-1 p-1 bg-muted/30 rounded-lg">
+                <button
+                  onClick={() => setInputMode('form')}
+                  className={`flex-1 flex items-center justify-center gap-1.5 py-2 rounded-md text-xs font-medium transition-colors ${
+                    inputMode === 'form' ? 'bg-primary text-primary-foreground' : 'text-muted-foreground hover:text-foreground'
+                  }`}
                 >
-                  <Upload className="w-8 h-8 mx-auto mb-2 text-muted-foreground" />
-                  <p className="text-sm font-medium">Drop text file or click to upload</p>
-                  <p className="text-xs text-muted-foreground mt-1">Structured .txt format</p>
-                </div>
-                <input
-                  ref={fileInputRef}
-                  type="file"
-                  accept=".txt,.text"
-                  onChange={handleFileUpload}
-                  className="hidden"
-                />
+                  <LayoutGrid className="w-3.5 h-3.5" />
+                  Quick Search
+                </button>
+                <button
+                  onClick={() => setInputMode('text')}
+                  className={`flex-1 flex items-center justify-center gap-1.5 py-2 rounded-md text-xs font-medium transition-colors ${
+                    inputMode === 'text' ? 'bg-primary text-primary-foreground' : 'text-muted-foreground hover:text-foreground'
+                  }`}
+                >
+                  <FileText className="w-3.5 h-3.5" />
+                  Text / File
+                </button>
               </div>
 
-              {/* Text input */}
-              <div className="space-y-2">
-                <label className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">
-                  Or Paste Input
-                </label>
-                <textarea
-                  value={textContent}
-                  onChange={(e) => setTextContent(e.target.value)}
-                  placeholder={`Area: Wadi Al Safa 4\nPlotArea: 1200 sqm\nGFA: 1000 sqm\nZoning: Residential\nUse: Mixed\nHeightFloors: 3\nFAR: 1.2\nPlotNumber: 3347629\n---`}
-                  className="w-full h-40 bg-muted/30 border border-border/50 rounded-xl p-3 text-xs font-mono resize-none focus:outline-none focus:ring-2 focus:ring-primary/50 placeholder:text-muted-foreground/50"
-                />
-              </div>
+              {inputMode === 'form' && (
+                <div className="space-y-3">
+                  {/* Area Name - mandatory */}
+                  <div className="space-y-1.5">
+                    <Label className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">
+                      Area Name <span className="text-destructive">*</span>
+                    </Label>
+                    <Input
+                      value={formArea}
+                      onChange={(e) => setFormArea(e.target.value)}
+                      placeholder="e.g. Dubai South, Wadi Al Safa 4"
+                      className="text-sm"
+                    />
+                  </div>
+
+                  {/* Land Area */}
+                  <div className="space-y-1.5">
+                    <Label className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">
+                      Land Area {!formGfa && <span className="text-destructive">*</span>}
+                    </Label>
+                    <div className="flex gap-2">
+                      <Input
+                        type="number"
+                        value={formPlotArea}
+                        onChange={(e) => setFormPlotArea(e.target.value)}
+                        placeholder="e.g. 1200"
+                        className="text-sm flex-1"
+                      />
+                      <Select value={formPlotUnit} onValueChange={(v) => setFormPlotUnit(v as 'sqm' | 'sqft')}>
+                        <SelectTrigger className="w-24 text-xs">
+                          <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="sqm">SQM</SelectItem>
+                          <SelectItem value="sqft">SQFT</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    </div>
+                  </div>
+
+                  {/* GFA */}
+                  <div className="space-y-1.5">
+                    <Label className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">
+                      GFA {!formPlotArea && <span className="text-destructive">*</span>}
+                    </Label>
+                    <div className="flex gap-2">
+                      <Input
+                        type="number"
+                        value={formGfa}
+                        onChange={(e) => setFormGfa(e.target.value)}
+                        placeholder="e.g. 1000"
+                        className="text-sm flex-1"
+                      />
+                      <Select value={formGfaUnit} onValueChange={(v) => setFormGfaUnit(v as 'sqm' | 'sqft')}>
+                        <SelectTrigger className="w-24 text-xs">
+                          <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="sqm">SQM</SelectItem>
+                          <SelectItem value="sqft">SQFT</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    </div>
+                  </div>
+
+                  {/* Optional fields */}
+                  <div className="pt-2 border-t border-border/30">
+                    <p className="text-[10px] text-muted-foreground uppercase tracking-wide mb-2">Optional — improves accuracy</p>
+                    <div className="grid grid-cols-2 gap-3">
+                      <div className="space-y-1">
+                        <Label className="text-xs text-muted-foreground">Zoning</Label>
+                        <Input
+                          value={formZoning}
+                          onChange={(e) => setFormZoning(e.target.value)}
+                          placeholder="e.g. Residential"
+                          className="text-xs"
+                        />
+                      </div>
+                      <div className="space-y-1">
+                        <Label className="text-xs text-muted-foreground">Floors</Label>
+                        <Input
+                          type="number"
+                          value={formFloors}
+                          onChange={(e) => setFormFloors(e.target.value)}
+                          placeholder="e.g. 3"
+                          className="text-xs"
+                        />
+                      </div>
+                    </div>
+                  </div>
+
+                  <Button
+                    className="w-full gap-2"
+                    onClick={handleQuickSearch}
+                    disabled={!canQuickSearch}
+                  >
+                    <Search className="w-4 h-4" />
+                    Search & Match
+                  </Button>
+
+                  <p className="text-[10px] text-center text-muted-foreground">
+                    Minimum: Area name + Land Area or GFA
+                  </p>
+                </div>
+              )}
+
+              {inputMode === 'text' && (
+                <div className="space-y-4">
+                  {/* File upload */}
+                  <div className="space-y-2">
+                    <label className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">
+                      Input File
+                    </label>
+                    <div
+                      onClick={() => fileInputRef.current?.click()}
+                      className="border-2 border-dashed border-border/50 rounded-xl p-6 text-center cursor-pointer hover:border-primary/50 hover:bg-primary/5 transition-all"
+                    >
+                      <Upload className="w-8 h-8 mx-auto mb-2 text-muted-foreground" />
+                      <p className="text-sm font-medium">Drop text file or click to upload</p>
+                      <p className="text-xs text-muted-foreground mt-1">Structured .txt format</p>
+                    </div>
+                    <input
+                      ref={fileInputRef}
+                      type="file"
+                      accept=".txt,.text"
+                      onChange={handleFileUpload}
+                      className="hidden"
+                    />
+                  </div>
+
+                  <div className="space-y-2">
+                    <label className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">
+                      Or Paste Input
+                    </label>
+                    <textarea
+                      value={textContent}
+                      onChange={(e) => setTextContent(e.target.value)}
+                      placeholder={`Area: Wadi Al Safa 4\nPlotArea: 1200 sqm\nGFA: 1000 sqm\nZoning: Residential\nFloors: 3\n---`}
+                      className="w-full h-40 bg-muted/30 border border-border/50 rounded-xl p-3 text-xs font-mono resize-none focus:outline-none focus:ring-2 focus:ring-primary/50 placeholder:text-muted-foreground/50"
+                    />
+                  </div>
+
+                  <Button
+                    className="w-full gap-2"
+                    onClick={handleParse}
+                    disabled={!textContent.trim()}
+                  >
+                    <FileText className="w-4 h-4" />
+                    Parse & Validate Input
+                  </Button>
+                </div>
+              )}
 
               {/* Google Sheet connector */}
-              <div className="space-y-2">
+              <div className="space-y-2 pt-2 border-t border-border/30">
                 <label className="text-xs font-semibold text-muted-foreground uppercase tracking-wide flex items-center gap-1.5">
                   <Link2 className="w-3.5 h-3.5" />
                   Google Sheet Cross-Check (Optional)
@@ -327,15 +510,6 @@ export function LandMatchingWizard({
                   />
                 )}
               </div>
-
-              <Button
-                className="w-full gap-2"
-                onClick={handleParse}
-                disabled={!textContent.trim()}
-              >
-                <FileText className="w-4 h-4" />
-                Parse & Validate Input
-              </Button>
             </div>
           )}
 
@@ -353,32 +527,31 @@ export function LandMatchingWizard({
                 <Sparkles className="w-6 h-6 text-primary mx-auto mb-2" />
                 <h3 className="font-bold text-sm">Parsed {parsedInputs.length} Parcel(s)</h3>
                 <p className="text-xs text-muted-foreground">
-                  {parsedInputs.filter(i => i.plotAreaUnit !== 'unknown').length} valid for matching
+                  {parsedInputs.filter(i => i.plotAreaSqm > 0 || i.gfaSqm > 0).length} valid for matching
                 </p>
               </div>
 
-              {/* Parsed summary */}
               <div className="space-y-2">
                 {parsedInputs.map((input, idx) => (
                   <div key={idx} className="data-card text-xs space-y-1">
                     <div className="flex justify-between items-center">
                       <span className="font-semibold text-foreground">
-                        {input.plotNumber || `Parcel ${idx + 1}`}
+                        {input.plotNumber || input.area || `Parcel ${idx + 1}`}
                       </span>
-                      {input.plotAreaUnit === 'unknown' ? (
-                        <span className="text-destructive text-[10px] px-1.5 py-0.5 bg-destructive/10 rounded">
-                          Unknown unit
-                        </span>
-                      ) : (
+                      {(input.plotAreaSqm > 0 || input.gfaSqm > 0) ? (
                         <span className="text-success text-[10px] px-1.5 py-0.5 bg-success/10 rounded">
                           Valid
+                        </span>
+                      ) : (
+                        <span className="text-destructive text-[10px] px-1.5 py-0.5 bg-destructive/10 rounded">
+                          Missing data
                         </span>
                       )}
                     </div>
                     <div className="grid grid-cols-3 gap-2 text-muted-foreground">
-                      <span>Area: {input.plotAreaSqm.toFixed(0)} m²</span>
-                      <span>GFA: {input.gfaSqm.toFixed(0)} m²</span>
-                      <span>Floors: {input.heightFloors}</span>
+                      <span>Area: {input.plotAreaSqm > 0 ? `${input.plotAreaSqm.toFixed(0)} m²` : '—'}</span>
+                      <span>GFA: {input.gfaSqm > 0 ? `${input.gfaSqm.toFixed(0)} m²` : '—'}</span>
+                      <span>Floors: {input.heightFloors || '—'}</span>
                     </div>
                     {input.area && (
                       <div className="text-muted-foreground">
@@ -417,8 +590,8 @@ export function LandMatchingWizard({
                 </h3>
                 <p className="text-xs text-muted-foreground">
                   {matchResults.length > 0
-                    ? 'Plots within ±6% tolerance with matching configuration'
-                    : 'No matching land found within ±6% tolerance and identical building configuration'}
+                    ? 'Plots within ±6% tolerance'
+                    : 'No matching land found within tolerance'}
                 </p>
               </div>
 
@@ -455,12 +628,16 @@ export function LandMatchingWizard({
                     <div>
                       <span className="text-muted-foreground">Plot Area:</span>
                       <span className="ml-1 font-medium">{result.matchedPlotArea.toLocaleString()} m²</span>
-                      <span className="text-muted-foreground ml-1">(Δ {result.areaDeviation}%)</span>
+                      {result.areaDeviation > 0 && (
+                        <span className="text-muted-foreground ml-1">(Δ {result.areaDeviation}%)</span>
+                      )}
                     </div>
                     <div>
                       <span className="text-muted-foreground">GFA:</span>
                       <span className="ml-1 font-medium">{result.matchedGfa.toLocaleString()} m²</span>
-                      <span className="text-muted-foreground ml-1">(Δ {result.gfaDeviation}%)</span>
+                      {result.gfaDeviation > 0 && (
+                        <span className="text-muted-foreground ml-1">(Δ {result.gfaDeviation}%)</span>
+                      )}
                     </div>
                     <div>
                       <span className="text-muted-foreground">Zoning:</span>
