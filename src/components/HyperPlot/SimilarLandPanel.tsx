@@ -20,11 +20,41 @@ export function SimilarLandPanel({ plot, onSelectPlot }: SimilarLandPanelProps) 
     setLoading(true);
     setSearched(true);
     try {
+      // Search by plot area range
       const minArea = plot.area * (1 - TOLERANCE);
       const maxArea = plot.area * (1 + TOLERANCE);
+
+      // Also compute GFA range
+      const minGfa = plot.gfa * (1 - TOLERANCE);
+      const maxGfa = plot.gfa * (1 + TOLERANCE);
+
+      // Get the plot's location/area for same-area filtering
+      const plotLocation = (plot.location || plot.project || plot.entity || '').toLowerCase().trim();
+
+      // Search by area range via API
       const found = await gisService.searchByArea(minArea, maxArea);
-      // Filter out the current plot
-      const filtered = found.filter(p => p.id !== plot.id);
+
+      // Filter: same area/location AND GFA within ±6%
+      const filtered = found.filter(p => {
+        // Exclude current plot
+        if (p.id === plot.id) return false;
+
+        // GFA must also be within ±6%
+        if (p.gfa < minGfa || p.gfa > maxGfa) return false;
+
+        // Same area/location filter
+        if (plotLocation.length > 2) {
+          const pLocation = (p.location || p.project || p.entity || '').toLowerCase().trim();
+          // Check if locations share significant words
+          const plotWords = plotLocation.split(/\s+/).filter(w => w.length > 2);
+          const pWords = pLocation.split(/\s+/).filter(w => w.length > 2);
+          const hasCommon = plotWords.some(w => pWords.some(pw => pw.includes(w) || w.includes(pw)));
+          if (!hasCommon && pLocation !== plotLocation) return false;
+        }
+
+        return true;
+      });
+
       setResults(filtered);
     } catch {
       setResults([]);
@@ -59,7 +89,7 @@ export function SimilarLandPanel({ plot, onSelectPlot }: SimilarLandPanelProps) 
       )}
 
       {searched && !loading && results.length === 0 && (
-        <p className="text-xs text-muted-foreground py-2">No similar plots found within ±6% tolerance.</p>
+        <p className="text-xs text-muted-foreground py-2">No similar plots found within ±6% tolerance in the same area.</p>
       )}
 
       {results.length > 0 && (
@@ -92,8 +122,8 @@ export function SimilarLandPanel({ plot, onSelectPlot }: SimilarLandPanelProps) 
                     GFA {p.gfa.toLocaleString()} m²
                   </span>
                 </div>
-                {p.project && (
-                  <div className="text-muted-foreground mt-0.5">{p.project}</div>
+                {p.location && (
+                  <div className="text-muted-foreground mt-0.5">{p.location}</div>
                 )}
               </button>
             ))}
