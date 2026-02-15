@@ -3,7 +3,7 @@ import L from 'leaflet';
 import 'leaflet/dist/leaflet.css';
 import proj4 from 'proj4';
 import { PlotData } from '@/services/DDAGISService';
-import { Loader2 } from 'lucide-react';
+import { Loader2, Home, Search, Layers, Printer, Mail, Share2, MapPin } from 'lucide-react';
 
 // Define Dubai Local Transverse Mercator (EPSG:3997)
 proj4.defs('EPSG:3997', '+proj=tmerc +lat_0=0 +lon_0=55.33333333333334 +k=1 +x_0=500000 +y_0=0 +ellps=WGS84 +towgs84=0,0,0,0,0,0,0 +units=m +no_defs');
@@ -16,6 +16,12 @@ interface LeafletMapProps {
   onMapReady?: (map: L.Map) => void;
 }
 
+// Dubai Bounds - strictly lock to Dubai
+const DUBAI_BOUNDS = L.latLngBounds(
+  [24.7000, 54.8000], // Southwest
+  [25.4000, 55.6000]  // Northeast
+);
+
 // Convert EPSG:3997 coordinates to WGS84 (lat/lng)
 function convertToLatLng(x: number, y: number): [number, number] {
   try {
@@ -27,29 +33,16 @@ function convertToLatLng(x: number, y: number): [number, number] {
   }
 }
 
-// Get status color
-function getStatusColor(status: string): string {
-  switch (status.toLowerCase()) {
-    case 'available':
-      return '#22c55e';
-    case 'reserved':
-    case 'under construction':
-      return '#f97316';
-    case 'completed':
-      return '#6b7280';
-    case 'frozen':
-      return '#ef4444';
-    default:
-      return '#22c55e';
-  }
-}
+// DDA Blue Color
+const DDA_BLUE = '#2b5a9e';
+const DDA_BLUE_LIGHT = '#3d79cc';
 
-export function LeafletMap({ 
-  plots, 
-  selectedPlot, 
-  onPlotClick, 
+export function LeafletMap({
+  plots,
+  selectedPlot,
+  onPlotClick,
   highlightedPlots,
-  onMapReady 
+  onMapReady
 }: LeafletMapProps) {
   const mapContainerRef = useRef<HTMLDivElement>(null);
   const mapRef = useRef<L.Map | null>(null);
@@ -63,23 +56,27 @@ export function LeafletMap({
 
     // Create map centered on Dubai
     const map = L.map(mapContainerRef.current, {
-      center: [25.0657, 55.1713],
-      zoom: 12,
+      center: [25.075, 55.20],
+      zoom: 13,
+      minZoom: 11,
+      maxZoom: 19,
       zoomControl: false,
-      attributionControl: true
+      attributionControl: false,
+      maxBounds: DUBAI_BOUNDS,
+      maxBoundsViscosity: 1.0, // Strict bounce back
+      bounceAtZoomLimits: true,
+      worldCopyJump: false
     });
 
-    // Add Esri World Imagery basemap (satellite)
+    // Satellite Imagery Layer - MATCHING DDA VIBE
     L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}', {
-      attribution: 'Tiles &copy; Esri &mdash; Source: Esri, i-cubed, USDA, USGS, AEX, GeoEye, Getmapping, Aerogrid, IGN, IGP, UPR-EGP, and the GIS User Community',
-      maxZoom: 19
+      maxZoom: 19,
+      noWrap: true // Fix infinite scrolling
     }).addTo(map);
 
-    // Add zoom control to top-right
-    L.control.zoom({ position: 'topright' }).addTo(map);
-
-    // Add scale bar
-    L.control.scale({ position: 'bottomleft', imperial: false }).addTo(map);
+    // Zoom and Custom Controls in top-left as per DDA
+    const zoomControl = L.control.zoom({ position: 'topleft' });
+    zoomControl.addTo(map);
 
     mapRef.current = map;
     setIsLoading(false);
@@ -103,15 +100,15 @@ export function LeafletMap({
     plotLayersRef.current.forEach(layer => map.removeLayer(layer));
     plotLayersRef.current.clear();
 
-    const bounds: L.LatLngBounds[] = [];
+    function isSelectedOrHighlighted(id: string) {
+      return selectedPlot?.id === id || highlightedPlots.includes(id);
+    }
 
     plots.forEach(plot => {
-      // Check if plot has raw geometry data
       const rawAttrs = plot.rawAttributes;
       let polygon: L.Polygon | L.CircleMarker;
 
       if (rawAttrs && (rawAttrs as Record<string, unknown>).geometry) {
-        // Use actual polygon geometry if available
         const geom = (rawAttrs as Record<string, unknown>).geometry as { rings?: number[][][] };
         if (geom.rings && geom.rings.length > 0) {
           const latLngs = geom.rings[0].map(coord => {
@@ -119,237 +116,146 @@ export function LeafletMap({
             return L.latLng(lat, lng);
           });
 
-          const isSelected = selectedPlot?.id === plot.id;
-          const isHighlighted = highlightedPlots.includes(plot.id);
-          const glowActive = isSelected || isHighlighted;
-
           polygon = L.polygon(latLngs, {
-            color: glowActive ? '#00e5ff' : getStatusColor(plot.status),
-            weight: isSelected ? 3 : 2,
+            color: selectedPlot?.id === plot.id ? '#ffffff' : DDA_BLUE,
+            weight: selectedPlot?.id === plot.id ? 2 : 1,
             opacity: 1,
-            fillColor: getStatusColor(plot.status),
-            fillOpacity: isHighlighted ? 0.6 : 0.4,
-            className: glowActive ? 'plot-glow' : ''
+            fillColor: DDA_BLUE,
+            fillOpacity: isSelectedOrHighlighted(plot.id) ? 0.7 : 0.4
           });
-
-          bounds.push(polygon.getBounds());
         } else {
-          // Fallback to circle marker
-          const [lat2, lng2] = convertToLatLng(plot.x * 10 + 495000, plot.y * 10 + 2766000);
-          const isFallbackSel = selectedPlot?.id === plot.id;
-          const isFallbackHL = highlightedPlots.includes(plot.id);
-          polygon = L.circleMarker([lat2, lng2], {
-            radius: Math.sqrt(plot.area) / 5,
-            color: (isFallbackSel || isFallbackHL) ? '#00e5ff' : getStatusColor(plot.status),
+          const [lat, lng] = convertToLatLng(plot.x * 10 + 495000, plot.y * 10 + 2766000);
+          polygon = L.circleMarker([lat, lng], {
+            radius: 8,
+            color: selectedPlot?.id === plot.id ? '#ffffff' : DDA_BLUE,
             weight: 2,
-            fillColor: getStatusColor(plot.status),
-            fillOpacity: 0.4,
-            className: (isFallbackSel || isFallbackHL) ? 'plot-glow' : ''
+            fillColor: DDA_BLUE,
+            fillOpacity: 0.6
           });
         }
       } else {
-        // Create marker from normalized coordinates (demo mode)
         const [lat, lng] = convertToLatLng(plot.x * 10 + 495000, plot.y * 10 + 2766000);
-        const isSel = selectedPlot?.id === plot.id;
-        const isHL = highlightedPlots.includes(plot.id);
         polygon = L.circleMarker([lat, lng], {
-          radius: Math.sqrt(plot.area) / 5,
-          color: (isSel || isHL) ? '#00e5ff' : getStatusColor(plot.status),
+          radius: 8,
+          color: selectedPlot?.id === plot.id ? '#ffffff' : DDA_BLUE,
           weight: 2,
-          fillColor: getStatusColor(plot.status),
-          fillOpacity: 0.4,
-          className: (isSel || isHL) ? 'plot-glow' : ''
+          fillColor: DDA_BLUE,
+          fillOpacity: 0.6
         });
       }
 
-      // Add tooltip
-      polygon.bindTooltip(`
-        <div class="p-2 min-w-[180px]">
-          <div class="font-bold text-sm">${plot.id}</div>
-          <div class="text-xs text-gray-400">${plot.location || plot.project || 'Dubai'}</div>
-          <hr class="my-1 border-gray-600" />
-          <div class="grid grid-cols-2 gap-1 text-xs">
-            <span class="text-gray-400">Area:</span>
-            <span>${plot.area.toLocaleString()} m²</span>
-            <span class="text-gray-400">GFA:</span>
-            <span>${plot.gfa.toLocaleString()} m²</span>
-            <span class="text-gray-400">Status:</span>
-            <span style="color: ${getStatusColor(plot.status)}">${plot.status}</span>
-          </div>
-        </div>
-      `, {
-        permanent: false,
-        className: 'plot-tooltip'
-      });
-
-      // Add click handler
-      polygon.on('click', () => {
-        onPlotClick(plot);
-      });
-
+      polygon.on('click', () => onPlotClick(plot));
       polygon.addTo(map);
       plotLayersRef.current.set(plot.id, polygon);
     });
 
-    // Fit map to show all plots
-    if (bounds.length > 0) {
-      let combinedBounds = L.latLngBounds(bounds[0].getSouthWest(), bounds[0].getNorthEast());
-      bounds.forEach(b => {
-        combinedBounds = combinedBounds.extend(b);
-      });
-      map.fitBounds(combinedBounds, { padding: [50, 50] });
+    // Auto-zoom if specific plot number was found (from wizard)
+    if (selectedPlot && plotLayersRef.current.has(selectedPlot.id)) {
+      const layer = plotLayersRef.current.get(selectedPlot.id);
+      if (layer) {
+        if ('getBounds' in layer) {
+          map.fitBounds((layer as L.Polygon).getBounds(), { padding: [100, 100], maxZoom: 17 });
+        } else {
+          map.setView((layer as L.CircleMarker).getLatLng(), 17);
+        }
+      }
     }
   }, [plots, selectedPlot, highlightedPlots, onPlotClick]);
 
-  // Handle selected plot highlighting and zoom
-  useEffect(() => {
-    const map = mapRef.current;
-    if (!map || !selectedPlot) return;
-
-    const layer = plotLayersRef.current.get(selectedPlot.id);
-    if (layer) {
-      // Reset previous selection
-      if (selectedLayerRef.current && selectedLayerRef.current !== layer) {
-        const prevPlot = plots.find(p => plotLayersRef.current.get(p.id) === selectedLayerRef.current);
-        if (prevPlot) {
-          (selectedLayerRef.current as L.Path).setStyle({
-            color: getStatusColor(prevPlot.status),
-            weight: 2
-          });
-        }
-      }
-
-      // Highlight selected with cyan glow
-      (layer as L.Path).setStyle({
-        color: '#00e5ff',
-        weight: 3,
-        className: 'plot-glow'
-      });
-      selectedLayerRef.current = layer;
-
-      // Zoom to selected
-      if ('getBounds' in layer) {
-        map.fitBounds((layer as L.Polygon).getBounds(), { padding: [100, 100], maxZoom: 17 });
-      } else if ('getLatLng' in layer) {
-        map.setView((layer as L.CircleMarker).getLatLng(), 16);
-      }
-    }
-  }, [selectedPlot, plots]);
-
-  // Function to zoom to specific plot (for external use)
-  const zoomToPlot = useCallback((plotId: string) => {
-    const map = mapRef.current;
-    const layer = plotLayersRef.current.get(plotId);
-    if (map && layer) {
-      if ('getBounds' in layer) {
-        map.fitBounds((layer as L.Polygon).getBounds(), { padding: [100, 100], maxZoom: 17 });
-      } else if ('getLatLng' in layer) {
-        map.setView((layer as L.CircleMarker).getLatLng(), 16);
-      }
+  const resetView = useCallback(() => {
+    if (mapRef.current) {
+      mapRef.current.setView([25.075, 55.20], 13);
     }
   }, []);
-
-  // Reset view function
-  const resetView = useCallback(() => {
-    const map = mapRef.current;
-    if (map && plots.length > 0) {
-      const boundsArr: L.LatLngBounds[] = [];
-      plotLayersRef.current.forEach(layer => {
-        if ('getBounds' in layer) {
-          boundsArr.push((layer as L.Polygon).getBounds());
-        }
-      });
-      if (boundsArr.length > 0) {
-        let combinedBounds = L.latLngBounds(boundsArr[0].getSouthWest(), boundsArr[0].getNorthEast());
-        boundsArr.forEach(b => {
-          combinedBounds = combinedBounds.extend(b);
-        });
-        map.fitBounds(combinedBounds, { padding: [50, 50] });
-      }
-    }
-  }, [plots]);
 
   return (
     <div className="relative w-full h-full rounded-2xl overflow-hidden">
       {isLoading && (
         <div className="absolute inset-0 flex items-center justify-center bg-card/80 backdrop-blur z-50">
-          <div className="flex flex-col items-center gap-3">
-            <Loader2 className="w-8 h-8 animate-spin text-primary" />
-            <span className="text-sm text-muted-foreground">Loading map...</span>
-          </div>
+          <Loader2 className="w-8 h-8 animate-spin text-primary" />
         </div>
       )}
-      
-      <div 
-        ref={mapContainerRef} 
+
+      <div
+        ref={mapContainerRef}
         className="w-full h-full"
         style={{ minHeight: '400px' }}
       />
 
-      {/* Custom Map Controls */}
-      <div className="absolute top-4 left-4 z-[1000] flex flex-col gap-2">
+      {/* DDA Style Floating Controls top-left */}
+      <div className="absolute top-20 left-2 z-[1000] flex flex-col gap-1">
         <button
           onClick={resetView}
-          className="glass-card p-2 hover:bg-muted/50 transition-colors"
+          className="dda-map-btn"
           title="Reset View"
         >
-          <svg className="w-5 h-5 text-foreground" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 8V4m0 0h4M4 4l5 5m11-1V4m0 0h-4m4 0l-5 5M4 16v4m0 0h4m-4 0l5-5m11 5v-4m0 4h-4m4 0l-5-5" />
-          </svg>
+          <Home className="w-4 h-4" />
         </button>
       </div>
 
-      {/* Legend */}
-      <div className="absolute bottom-4 right-4 z-[1000] glass-card p-3">
-        <div className="text-xs font-bold text-primary mb-2">Status Legend</div>
-        <div className="space-y-1.5 text-xs">
-          <div className="flex items-center gap-2">
-            <div className="w-3 h-3 rounded" style={{ backgroundColor: '#22c55e' }} />
-            <span className="text-muted-foreground">Available</span>
-          </div>
-          <div className="flex items-center gap-2">
-            <div className="w-3 h-3 rounded" style={{ backgroundColor: '#f97316' }} />
-            <span className="text-muted-foreground">Reserved/In Progress</span>
-          </div>
-          <div className="flex items-center gap-2">
-            <div className="w-3 h-3 rounded" style={{ backgroundColor: '#6b7280' }} />
-            <span className="text-muted-foreground">Completed</span>
-          </div>
-          <div className="flex items-center gap-2">
-            <div className="w-3 h-3 rounded" style={{ backgroundColor: '#ef4444' }} />
-            <span className="text-muted-foreground">Frozen</span>
-          </div>
+      {/* DDA Style Toolbar top-right */}
+      <div className="absolute top-2 right-2 z-[1000]">
+        <div className="flex flex-col gap-1">
+          <button className="dda-map-btn" title="Search"><Search className="w-4 h-4" /></button>
+          <button className="dda-map-btn" title="Layers"><Layers className="w-4 h-4" /></button>
+          <button className="dda-map-btn" title="Print"><Printer className="w-4 h-4" /></button>
+          <button className="dda-map-btn" title="Email"><Mail className="w-4 h-4" /></button>
+          <button className="dda-map-btn" title="Share"><Share2 className="w-4 h-4" /></button>
         </div>
       </div>
 
-      {/* Tooltip Styles */}
+      {/* DDA Style Scale Bar bottom-left */}
+      <div className="absolute bottom-3 left-3 z-[1000]">
+        <div className="flex items-end gap-1.5 text-[10px] font-mono text-white/80">
+          <div className="flex flex-col items-start">
+            <div
+              className="h-[2px] bg-white/70"
+              style={{ width: '60px' }}
+            />
+          </div>
+          500 m
+        </div>
+      </div>
+
+      {/* Map control styles */}
       <style>{`
-        .plot-tooltip {
-          background: hsl(222 47% 8% / 0.95) !important;
-          border: 1px solid hsl(187 94% 43% / 0.3) !important;
-          border-radius: 0.75rem !important;
-          box-shadow: 0 4px 20px hsla(222, 47%, 5%, 0.5) !important;
-          color: hsl(210 40% 98%) !important;
-          padding: 0 !important;
+        .dda-map-btn {
+          width: 32px;
+          height: 32px;
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          background: hsl(222 47% 8% / 0.85);
+          border: 1px solid hsl(217 33% 25%);
+          border-radius: 6px;
+          color: hsl(210 40% 85%);
+          cursor: pointer;
+          transition: all 0.15s;
         }
-        .plot-tooltip::before {
-          border-top-color: hsl(187 94% 43% / 0.3) !important;
+        .dda-map-btn:hover {
+          background: hsl(217 33% 17%);
+          color: hsl(187 94% 43%);
+          border-color: hsl(187 94% 43% / 0.4);
+        }
+        .leaflet-control-zoom {
+          border: none !important;
+          box-shadow: none !important;
         }
         .leaflet-control-zoom a {
-          background: hsl(222 47% 8% / 0.9) !important;
-          color: hsl(210 40% 98%) !important;
-          border: 1px solid hsl(217 33% 20%) !important;
+          width: 32px !important;
+          height: 32px !important;
+          line-height: 32px !important;
+          background: hsl(222 47% 8% / 0.85) !important;
+          color: hsl(210 40% 85%) !important;
+          border: 1px solid hsl(217 33% 25%) !important;
+          border-radius: 6px !important;
+          margin-bottom: 2px !important;
+          font-size: 16px !important;
         }
         .leaflet-control-zoom a:hover {
           background: hsl(217 33% 17%) !important;
-        }
-        .leaflet-control-scale-line {
-          background: hsl(222 47% 8% / 0.9) !important;
-          border-color: hsl(187 94% 43% / 0.5) !important;
-          color: hsl(210 40% 98%) !important;
-        }
-        .plot-glow {
-          filter: drop-shadow(0 0 6px rgba(0, 229, 255, 0.7)) drop-shadow(0 0 12px rgba(0, 229, 255, 0.4));
+          color: hsl(187 94% 43%) !important;
+          border-color: hsl(187 94% 43% / 0.4) !important;
         }
       `}</style>
     </div>
