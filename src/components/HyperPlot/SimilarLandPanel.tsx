@@ -20,38 +20,24 @@ export function SimilarLandPanel({ plot, onSelectPlot }: SimilarLandPanelProps) 
     setLoading(true);
     setSearched(true);
     try {
-      // Search by plot area range
       const minArea = plot.area * (1 - TOLERANCE);
       const maxArea = plot.area * (1 + TOLERANCE);
-
-      // Also compute GFA range
       const minGfa = plot.gfa * (1 - TOLERANCE);
       const maxGfa = plot.gfa * (1 + TOLERANCE);
 
-      // Get the plot's location/area for same-area filtering
-      const plotLocation = (plot.location || plot.project || plot.entity || '').toLowerCase().trim();
+      // Use the project name to restrict search to the same area/project
+      const projectName = plot.project || plot.entity || plot.location || '';
 
-      // Search by area range via API
-      const found = await gisService.searchByArea(minArea, maxArea);
+      // Search by area range AND project name so we get plots from the same area
+      const found = await gisService.searchByArea(minArea, maxArea, projectName || undefined);
 
-      // Filter: same area/location AND GFA within ±6%
+      // Client-side: also filter by GFA tolerance and exclude current plot
       const filtered = found.filter(p => {
-        // Exclude current plot
         if (p.id === plot.id) return false;
-
-        // GFA must also be within ±6%
-        if (p.gfa < minGfa || p.gfa > maxGfa) return false;
-
-        // Same area/location filter
-        if (plotLocation.length > 2) {
-          const pLocation = (p.location || p.project || p.entity || '').toLowerCase().trim();
-          // Check if locations share significant words
-          const plotWords = plotLocation.split(/\s+/).filter(w => w.length > 2);
-          const pWords = pLocation.split(/\s+/).filter(w => w.length > 2);
-          const hasCommon = plotWords.some(w => pWords.some(pw => pw.includes(w) || w.includes(pw)));
-          if (!hasCommon && pLocation !== plotLocation) return false;
+        // GFA must be within ±6% (skip check if either has 0 GFA)
+        if (plot.gfa > 0 && p.gfa > 0) {
+          if (p.gfa < minGfa || p.gfa > maxGfa) return false;
         }
-
         return true;
       });
 
@@ -80,6 +66,13 @@ export function SimilarLandPanel({ plot, onSelectPlot }: SimilarLandPanelProps) 
           {loading ? <Loader2 className="w-3 h-3 animate-spin" /> : 'Find Similar (±6%)'}
         </Button>
       </div>
+
+      {/* Context info */}
+      {!searched && (
+        <p className="text-[10px] text-muted-foreground mb-2">
+          Searches for plots with ±6% area & GFA in <span className="font-medium text-foreground">{plot.project || plot.location || 'same area'}</span>
+        </p>
+      )}
 
       {loading && (
         <div className="flex items-center justify-center py-4">
