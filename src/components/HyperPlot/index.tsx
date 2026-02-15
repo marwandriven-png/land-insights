@@ -1,5 +1,6 @@
 import { useState, useEffect, useCallback, useMemo } from 'react';
-import { Map, Home, BarChart3, Brain, AlertCircle, X, RefreshCw, Wifi, WifiOff, Target } from 'lucide-react';
+import { Map, Home, BarChart3, Brain, AlertCircle, X, RefreshCw, Wifi, WifiOff, Target, Clock } from 'lucide-react';
+import { addLastSeen, getLastSeen, LastSeenEntry } from '@/services/LastSeenService';
 import { gisService, PlotData, generateDemoPlots } from '@/services/DDAGISService';
 import { Header } from './Header';
 import { LeafletMap } from './LeafletMap';
@@ -31,6 +32,7 @@ export function HyperPlotAI() {
   const [loadProgress, setLoadProgress] = useState(0);
   const [showDetailPanel, setShowDetailPanel] = useState(false);
   const [showWizard, setShowWizard] = useState(false);
+  const [lastSeen, setLastSeen] = useState<LastSeenEntry[]>(getLastSeen());
   const [filters, setFilters] = useState<FilterState>({
     status: [],
     zoning: [],
@@ -138,16 +140,34 @@ export function HyperPlotAI() {
     }
   }, [searchQuery, filters, filteredPlots]);
 
+  const saveLastSeen = useCallback((plot: PlotData) => {
+    // Only save if coordinates are valid (non-zero)
+    if (plot.x === 0 && plot.y === 0) return;
+    addLastSeen({
+      plotId: plot.id,
+      plotName: plot.project || plot.id,
+      location: plot.location || '',
+      coordinates: { x: plot.x, y: plot.y },
+      area: plot.area,
+      gfa: plot.gfa,
+      zoning: plot.zoning,
+      status: plot.status,
+    });
+    setLastSeen(getLastSeen());
+  }, []);
+
   const handlePlotClick = useCallback((plot: PlotData) => {
     setSelectedPlot(plot);
     setShowDetailPanel(true);
-  }, []);
+    saveLastSeen(plot);
+  }, [saveLastSeen]);
 
   const handlePlotFound = useCallback((plot: PlotData) => {
     setSelectedPlot(plot);
     setShowDetailPanel(true);
     setActiveTab('map');
-  }, []);
+    saveLastSeen(plot);
+  }, [saveLastSeen]);
 
   const handleCloseDetailPanel = useCallback(() => {
     setShowDetailPanel(false);
@@ -352,6 +372,39 @@ export function HyperPlotAI() {
             {/* Plots List */}
             <ScrollArea className="flex-1 mt-4">
               <div className="space-y-2 pr-2">
+                {/* Last Seen Section */}
+                {lastSeen.length > 0 && !searchQuery && filters.status.length === 0 && filters.zoning.length === 0 && (
+                  <div className="mb-3">
+                    <div className="flex items-center gap-1.5 mb-2">
+                      <Clock className="w-3.5 h-3.5 text-muted-foreground" />
+                      <span className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wide">Last Seen</span>
+                    </div>
+                    {lastSeen.slice(0, 5).map(entry => {
+                      const matchedPlot = plots.find(p => p.id === entry.plotId);
+                      return (
+                        <button
+                          key={entry.plotId}
+                          onClick={() => matchedPlot && handlePlotClick(matchedPlot)}
+                          className={`w-full text-left mb-1.5 px-3 py-2 rounded-lg border transition-all text-xs ${
+                            matchedPlot ? 'border-border/50 bg-muted/20 hover:bg-muted/40 cursor-pointer' : 'border-border/30 bg-muted/10 opacity-60 cursor-default'
+                          }`}
+                        >
+                          <div className="flex items-center justify-between">
+                            <span className="font-semibold text-foreground">{entry.plotId}</span>
+                            <span className="text-[10px] text-muted-foreground">
+                              {new Date(entry.timestamp).toLocaleDateString()}
+                            </span>
+                          </div>
+                          <div className="text-muted-foreground mt-0.5">
+                            {entry.location} • {entry.area.toLocaleString()} m²
+                          </div>
+                        </button>
+                      );
+                    })}
+                    <div className="border-b border-border/30 mt-2 mb-1" />
+                  </div>
+                )}
+
                 {filteredPlots.slice(0, 50).map(plot => (
                   <PlotListItem
                     key={plot.id}

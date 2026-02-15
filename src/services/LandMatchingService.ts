@@ -70,14 +70,14 @@ export function parseTextFile(content: string): ParcelInput[] {
       fields[key] = value;
     }
     
-    const plotAreaParsed = parseUnit(fields['plotarea'] || fields['area_sqm'] || '0');
+    const plotAreaParsed = parseUnit(fields['plotarea'] || fields['area_sqm'] || fields['landarea'] || '0');
     const gfaParsed = parseUnit(fields['gfa'] || fields['gfa_sqm'] || '0');
     
     const plotAreaSqm = toSqm(plotAreaParsed.num, plotAreaParsed.unit);
     const gfaSqm = toSqm(gfaParsed.num, gfaParsed.unit);
     
     return {
-      area: fields['area'] || '',
+      area: fields['area'] || fields['areaname'] || '',
       plotArea: plotAreaParsed.num,
       plotAreaUnit: plotAreaParsed.unit,
       gfa: gfaParsed.num,
@@ -93,14 +93,46 @@ export function parseTextFile(content: string): ParcelInput[] {
   });
 }
 
+/**
+ * Build a ParcelInput from quick-search form fields.
+ * Area name is mandatory. At least one of plotArea or GFA must be provided.
+ */
+export function buildParcelFromForm(params: {
+  areaName: string;
+  plotArea?: number;
+  plotAreaUnit?: 'sqm' | 'sqft';
+  gfa?: number;
+  gfaUnit?: 'sqm' | 'sqft';
+  zoning?: string;
+  floors?: number;
+}): ParcelInput {
+  const paUnit = params.plotAreaUnit || 'sqm';
+  const gUnit = params.gfaUnit || 'sqm';
+  return {
+    area: params.areaName,
+    plotArea: params.plotArea || 0,
+    plotAreaUnit: params.plotArea ? paUnit : 'unknown',
+    gfa: params.gfa || 0,
+    gfaUnit: params.gfa ? gUnit : 'unknown',
+    zoning: params.zoning || '',
+    use: '',
+    heightFloors: params.floors || 0,
+    far: 0,
+    plotAreaSqm: params.plotArea ? toSqm(params.plotArea, paUnit) : 0,
+    gfaSqm: params.gfa ? toSqm(params.gfa, gUnit) : 0,
+  };
+}
+
 function normalizeZoning(z: string): string {
   return z.toLowerCase().replace(/[\s_-]+/g, '').replace(/apartments?|villa?s?/gi, '');
 }
 
-function normalizeUse(u: string): string {
-  return u.toLowerCase().replace(/[\s_-]+/g, '');
-}
-
+/**
+ * Relaxed matching:
+ * - Area name (mandatory) must match location
+ * - Plot Area OR GFA must be within ±6% (only one is required)
+ * - Zoning, floors, FAR are optional enhancers (boost confidence but don't block)
+ */
 export function matchParcels(
   inputs: ParcelInput[],
   plots: Array<{
@@ -116,48 +148,82 @@ export function matchParcels(
   const results: MatchResult[] = [];
   
   for (const input of inputs) {
-    // Skip inputs with unknown units
-    if (input.plotAreaUnit === 'unknown' || input.gfaUnit === 'unknown') {
-      continue;
-    }
+    // Must have area name
+    if (!input.area || input.area.trim().length === 0) continue;
+
+    // Must have at least one of plotArea or GFA with known/assumed unit
+    const hasPlotArea = input.plotAreaSqm > 0;
+    const hasGfa = input.gfaSqm > 0;
+    if (!hasPlotArea && !hasGfa) continue;
     
     for (const plot of plots) {
-      // 1. Area filter - match location/area name
-      if (input.area) {
-        const inputArea = input.area.toLowerCase();
-        const plotLocation = (plot.location || '').toLowerCase();
-        if (!plotLocation.includes(inputArea) && !inputArea.includes(plotLocation)) {
-          // Don't skip if area is empty or generic
-          if (inputArea.length > 3) continue;
-        }
+      // 1. Area name filter (mandatory) — match location
+      const inputArea = input.area.toLowerCase().trim();
+      const plotLocation = (plot.location || '').toLowerCase();
+      if (!plotLocation.includes(inputArea) && !inputArea.includes(plotLocation)) {
+        // If area name is very short (3 chars or less), allow through
+        if (inputArea.length > 3) continue;
       }
       
-      // 2. Building config filter (strict) - zoning must match
+      // 2. Tolerance matching: ±6% for Plot Area AND/OR GFA
+      let areaDev = 0;
+      let gfaDev = 0;
+      let areaMatch = true;
+      let gfaMatch = true;
+
+      if (hasPlotArea) {
+        areaDev = Math.abs(plot.area - input.plotAreaSqm) / input.plotAreaSqm;
+        areaMatch = areaDev <= TOLERANCE;
+      }
+      if (hasGfa) {
+        gfaDev = Math.abs(plot.gfa - input.gfaSqm) / input.gfaSqm;
+        gfaMatch = gfaDev <= TOLERANCE;
+      }
+
+      // At least one metric must match within tolerance
+      if (hasPlotArea && hasGfa) {
+        // If both provided, both must match
+        if (!areaMatch || !gfaMatch) continue;
+      } else if (hasPlotArea) {
+        if (!areaMatch) continue;
+      } else if (hasGfa) {
+        if (!gfaMatch) continue;
+      }
+      
+      // 3. Calculate confidence score — base from area/GFA match
+      let confidenceScore = 0;
+
+      if (hasPlotArea) {
+        confidenceScore += Math.max(0, 1 - areaDev / TOLERANCE) * (hasGfa ? 35 : 60);
+      }
+      if (hasGfa) {
+        confidenceScore += Math.max(0, 1 - gfaDev / TOLERANCE) * (hasPlotArea ? 35 : 60);
+      }
+
+      // 4. Optional enhancers — boost confidence, never block
+      // Zoning match bonus (+20)
       if (input.zoning) {
         const inputZoning = normalizeZoning(input.zoning);
         const plotZoning = normalizeZoning(plot.zoning);
-        if (!plotZoning.includes(inputZoning) && !inputZoning.includes(plotZoning)) {
-          continue;
+        if (plotZoning.includes(inputZoning) || inputZoning.includes(plotZoning)) {
+          confidenceScore += 20;
         }
       }
-      
-      // 3. Height/floors check
+
+      // Floors match bonus (+10)
       if (input.heightFloors > 0) {
         const plotFloors = parseInt(plot.floors.replace(/[^0-9]/g, ''), 10) || 0;
-        // Allow +1 floor tolerance
-        if (Math.abs(plotFloors - input.heightFloors) > 1) continue;
+        if (Math.abs(plotFloors - input.heightFloors) <= 1) {
+          confidenceScore += 10;
+        }
       }
-      
-      // 4. Tolerance matching: ±6% for Plot Area & GFA
-      const areaDev = Math.abs(plot.area - input.plotAreaSqm) / input.plotAreaSqm;
-      const gfaDev = Math.abs(plot.gfa - input.gfaSqm) / input.gfaSqm;
-      
-      if (areaDev > TOLERANCE || gfaDev > TOLERANCE) continue;
-      
-      // Calculate confidence score
-      const areaScore = Math.max(0, 1 - areaDev / TOLERANCE) * 50;
-      const gfaScore = Math.max(0, 1 - gfaDev / TOLERANCE) * 50;
-      const confidenceScore = Math.round(areaScore + gfaScore);
+
+      // Area name exact match bonus (+10)
+      if (plotLocation === inputArea) {
+        confidenceScore += 10;
+      }
+
+      confidenceScore = Math.min(100, Math.round(confidenceScore));
       
       results.push({
         input,
@@ -167,8 +233,8 @@ export function matchParcels(
         matchedZoning: plot.zoning,
         matchedStatus: plot.status,
         matchedLocation: plot.location,
-        areaDeviation: parseFloat((areaDev * 100).toFixed(2)),
-        gfaDeviation: parseFloat((gfaDev * 100).toFixed(2)),
+        areaDeviation: hasPlotArea ? parseFloat((areaDev * 100).toFixed(2)) : 0,
+        gfaDeviation: hasGfa ? parseFloat((gfaDev * 100).toFixed(2)) : 0,
         confidenceScore
       });
     }
