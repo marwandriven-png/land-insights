@@ -119,35 +119,46 @@ export function LeafletMap({
             return L.latLng(lat, lng);
           });
 
+          const isSelected = selectedPlot?.id === plot.id;
+          const isHighlighted = highlightedPlots.includes(plot.id);
+          const glowActive = isSelected || isHighlighted;
+
           polygon = L.polygon(latLngs, {
-            color: selectedPlot?.id === plot.id ? '#ef4444' : getStatusColor(plot.status),
-            weight: selectedPlot?.id === plot.id ? 3 : 2,
+            color: glowActive ? '#00e5ff' : getStatusColor(plot.status),
+            weight: isSelected ? 3 : 2,
             opacity: 1,
             fillColor: getStatusColor(plot.status),
-            fillOpacity: highlightedPlots.includes(plot.id) ? 0.6 : 0.4
+            fillOpacity: isHighlighted ? 0.6 : 0.4,
+            className: glowActive ? 'plot-glow' : ''
           });
 
           bounds.push(polygon.getBounds());
         } else {
           // Fallback to circle marker
-          const [lat, lng] = convertToLatLng(plot.x * 10 + 495000, plot.y * 10 + 2766000);
-          polygon = L.circleMarker([lat, lng], {
+          const [lat2, lng2] = convertToLatLng(plot.x * 10 + 495000, plot.y * 10 + 2766000);
+          const isFallbackSel = selectedPlot?.id === plot.id;
+          const isFallbackHL = highlightedPlots.includes(plot.id);
+          polygon = L.circleMarker([lat2, lng2], {
             radius: Math.sqrt(plot.area) / 5,
-            color: selectedPlot?.id === plot.id ? '#ef4444' : getStatusColor(plot.status),
+            color: (isFallbackSel || isFallbackHL) ? '#00e5ff' : getStatusColor(plot.status),
             weight: 2,
             fillColor: getStatusColor(plot.status),
-            fillOpacity: 0.4
+            fillOpacity: 0.4,
+            className: (isFallbackSel || isFallbackHL) ? 'plot-glow' : ''
           });
         }
       } else {
         // Create marker from normalized coordinates (demo mode)
         const [lat, lng] = convertToLatLng(plot.x * 10 + 495000, plot.y * 10 + 2766000);
+        const isSel = selectedPlot?.id === plot.id;
+        const isHL = highlightedPlots.includes(plot.id);
         polygon = L.circleMarker([lat, lng], {
           radius: Math.sqrt(plot.area) / 5,
-          color: selectedPlot?.id === plot.id ? '#ef4444' : getStatusColor(plot.status),
+          color: (isSel || isHL) ? '#00e5ff' : getStatusColor(plot.status),
           weight: 2,
           fillColor: getStatusColor(plot.status),
-          fillOpacity: 0.4
+          fillOpacity: 0.4,
+          className: (isSel || isHL) ? 'plot-glow' : ''
         });
       }
 
@@ -208,10 +219,11 @@ export function LeafletMap({
         }
       }
 
-      // Highlight selected
+      // Highlight selected with cyan glow
       (layer as L.Path).setStyle({
-        color: '#ef4444',
-        weight: 3
+        color: '#00e5ff',
+        weight: 3,
+        className: 'plot-glow'
       });
       selectedLayerRef.current = layer;
 
@@ -335,6 +347,9 @@ export function LeafletMap({
           background: hsl(222 47% 8% / 0.9) !important;
           border-color: hsl(187 94% 43% / 0.5) !important;
           color: hsl(210 40% 98%) !important;
+        }
+        .plot-glow {
+          filter: drop-shadow(0 0 6px rgba(0, 229, 255, 0.7)) drop-shadow(0 0 12px rgba(0, 229, 255, 0.4));
         }
       `}</style>
     </div>
