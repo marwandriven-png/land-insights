@@ -213,13 +213,16 @@ export function LandMatchingWizard({
         setMatchResults(results);
         setStep('results');
         onHighlightPlots(results.map(r => r.matchedPlotId));
-      } catch {
-        setError('Matching failed. Please try again.');
-        setStep('upload');
+      } catch (err) {
+        console.warn('Matching error:', err);
+        setMatchResults([]);
+        setStep('results');
       }
-    } catch {
+    } catch (err) {
+      console.warn('Parse error:', err);
       setError('Failed to parse input');
-      setStep('upload');
+      setMatchResults([]);
+      setStep('results');
     } finally {
       setIsProcessing(false);
     }
