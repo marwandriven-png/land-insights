@@ -81,10 +81,11 @@ export function LandMatchingWizard({
     reader.readAsText(file);
   }, []);
 
-  const handleQuickSearch = useCallback(() => {
+  const handleQuickSearch = useCallback(async () => {
     if (!canQuickSearch) return;
     setIsProcessing(true);
     setError(null);
+    setStep('matching');
 
     try {
       const parcel = buildParcelFromForm({
@@ -98,13 +99,35 @@ export function LandMatchingWizard({
       });
 
       setParsedInputs([parcel]);
-      setIsProcessing(false);
-      setStep('matching');
+
+      // Auto-run matching immediately
+      let results = matchParcels([parcel], plots);
+
+      // If no local matches, try live GIS API
+      if (results.length === 0) {
+        const { gisService } = await import('@/services/DDAGISService');
+        const tolerance = 0.06;
+        const minArea = parcel.plotAreaSqm > 0 ? parcel.plotAreaSqm * (1 - tolerance) : undefined;
+        const maxArea = parcel.plotAreaSqm > 0 ? parcel.plotAreaSqm * (1 + tolerance) : undefined;
+        try {
+          const apiPlots = await gisService.searchByArea(minArea, maxArea, parcel.area);
+          if (apiPlots.length > 0) {
+            const allPlots = [...plots, ...apiPlots.filter(ap => !plots.find(p => p.id === ap.id))];
+            results = matchParcels([parcel], allPlots);
+          }
+        } catch { /* continue */ }
+      }
+
+      setMatchResults(results);
+      setStep('results');
+      onHighlightPlots(results.map(r => r.matchedPlotId));
     } catch {
       setError('Invalid input values');
+      setStep('upload');
+    } finally {
       setIsProcessing(false);
     }
-  }, [canQuickSearch, formArea, formPlotArea, formPlotUnit, formGfa, formGfaUnit, formZoning, formFloors]);
+  }, [canQuickSearch, formArea, formPlotArea, formPlotUnit, formGfa, formGfaUnit, formZoning, formFloors, plots, onHighlightPlots]);
 
   const handleParse = useCallback(() => {
     if (!textContent.trim()) {
@@ -154,13 +177,43 @@ export function LandMatchingWizard({
         const { gisService } = await import('@/services/DDAGISService');
         for (const input of parsedInputs) {
           if (!input.area) continue;
+
+          // Check if area looks like a plot number (all digits)
+          const isPlotNumber = /^\d+$/.test(input.area.trim());
+
+          if (isPlotNumber) {
+            // Direct plot ID lookup
+            try {
+              const plot = await gisService.fetchPlotById(input.area.trim());
+              if (plot) {
+                const allPlots = [...plots, plot].filter((p, i, arr) => arr.findIndex(x => x.id === p.id) === i);
+                results = matchParcels(parsedInputs, allPlots);
+                if (results.length === 0) {
+                  // If tolerance doesn't match, still show the plot as a direct result
+                  results = [{
+                    input,
+                    matchedPlotId: plot.id,
+                    matchedPlotArea: plot.area,
+                    matchedGfa: plot.gfa,
+                    matchedZoning: plot.zoning,
+                    matchedStatus: plot.status,
+                    matchedLocation: plot.location,
+                    areaDeviation: input.plotAreaSqm > 0 ? parseFloat((Math.abs(plot.area - input.plotAreaSqm) / input.plotAreaSqm * 100).toFixed(2)) : 0,
+                    gfaDeviation: input.gfaSqm > 0 ? parseFloat((Math.abs(plot.gfa - input.gfaSqm) / input.gfaSqm * 100).toFixed(2)) : 0,
+                    confidenceScore: 100,
+                  }];
+                }
+                break;
+              }
+            } catch { /* continue */ }
+          }
+
           const tolerance = 0.06;
           const minArea = input.plotAreaSqm > 0 ? input.plotAreaSqm * (1 - tolerance) : undefined;
           const maxArea = input.plotAreaSqm > 0 ? input.plotAreaSqm * (1 + tolerance) : undefined;
           try {
             const apiPlots = await gisService.searchByArea(minArea, maxArea, input.area);
             if (apiPlots.length > 0) {
-              // Re-run matching with API results merged
               const allPlots = [...plots, ...apiPlots.filter(ap => !plots.find(p => p.id === ap.id))];
               results = matchParcels(parsedInputs, allPlots);
               break;

@@ -408,6 +408,9 @@ export function PlotDetailPanel({ plot, onClose, onSelectPlot, onGoToLocation }:
             <Download className="w-4 h-4" />
             Export Plot Report (PDF)
           </Button>
+
+          {/* Bottom spacer for scroll */}
+          <div className="h-4" />
         </div>
       </div>
     </div>
