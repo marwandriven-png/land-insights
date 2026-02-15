@@ -156,7 +156,7 @@ export function HyperPlotAI() {
   return (
     <div className="h-screen bg-background text-foreground flex flex-col overflow-hidden">
       {/* Header */}
-      <header className="border-b border-border/50 bg-card/50 backdrop-blur-xl sticky top-0 z-50">
+      <header className="border-b border-border/50 bg-card/50 backdrop-blur-xl shrink-0 z-50">
         <div className="container mx-auto px-4 py-3">
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-3">
@@ -250,8 +250,8 @@ export function HyperPlotAI() {
       )}
 
       {/* Main Content */}
-      <div className="container mx-auto px-4 py-4 flex-1 min-h-0">
-        <div className="grid grid-cols-12 gap-4 h-full">
+      <div className="container mx-auto px-4 py-4 flex-1 min-h-0 overflow-hidden">
+        <div className="grid grid-cols-12 gap-4 h-full overflow-hidden">
           {/* Sidebar Navigation */}
           <div className="col-span-1 space-y-2">
             {TABS.map((tab) => (
@@ -274,7 +274,7 @@ export function HyperPlotAI() {
           </div>
 
           {/* Main Panel */}
-          <div className="col-span-7 relative">
+          <div className="col-span-7 relative h-full overflow-hidden">
             {activeTab === 'map' && (
               <div className="h-full glass-card glow-border overflow-hidden">
                 <LeafletMap
@@ -328,7 +328,7 @@ export function HyperPlotAI() {
           </div>
 
           {/* Right Sidebar - Search & Plots List */}
-          <div className="col-span-4 glass-card glow-border p-4 flex flex-col">
+          <div className="col-span-4 glass-card glow-border p-4 flex flex-col h-full overflow-hidden">
             <div className="flex items-center justify-between mb-4">
               <div>
                 <h3 className="font-bold text-sm">Available Plots</h3>
