@@ -94,6 +94,68 @@ export function parseTextFile(content: string): ParcelInput[] {
 }
 
 /**
+ * Smart free-form text parser. Handles input like:
+ * "dubai sport city. plot area 4,838 sqm gfa 21,771 sqm floors 9"
+ * or "ubai sport city plot area 4838 sqm gfa 21771 sqm"
+ */
+export function parseFreeFormText(content: string): ParcelInput[] {
+  const blocks = content.split(/---|\n\n+/).map(b => b.trim()).filter(Boolean);
+  const results: ParcelInput[] = [];
+
+  for (const block of blocks) {
+    const text = block.replace(/\./g, ' ').replace(/,/g, '');
+
+    // Extract plot area: "plot area 4838 sqm" or "land area 52080 sqft"
+    const plotAreaMatch = text.match(/(?:plot|land)\s*area\s*([\d.]+)\s*(sqm|sqft|sq\s*m|sq\s*ft|m²|ft²)?/i);
+    // Extract GFA: "gfa 21771 sqm"
+    const gfaMatch = text.match(/gfa\s*([\d.]+)\s*(sqm|sqft|sq\s*m|sq\s*ft|m²|ft²)?/i);
+    // Extract floors: "floors 9" or "height 9"
+    const floorsMatch = text.match(/(?:floors?|height\s*floors?|stories?)\s*(\d+)/i);
+    // Extract zoning
+    const zoningMatch = text.match(/(?:zoning|zone|use)\s*[:\s]*([a-zA-Z\s]+?)(?=\s+(?:plot|land|gfa|floors?|height|$))/i);
+
+    // Area name: everything before the first numeric field keyword
+    let areaName = text
+      .replace(/(?:plot|land)\s*area\s*[\d.]+\s*(?:sqm|sqft|sq\s*m|sq\s*ft|m²|ft²)?/gi, '')
+      .replace(/gfa\s*[\d.]+\s*(?:sqm|sqft|sq\s*m|sq\s*ft|m²|ft²)?/gi, '')
+      .replace(/(?:floors?|height\s*floors?|stories?)\s*\d+/gi, '')
+      .replace(/(?:zoning|zone|use)\s*[:\s]*[a-zA-Z\s]+/gi, '')
+      .replace(/\s+/g, ' ')
+      .trim();
+
+    // If no structured area name found, use first few words
+    if (!areaName && text.length > 0) {
+      const words = text.split(/\s+/);
+      const firstNumIdx = words.findIndex(w => /^\d/.test(w));
+      areaName = words.slice(0, firstNumIdx > 0 ? firstNumIdx : 3).join(' ');
+    }
+
+    const plotNum = plotAreaMatch ? parseFloat(plotAreaMatch[1]) : 0;
+    const plotUnit = plotAreaMatch?.[2]?.toLowerCase().includes('ft') ? 'sqft' as const : 'sqm' as const;
+    const gfaNum = gfaMatch ? parseFloat(gfaMatch[1]) : 0;
+    const gfaUnit = gfaMatch?.[2]?.toLowerCase().includes('ft') ? 'sqft' as const : 'sqm' as const;
+
+    if (!areaName && plotNum === 0 && gfaNum === 0) continue;
+
+    results.push({
+      area: areaName,
+      plotArea: plotNum,
+      plotAreaUnit: plotNum > 0 ? plotUnit : 'unknown',
+      gfa: gfaNum,
+      gfaUnit: gfaNum > 0 ? gfaUnit : 'unknown',
+      zoning: zoningMatch?.[1]?.trim() || '',
+      use: '',
+      heightFloors: floorsMatch ? parseInt(floorsMatch[1], 10) : 0,
+      far: 0,
+      plotAreaSqm: toSqm(plotNum, plotUnit),
+      gfaSqm: toSqm(gfaNum, gfaUnit),
+    });
+  }
+
+  return results;
+}
+
+/**
  * Build a ParcelInput from quick-search form fields.
  * Area name is mandatory. At least one of plotArea or GFA must be provided.
  */
