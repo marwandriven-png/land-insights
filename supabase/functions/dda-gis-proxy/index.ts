@@ -183,7 +183,7 @@ serve(async (req) => {
       }
       if (projectName) {
         const sanitized = projectName.replace(/[^a-zA-Z0-9\s_\-]/g, '');
-        conditions.push(`PROJECT_NAME LIKE '%${sanitized}%'`);
+        conditions.push(`(PROJECT_NAME LIKE '%${sanitized}%' OR ENTITY_NAME LIKE '%${sanitized}%')`);
       }
 
       const whereClause = conditions.length > 0 ? conditions.join(' AND ') : '1=1';
