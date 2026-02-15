@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback, useMemo } from 'react';
-import { Map, Home, BarChart3, Brain, AlertCircle, X, RefreshCw, Wifi, WifiOff } from 'lucide-react';
+import { Map, Home, BarChart3, Brain, AlertCircle, X, RefreshCw, Wifi, WifiOff, Target } from 'lucide-react';
 import { gisService, PlotData, generateDemoPlots } from '@/services/DDAGISService';
 import { Header } from './Header';
 import { LeafletMap } from './LeafletMap';
@@ -8,6 +8,7 @@ import { AIAssistant } from './AIAssistant';
 import { PlotDetailPanel } from './PlotDetailPanel';
 import { SearchFilters, FilterState } from './SearchFilters';
 import { PlotListItem } from './PlotListItem';
+import { LandMatchingWizard } from './LandMatchingWizard';
 import { Button } from '@/components/ui/button';
 import { ScrollArea } from '@/components/ui/scroll-area';
 
@@ -29,6 +30,7 @@ export function HyperPlotAI() {
   const [gisError, setGisError] = useState<string | null>(null);
   const [loadProgress, setLoadProgress] = useState(0);
   const [showDetailPanel, setShowDetailPanel] = useState(false);
+  const [showWizard, setShowWizard] = useState(false);
   const [filters, setFilters] = useState<FilterState>({
     status: [],
     zoning: [],
@@ -186,6 +188,16 @@ export function HyperPlotAI() {
                   </>
                 )}
               </div>
+
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => setShowWizard(true)}
+                className="gap-2"
+              >
+                <Target className="w-4 h-4" />
+                Matching Wizard
+              </Button>
 
               <Button
                 variant="outline"
@@ -365,6 +377,19 @@ export function HyperPlotAI() {
           </div>
         </div>
       </div>
+
+      {/* Land Matching Wizard */}
+      <LandMatchingWizard
+        isOpen={showWizard}
+        onClose={() => setShowWizard(false)}
+        plots={plots}
+        onHighlightPlots={setHighlightedPlots}
+        onSelectPlot={(plot) => {
+          setSelectedPlot(plot);
+          setShowDetailPanel(true);
+          setActiveTab('map');
+        }}
+      />
     </div>
   );
 }
