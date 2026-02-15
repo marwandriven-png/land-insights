@@ -34,6 +34,45 @@ export interface PlotData {
   isApproximateLocation?: boolean;
 }
 
+export interface AffectionPlanData {
+  plotNumber: string;
+  entityName: string | null;
+  projectName: string | null;
+  landName: string | null;
+  areaSqm: number | null;
+  gfaSqm: number | null;
+  gfaType: string | null;
+  maxHeightFloors: string | null;
+  maxHeightMeters: number | null;
+  maxHeight: string | null;
+  heightCategory: string | null;
+  maxPlotCoverage: number | null;
+  minPlotCoverage: number | null;
+  plotCoverage: string | null;
+  buildingSetbacks: {
+    side1: string | null;
+    side2: string | null;
+    side3: string | null;
+    side4: string | null;
+  };
+  podiumSetbacks: {
+    side1: string | null;
+    side2: string | null;
+    side3: string | null;
+    side4: string | null;
+  };
+  mainLanduse: string | null;
+  subLanduse: string | null;
+  landuseDetails: string | null;
+  landuseCategory: string | null;
+  generalNotes: string | null;
+  siteplanIssueDate: number | null;
+  siteplanExpiryDate: number | null;
+  siteStatus: string | null;
+  isFrozen: boolean;
+  freezeReason: string | null;
+}
+
 export interface FeasibilityResult {
   revenue: number;
   cost: number;
@@ -137,6 +176,70 @@ class DDAGISService {
       return null;
     } catch (error) {
       console.error('Error fetching plot by ID:', error);
+      return null;
+    }
+  }
+
+  async fetchAffectionPlan(plotId: string): Promise<AffectionPlanData | null> {
+    try {
+      const response = await fetch(
+        `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/dda-gis-proxy?action=affection&plotId=${encodeURIComponent(plotId)}`,
+        {
+          method: 'GET',
+          headers: {
+            'Authorization': `Bearer ${import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY}`,
+            'Content-Type': 'application/json'
+          }
+        }
+      );
+
+      if (!response.ok) throw new Error(`Edge function returned ${response.status}`);
+
+      const data = await response.json();
+      if (data.features && data.features.length > 0) {
+        const attrs = data.features[0].attributes;
+        return {
+          plotNumber: attrs.PLOT_NUMBER || plotId,
+          entityName: attrs.ENTITY_NAME || null,
+          projectName: attrs.PROJECT_NAME || null,
+          landName: attrs.LAND_NAME || null,
+          areaSqm: attrs.AREA_SQM || null,
+          gfaSqm: attrs.GFA_SQM || null,
+          gfaType: attrs.GFA_TYPE || null,
+          maxHeightFloors: attrs.MAX_HEIGHT_FLOORS || null,
+          maxHeightMeters: attrs.MAX_HEIGHT_METERS || null,
+          maxHeight: attrs.MAX_HEIGHT || null,
+          heightCategory: attrs.HEIGHT_CATEGORY || null,
+          maxPlotCoverage: attrs.MAX_PLOT_COVERAGE || null,
+          minPlotCoverage: attrs.MIN_PLOT_COVERAGE || null,
+          plotCoverage: attrs.PLOT_COVERAGE || null,
+          buildingSetbacks: {
+            side1: attrs.BUILDING_SETBACK_SIDE1 || null,
+            side2: attrs.BUILDING_SETBACK_SIDE2 || null,
+            side3: attrs.BUILDING_SETBACK_SIDE3 || null,
+            side4: attrs.BUILDING_SETBACK_SIDE4 || null,
+          },
+          podiumSetbacks: {
+            side1: attrs.PODIUM_SETBACK_SIDE1 || null,
+            side2: attrs.PODIUM_SETBACK_SIDE2 || null,
+            side3: attrs.PODIUM_SETBACK_SIDE3 || null,
+            side4: attrs.PODIUM_SETBACK_SIDE4 || null,
+          },
+          mainLanduse: attrs.MAIN_LANDUSE || null,
+          subLanduse: attrs.SUB_LANDUSE || null,
+          landuseDetails: attrs.LANDUSE_DETAILS || null,
+          landuseCategory: attrs.LANDUSE_CATEGORY || null,
+          generalNotes: attrs.GENERAL_NOTES || null,
+          siteplanIssueDate: attrs.SITEPLAN_ISSUE_DATE || null,
+          siteplanExpiryDate: attrs.SITEPLAN_EXPIRY_DATE || null,
+          siteStatus: attrs.SITE_STATUS || null,
+          isFrozen: attrs.IS_FROZEN === 1,
+          freezeReason: attrs.FREEZE_REASON || null,
+        };
+      }
+      return null;
+    } catch (error) {
+      console.error('Error fetching affection plan:', error);
       return null;
     }
   }

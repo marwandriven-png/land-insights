@@ -1,9 +1,10 @@
-import { X, MapPin, Building2, Layers, TrendingUp, FileText, Download, AlertCircle, CheckCircle, Shield, Clock, Hash } from 'lucide-react';
-import { PlotData, calculateFeasibility, VerificationSource } from '@/services/DDAGISService';
+import { X, MapPin, Building2, Layers, TrendingUp, FileText, Download, AlertCircle, CheckCircle, Shield, Clock, Hash, Loader2, FileWarning, Ruler, LayoutGrid } from 'lucide-react';
+import { PlotData, calculateFeasibility, VerificationSource, AffectionPlanData, gisService } from '@/services/DDAGISService';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { generatePlotPDF } from '@/utils/pdfGenerator';
-import { forwardRef } from 'react';
+import { forwardRef, useState, useEffect, useCallback } from 'react';
+import { ScrollArea } from '@/components/ui/scroll-area';
 
 interface PlotDetailPanelProps {
   plot: PlotData;
@@ -30,6 +31,203 @@ function getVerificationBadge(source: VerificationSource) {
   return styles[source] || styles['Demo'];
 }
 
+function SetbackRow({ label, value }: { label: string; value: string | null }) {
+  if (!value) return null;
+  return (
+    <div className="flex justify-between text-xs">
+      <span className="text-muted-foreground">{label}</span>
+      <span className="text-foreground font-medium">{value}</span>
+    </div>
+  );
+}
+
+function AffectionPlanSection({ plotId }: { plotId: string }) {
+  const [plan, setPlan] = useState<AffectionPlanData | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(false);
+
+  useEffect(() => {
+    let cancelled = false;
+    setLoading(true);
+    setError(false);
+    setPlan(null);
+
+    gisService.fetchAffectionPlan(plotId).then(data => {
+      if (cancelled) return;
+      setPlan(data);
+      setLoading(false);
+    }).catch(() => {
+      if (cancelled) return;
+      setError(true);
+      setLoading(false);
+    });
+
+    return () => { cancelled = true; };
+  }, [plotId]);
+
+  if (loading) {
+    return (
+      <div className="border-t border-border/50 pt-4 mb-4">
+        <div className="flex items-center gap-2 mb-3">
+          <LayoutGrid className="w-4 h-4 text-primary" />
+          <h3 className="text-sm font-bold text-foreground">Affection Plan</h3>
+        </div>
+        <div className="flex items-center justify-center py-4">
+          <Loader2 className="w-5 h-5 animate-spin text-muted-foreground" />
+          <span className="ml-2 text-xs text-muted-foreground">Loading plan...</span>
+        </div>
+      </div>
+    );
+  }
+
+  if (error || !plan) {
+    return (
+      <div className="border-t border-border/50 pt-4 mb-4">
+        <div className="flex items-center gap-2 mb-3">
+          <LayoutGrid className="w-4 h-4 text-primary" />
+          <h3 className="text-sm font-bold text-foreground">Affection Plan</h3>
+        </div>
+        <div className="flex items-center gap-2 py-3 px-3 rounded-lg bg-muted/30 text-xs text-muted-foreground">
+          <FileWarning className="w-4 h-4 shrink-0" />
+          Affection Plan not available for this plot
+        </div>
+      </div>
+    );
+  }
+
+  const hasSetbacks = plan.buildingSetbacks.side1 || plan.buildingSetbacks.side2 || plan.buildingSetbacks.side3 || plan.buildingSetbacks.side4;
+  const hasPodiumSetbacks = plan.podiumSetbacks.side1 || plan.podiumSetbacks.side2 || plan.podiumSetbacks.side3 || plan.podiumSetbacks.side4;
+
+  return (
+    <div className="border-t border-border/50 pt-4 mb-4">
+      <div className="flex items-center gap-2 mb-3">
+        <LayoutGrid className="w-4 h-4 text-primary" />
+        <h3 className="text-sm font-bold text-foreground">Affection Plan</h3>
+      </div>
+
+      <div className="space-y-3">
+        {/* Land Use */}
+        {(plan.mainLanduse || plan.landuseCategory) && (
+          <div className="space-y-1">
+            <span className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wide">Land Use</span>
+            {plan.mainLanduse && (
+              <div className="flex justify-between text-xs">
+                <span className="text-muted-foreground">Main</span>
+                <span className="text-foreground font-medium">{plan.mainLanduse}</span>
+              </div>
+            )}
+            {plan.subLanduse && (
+              <div className="flex justify-between text-xs">
+                <span className="text-muted-foreground">Sub</span>
+                <span className="text-foreground font-medium">{plan.subLanduse}</span>
+              </div>
+            )}
+            {plan.landuseCategory && (
+              <div className="flex justify-between text-xs">
+                <span className="text-muted-foreground">Category</span>
+                <span className="text-foreground font-medium">{plan.landuseCategory}</span>
+              </div>
+            )}
+            {plan.landuseDetails && (
+              <div className="text-xs text-muted-foreground mt-1">{plan.landuseDetails}</div>
+            )}
+          </div>
+        )}
+
+        {/* Height & Coverage */}
+        <div className="space-y-1">
+          <span className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wide">Height & Coverage</span>
+          {plan.maxHeight && (
+            <div className="flex justify-between text-xs">
+              <span className="text-muted-foreground">Max Height</span>
+              <span className="text-foreground font-medium">{plan.maxHeight}</span>
+            </div>
+          )}
+          {plan.heightCategory && (
+            <div className="flex justify-between text-xs">
+              <span className="text-muted-foreground">Height Category</span>
+              <span className="text-foreground font-medium">{plan.heightCategory}</span>
+            </div>
+          )}
+          {plan.maxPlotCoverage != null && (
+            <div className="flex justify-between text-xs">
+              <span className="text-muted-foreground">Max Coverage</span>
+              <span className="text-foreground font-medium">{plan.maxPlotCoverage}%</span>
+            </div>
+          )}
+          {plan.minPlotCoverage != null && (
+            <div className="flex justify-between text-xs">
+              <span className="text-muted-foreground">Min Coverage</span>
+              <span className="text-foreground font-medium">{plan.minPlotCoverage}%</span>
+            </div>
+          )}
+          {plan.plotCoverage && (
+            <div className="flex justify-between text-xs">
+              <span className="text-muted-foreground">Plot Coverage</span>
+              <span className="text-foreground font-medium">{plan.plotCoverage}</span>
+            </div>
+          )}
+          {plan.gfaType && (
+            <div className="flex justify-between text-xs">
+              <span className="text-muted-foreground">GFA Type</span>
+              <span className="text-foreground font-medium">{plan.gfaType}</span>
+            </div>
+          )}
+        </div>
+
+        {/* Building Setbacks */}
+        {hasSetbacks && (
+          <div className="space-y-1">
+            <span className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wide">Building Setbacks</span>
+            <SetbackRow label="Side 1" value={plan.buildingSetbacks.side1} />
+            <SetbackRow label="Side 2" value={plan.buildingSetbacks.side2} />
+            <SetbackRow label="Side 3" value={plan.buildingSetbacks.side3} />
+            <SetbackRow label="Side 4" value={plan.buildingSetbacks.side4} />
+          </div>
+        )}
+
+        {/* Podium Setbacks */}
+        {hasPodiumSetbacks && (
+          <div className="space-y-1">
+            <span className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wide">Podium Setbacks</span>
+            <SetbackRow label="Side 1" value={plan.podiumSetbacks.side1} />
+            <SetbackRow label="Side 2" value={plan.podiumSetbacks.side2} />
+            <SetbackRow label="Side 3" value={plan.podiumSetbacks.side3} />
+            <SetbackRow label="Side 4" value={plan.podiumSetbacks.side4} />
+          </div>
+        )}
+
+        {/* Site Plan Dates */}
+        {(plan.siteplanIssueDate || plan.siteplanExpiryDate) && (
+          <div className="space-y-1">
+            <span className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wide">Site Plan</span>
+            {plan.siteplanIssueDate && (
+              <div className="flex justify-between text-xs">
+                <span className="text-muted-foreground">Issue Date</span>
+                <span className="text-foreground font-medium">{new Date(plan.siteplanIssueDate).toLocaleDateString()}</span>
+              </div>
+            )}
+            {plan.siteplanExpiryDate && (
+              <div className="flex justify-between text-xs">
+                <span className="text-muted-foreground">Expiry Date</span>
+                <span className="text-foreground font-medium">{new Date(plan.siteplanExpiryDate).toLocaleDateString()}</span>
+              </div>
+            )}
+          </div>
+        )}
+
+        {/* General Notes */}
+        {plan.generalNotes && (
+          <div className="space-y-1">
+            <span className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wide">Notes</span>
+            <p className="text-xs text-muted-foreground leading-relaxed">{plan.generalNotes}</p>
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
 export function PlotDetailPanel({ plot, onClose }: PlotDetailPanelProps) {
   const feasibility = calculateFeasibility(plot);
 
@@ -38,178 +236,183 @@ export function PlotDetailPanel({ plot, onClose }: PlotDetailPanelProps) {
   };
 
   return (
-    <div className="fixed right-4 top-1/2 -translate-y-1/2 w-96 z-[1001] animate-in slide-in-from-right duration-300">
-      <div className="glass-card glow-border p-5 shadow-2xl">
-        {/* Header */}
-        <div className="flex items-start justify-between mb-4">
-          <div>
-            <h2 className="text-xl font-bold text-foreground flex items-center gap-2">
-              <MapPin className="w-5 h-5 text-primary" />
-              Plot {plot.id}
-            </h2>
-            <p className="text-sm text-muted-foreground mt-1">
-              {plot.location || plot.project || plot.entity || 'Dubai'}
-            </p>
+    <div className="fixed right-4 top-1/2 -translate-y-1/2 w-96 max-h-[85vh] z-[1001] animate-in slide-in-from-right duration-300">
+      <div className="glass-card glow-border shadow-2xl flex flex-col max-h-[85vh]">
+        <ScrollArea className="flex-1 p-5">
+          {/* Header */}
+          <div className="flex items-start justify-between mb-4">
+            <div>
+              <h2 className="text-xl font-bold text-foreground flex items-center gap-2">
+                <MapPin className="w-5 h-5 text-primary" />
+                Plot {plot.id}
+              </h2>
+              <p className="text-sm text-muted-foreground mt-1">
+                {plot.location || plot.project || plot.entity || 'Dubai'}
+              </p>
+            </div>
+            <button
+              onClick={onClose}
+              className="p-1.5 rounded-lg hover:bg-muted/50 transition-colors"
+            >
+              <X className="w-5 h-5 text-muted-foreground" />
+            </button>
           </div>
-          <button
-            onClick={onClose}
-            className="p-1.5 rounded-lg hover:bg-muted/50 transition-colors"
+
+          {/* Status Badge */}
+          <div className="mb-4">
+            <span className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-sm font-medium border ${getStatusBadge(plot.status)}`}>
+              {plot.status === 'Available' ? (
+                <CheckCircle className="w-4 h-4" />
+              ) : plot.status === 'Frozen' ? (
+                <AlertCircle className="w-4 h-4" />
+              ) : (
+                <Building2 className="w-4 h-4" />
+              )}
+              {plot.status}
+            </span>
+            {plot.isFrozen && plot.freezeReason && (
+              <p className="text-xs text-destructive mt-2">⚠️ {plot.freezeReason}</p>
+            )}
+          </div>
+
+          {/* Plot Details Grid */}
+          <div className="grid grid-cols-2 gap-3 mb-4">
+            <div className="data-card">
+              <div className="flex items-center gap-2 text-muted-foreground text-xs mb-1">
+                <Layers className="w-3.5 h-3.5" />
+                Plot Size
+              </div>
+              <div className="text-lg font-bold text-foreground">
+                {plot.area.toLocaleString()} <span className="text-xs font-normal">m²</span>
+              </div>
+            </div>
+
+            <div className="data-card">
+              <div className="flex items-center gap-2 text-muted-foreground text-xs mb-1">
+                <Building2 className="w-3.5 h-3.5" />
+                GFA
+              </div>
+              <div className="text-lg font-bold text-foreground">
+                {plot.gfa.toLocaleString()} <span className="text-xs font-normal">m²</span>
+              </div>
+            </div>
+
+            <div className="data-card">
+              <div className="flex items-center gap-2 text-muted-foreground text-xs mb-1">
+                <TrendingUp className="w-3.5 h-3.5" />
+                Floors
+              </div>
+              <div className="text-lg font-bold text-foreground">{plot.floors}</div>
+            </div>
+
+            <div className="data-card">
+              <div className="flex items-center gap-2 text-muted-foreground text-xs mb-1">
+                <FileText className="w-3.5 h-3.5" />
+                Zoning
+              </div>
+              <div className="text-sm font-bold text-foreground">{plot.zoning}</div>
+            </div>
+          </div>
+
+          {/* Additional Info */}
+          <div className="space-y-2 mb-4 text-sm">
+            {plot.developer && (
+              <div className="flex justify-between">
+                <span className="text-muted-foreground">Developer</span>
+                <span className="text-foreground font-medium">{plot.developer}</span>
+              </div>
+            )}
+            {plot.project && (
+              <div className="flex justify-between">
+                <span className="text-muted-foreground">Project</span>
+                <span className="text-foreground font-medium">{plot.project}</span>
+              </div>
+            )}
+            {plot.maxHeight && (
+              <div className="flex justify-between">
+                <span className="text-muted-foreground">Max Height</span>
+                <span className="text-foreground font-medium">{plot.maxHeight}m</span>
+              </div>
+            )}
+            {plot.plotCoverage && (
+              <div className="flex justify-between">
+                <span className="text-muted-foreground">Plot Coverage</span>
+                <span className="text-foreground font-medium">{plot.plotCoverage}%</span>
+              </div>
+            )}
+          </div>
+
+          {/* Affection Plan - fetched on demand */}
+          <AffectionPlanSection plotId={plot.id} />
+
+          {/* Verification Source */}
+          <div className="border-t border-border/50 pt-4 mb-4">
+            <div className="flex items-center gap-2 mb-3">
+              <Shield className="w-4 h-4 text-primary" />
+              <h3 className="text-sm font-bold text-foreground">Data Verification</h3>
+            </div>
+            <div className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-medium ${getVerificationBadge(plot.verificationSource).bg} ${getVerificationBadge(plot.verificationSource).text} border border-border/30`}>
+              <CheckCircle className="w-3.5 h-3.5" />
+              {getVerificationBadge(plot.verificationSource).label}
+            </div>
+            <div className="mt-2 space-y-1 text-xs text-muted-foreground">
+              {plot.verificationDate && (
+                <div className="flex items-center gap-2">
+                  <Clock className="w-3 h-3" />
+                  Verified: {new Date(plot.verificationDate).toLocaleDateString()}
+                </div>
+              )}
+              {plot.municipalityNumber && (
+                <div className="flex items-center gap-2">
+                  <Hash className="w-3 h-3" />
+                  Municipality: {plot.municipalityNumber} / Sub: {plot.subNumber}
+                </div>
+              )}
+              {plot.isApproximateLocation && (
+                <div className="flex items-center gap-2 text-warning">
+                  <AlertCircle className="w-3 h-3" />
+                  Approximate Location
+                </div>
+              )}
+            </div>
+          </div>
+
+          {/* Feasibility Summary */}
+          <div className="border-t border-border/50 pt-4 mb-4">
+            <h3 className="text-sm font-bold text-primary mb-3">Feasibility Analysis</h3>
+            <div className="grid grid-cols-3 gap-2 text-center">
+              <div className="data-card py-2">
+                <div className="text-xs text-muted-foreground">ROI</div>
+                <div className="text-lg font-bold text-success">{feasibility.roi}%</div>
+              </div>
+              <div className="data-card py-2">
+                <div className="text-xs text-muted-foreground">Profit</div>
+                <div className="text-sm font-bold text-foreground">
+                  {(feasibility.profit / 1000000).toFixed(1)}M
+                </div>
+              </div>
+              <div className="data-card py-2">
+                <div className="text-xs text-muted-foreground">Risk</div>
+                <div className={`text-sm font-bold ${
+                  feasibility.riskLevel === 'Low' ? 'text-success' :
+                  feasibility.riskLevel === 'Medium' ? 'text-warning' : 'text-destructive'
+                }`}>
+                  {feasibility.riskLevel}
+                </div>
+              </div>
+            </div>
+          </div>
+
+          {/* Export Button */}
+          <Button
+            onClick={handleExportPDF}
+            className="w-full gap-2"
+            variant="default"
           >
-            <X className="w-5 h-5 text-muted-foreground" />
-          </button>
-        </div>
-
-        {/* Status Badge */}
-        <div className="mb-4">
-          <span className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-sm font-medium border ${getStatusBadge(plot.status)}`}>
-            {plot.status === 'Available' ? (
-              <CheckCircle className="w-4 h-4" />
-            ) : plot.status === 'Frozen' ? (
-              <AlertCircle className="w-4 h-4" />
-            ) : (
-              <Building2 className="w-4 h-4" />
-            )}
-            {plot.status}
-          </span>
-          {plot.isFrozen && plot.freezeReason && (
-            <p className="text-xs text-destructive mt-2">⚠️ {plot.freezeReason}</p>
-          )}
-        </div>
-
-        {/* Plot Details Grid */}
-        <div className="grid grid-cols-2 gap-3 mb-4">
-          <div className="data-card">
-            <div className="flex items-center gap-2 text-muted-foreground text-xs mb-1">
-              <Layers className="w-3.5 h-3.5" />
-              Plot Size
-            </div>
-            <div className="text-lg font-bold text-foreground">
-              {plot.area.toLocaleString()} <span className="text-xs font-normal">m²</span>
-            </div>
-          </div>
-
-          <div className="data-card">
-            <div className="flex items-center gap-2 text-muted-foreground text-xs mb-1">
-              <Building2 className="w-3.5 h-3.5" />
-              GFA
-            </div>
-            <div className="text-lg font-bold text-foreground">
-              {plot.gfa.toLocaleString()} <span className="text-xs font-normal">m²</span>
-            </div>
-          </div>
-
-          <div className="data-card">
-            <div className="flex items-center gap-2 text-muted-foreground text-xs mb-1">
-              <TrendingUp className="w-3.5 h-3.5" />
-              Floors
-            </div>
-            <div className="text-lg font-bold text-foreground">{plot.floors}</div>
-          </div>
-
-          <div className="data-card">
-            <div className="flex items-center gap-2 text-muted-foreground text-xs mb-1">
-              <FileText className="w-3.5 h-3.5" />
-              Zoning
-            </div>
-            <div className="text-sm font-bold text-foreground">{plot.zoning}</div>
-          </div>
-        </div>
-
-        {/* Additional Info */}
-        <div className="space-y-2 mb-4 text-sm">
-          {plot.developer && (
-            <div className="flex justify-between">
-              <span className="text-muted-foreground">Developer</span>
-              <span className="text-foreground font-medium">{plot.developer}</span>
-            </div>
-          )}
-          {plot.project && (
-            <div className="flex justify-between">
-              <span className="text-muted-foreground">Project</span>
-              <span className="text-foreground font-medium">{plot.project}</span>
-            </div>
-          )}
-          {plot.maxHeight && (
-            <div className="flex justify-between">
-              <span className="text-muted-foreground">Max Height</span>
-              <span className="text-foreground font-medium">{plot.maxHeight}m</span>
-            </div>
-          )}
-          {plot.plotCoverage && (
-            <div className="flex justify-between">
-              <span className="text-muted-foreground">Plot Coverage</span>
-              <span className="text-foreground font-medium">{plot.plotCoverage}%</span>
-            </div>
-          )}
-        </div>
-
-        {/* Verification Source */}
-        <div className="border-t border-border/50 pt-4 mb-4">
-          <div className="flex items-center gap-2 mb-3">
-            <Shield className="w-4 h-4 text-primary" />
-            <h3 className="text-sm font-bold text-foreground">Data Verification</h3>
-          </div>
-          <div className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-medium ${getVerificationBadge(plot.verificationSource).bg} ${getVerificationBadge(plot.verificationSource).text} border border-border/30`}>
-            <CheckCircle className="w-3.5 h-3.5" />
-            {getVerificationBadge(plot.verificationSource).label}
-          </div>
-          <div className="mt-2 space-y-1 text-xs text-muted-foreground">
-            {plot.verificationDate && (
-              <div className="flex items-center gap-2">
-                <Clock className="w-3 h-3" />
-                Verified: {new Date(plot.verificationDate).toLocaleDateString()}
-              </div>
-            )}
-            {plot.municipalityNumber && (
-              <div className="flex items-center gap-2">
-                <Hash className="w-3 h-3" />
-                Municipality: {plot.municipalityNumber} / Sub: {plot.subNumber}
-              </div>
-            )}
-            {plot.isApproximateLocation && (
-              <div className="flex items-center gap-2 text-warning">
-                <AlertCircle className="w-3 h-3" />
-                Approximate Location
-              </div>
-            )}
-          </div>
-        </div>
-
-        {/* Feasibility Summary */}
-        <div className="border-t border-border/50 pt-4 mb-4">
-          <h3 className="text-sm font-bold text-primary mb-3">Feasibility Analysis</h3>
-          <div className="grid grid-cols-3 gap-2 text-center">
-            <div className="data-card py-2">
-              <div className="text-xs text-muted-foreground">ROI</div>
-              <div className="text-lg font-bold text-success">{feasibility.roi}%</div>
-            </div>
-            <div className="data-card py-2">
-              <div className="text-xs text-muted-foreground">Profit</div>
-              <div className="text-sm font-bold text-foreground">
-                {(feasibility.profit / 1000000).toFixed(1)}M
-              </div>
-            </div>
-            <div className="data-card py-2">
-              <div className="text-xs text-muted-foreground">Risk</div>
-              <div className={`text-sm font-bold ${
-                feasibility.riskLevel === 'Low' ? 'text-success' :
-                feasibility.riskLevel === 'Medium' ? 'text-warning' : 'text-destructive'
-              }`}>
-                {feasibility.riskLevel}
-              </div>
-            </div>
-          </div>
-        </div>
-
-        {/* Export Button */}
-        <Button
-          onClick={handleExportPDF}
-          className="w-full gap-2"
-          variant="default"
-        >
-          <Download className="w-4 h-4" />
-          Export Plot Report (PDF)
-        </Button>
+            <Download className="w-4 h-4" />
+            Export Plot Report (PDF)
+          </Button>
+        </ScrollArea>
       </div>
     </div>
   );
