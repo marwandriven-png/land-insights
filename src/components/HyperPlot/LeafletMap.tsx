@@ -4,6 +4,7 @@ import 'leaflet/dist/leaflet.css';
 import proj4 from 'proj4';
 import { PlotData } from '@/services/DDAGISService';
 import { Loader2, Home, Search, Layers, Printer, Mail, Share2 } from 'lucide-react';
+import { CinematicPlotOverlay } from './CinematicPlotOverlay';
 
 // Define Dubai Local Transverse Mercator (EPSG:3997)
 proj4.defs('EPSG:3997', '+proj=tmerc +lat_0=0 +lon_0=55.33333333333334 +k=1 +x_0=500000 +y_0=0 +ellps=WGS84 +towgs84=0,0,0,0,0,0,0 +units=m +no_defs');
@@ -48,6 +49,7 @@ export function LeafletMap({
   const plotLayersRef = useRef<Map<string, L.Layer>>(new Map());
   const glowLayersRef = useRef<Map<string, L.Layer>>(new Map());
   const [isLoading, setIsLoading] = useState(true);
+  const [mapInstance, setMapInstance] = useState<L.Map | null>(null);
 
   // Initialize map
   useEffect(() => {
@@ -74,6 +76,7 @@ export function LeafletMap({
     L.control.zoom({ position: 'topleft' }).addTo(map);
 
     mapRef.current = map;
+    setMapInstance(map);
     setIsLoading(false);
 
     if (onMapReady) {
@@ -210,7 +213,7 @@ export function LeafletMap({
   }, []);
 
   return (
-    <div className="relative w-full h-full rounded-2xl overflow-hidden">
+    <div className={`relative w-full h-full rounded-2xl overflow-hidden ${selectedPlot ? 'cinematic-desaturate' : ''}`}>
       {isLoading && (
         <div className="absolute inset-0 flex items-center justify-center bg-card/80 backdrop-blur z-50">
           <Loader2 className="w-8 h-8 animate-spin text-primary" />
@@ -250,6 +253,9 @@ export function LeafletMap({
           500 m
         </div>
       </div>
+
+      {/* Cinematic Plot Overlay */}
+      <CinematicPlotOverlay map={mapInstance} plot={selectedPlot} />
 
       {/* Styles */}
       <style>{`

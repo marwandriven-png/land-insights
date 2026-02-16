@@ -156,3 +156,122 @@
     @apply bg-primary/50;
   }
 }
+
+/* ============================================
+   Cinematic Plot Highlight Animation System
+   ============================================ */
+
+/* Boundary trace - SVG stroke animation */
+.cinematic-boundary-trace {
+  stroke-dasharray: 2000;
+  stroke-dashoffset: 2000;
+  animation: cinematic-trace 1.8s cubic-bezier(0.4, 0, 0.2, 1) forwards;
+  filter: drop-shadow(0 0 6px rgba(0, 229, 255, 0.8))
+          drop-shadow(0 0 14px rgba(0, 229, 255, 0.4))
+          drop-shadow(0 0 28px rgba(0, 229, 255, 0.2));
+}
+
+@keyframes cinematic-trace {
+  to {
+    stroke-dashoffset: 0;
+  }
+}
+
+/* Inner glow pulse after trace */
+.cinematic-inner-glow {
+  opacity: 0;
+  animation: cinematic-inner-pulse 1.8s cubic-bezier(0.4, 0, 0.2, 1) forwards;
+}
+
+@keyframes cinematic-inner-pulse {
+  0% { opacity: 0; }
+  60% { opacity: 0; }
+  100% { opacity: 1; }
+}
+
+/* Fill reveal after boundary completes */
+.cinematic-glow-fill {
+  transition: fill-opacity 0.8s ease-out;
+}
+.cinematic-fill-reveal {
+  fill-opacity: 0.12 !important;
+}
+
+/* Text overlay container */
+.cinematic-text-overlay {
+  position: absolute;
+  transform: translate(-50%, -50%);
+  z-index: 800;
+  pointer-events: none;
+  perspective: 600px;
+}
+
+.cinematic-text-content {
+  text-align: center;
+  animation: cinematic-text-reveal 0.9s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+  transform-origin: center bottom;
+  opacity: 0;
+  transform: scale(0.6) rotateX(30deg) translateY(10px);
+  text-shadow:
+    0 0 12px rgba(0, 229, 255, 0.9),
+    0 0 30px rgba(0, 229, 255, 0.5),
+    0 4px 8px rgba(0, 0, 0, 0.7);
+}
+
+@keyframes cinematic-text-reveal {
+  0% {
+    opacity: 0;
+    transform: scale(0.6) rotateX(30deg) translateY(10px);
+  }
+  100% {
+    opacity: 1;
+    transform: scale(1) rotateX(8deg) translateY(0);
+  }
+}
+
+.cinematic-plot-area {
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 22px;
+  font-weight: 800;
+  color: #00e5ff;
+  letter-spacing: 2px;
+  line-height: 1.2;
+}
+
+.cinematic-plot-dims {
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 12px;
+  font-weight: 500;
+  color: rgba(255, 255, 255, 0.7);
+  letter-spacing: 1px;
+  margin-top: 2px;
+}
+
+.cinematic-plot-id {
+  font-family: 'Inter', sans-serif;
+  font-size: 10px;
+  font-weight: 600;
+  color: rgba(0, 229, 255, 0.6);
+  letter-spacing: 3px;
+  text-transform: uppercase;
+  margin-top: 6px;
+}
+
+/* Desaturate surrounding map tiles when cinematic is active */
+.cinematic-desaturate .leaflet-tile-pane {
+  filter: saturate(0.3) brightness(0.7);
+  transition: filter 1s ease-out;
+}
+
+/* Ground shadow beneath text */
+.cinematic-text-content::after {
+  content: '';
+  position: absolute;
+  bottom: -8px;
+  left: 50%;
+  transform: translateX(-50%);
+  width: 80%;
+  height: 6px;
+  background: radial-gradient(ellipse, rgba(0, 0, 0, 0.5) 0%, transparent 70%);
+  border-radius: 50%;
+}
