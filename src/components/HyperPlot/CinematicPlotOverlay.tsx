@@ -77,89 +77,133 @@ export function CinematicPlotOverlay({ map, plot }: CinematicPlotOverlayProps) {
       ];
     }
 
-    // Phase 1: Boundary trace animation
+    // Phase 1: Circle expand then boundary trace
     setPhase('boundary');
 
-    // Outer glow layer
-    const glowPoly = L.polygon(latLngs, {
-      color: 'transparent',
-      weight: 0,
-      fillColor: '#00e5ff',
-      fillOpacity: 0,
-      interactive: false,
-      className: 'cinematic-glow-fill'
-    });
-    glowPoly.addTo(map);
-    layersRef.current.push(glowPoly);
+    // Calculate center and radius for initial circle
+    const bounds = L.latLngBounds(latLngs);
+    const center = bounds.getCenter();
+    // Approximate radius to encompass the plot
+    const cornerDist = center.distanceTo(latLngs[0]);
+    const initialRadius = cornerDist * 1.2;
 
-    // Animated boundary stroke using SVG path
-    const boundaryPoly = L.polygon(latLngs, {
+    // Expanding circle that appears first
+    const circle = L.circle(center, {
+      radius: 0,
       color: '#00e5ff',
-      weight: 3,
+      weight: 2.5,
       opacity: 1,
       fillColor: '#00e5ff',
-      fillOpacity: 0,
+      fillOpacity: 0.08,
       interactive: false,
-      className: 'cinematic-boundary-trace'
+      className: 'cinematic-circle-expand'
     });
-    boundaryPoly.addTo(map);
-    layersRef.current.push(boundaryPoly);
+    circle.addTo(map);
+    layersRef.current.push(circle);
 
-    // Secondary inner glow
-    const innerGlow = L.polygon(latLngs, {
-      color: '#00e5ff',
-      weight: 10,
-      opacity: 0.15,
-      fillColor: 'transparent',
-      fillOpacity: 0,
-      interactive: false,
-      className: 'cinematic-inner-glow'
-    });
-    innerGlow.addTo(map);
-    layersRef.current.push(innerGlow);
+    // Animate circle expansion
+    let startTime = performance.now();
+    const circleDuration = 800;
+    function animateCircle(now: number) {
+      const elapsed = now - startTime;
+      const progress = Math.min(elapsed / circleDuration, 1);
+      const eased = 1 - Math.pow(1 - progress, 3); // ease-out cubic
+      circle.setRadius(initialRadius * eased);
+      if (progress < 1) {
+        requestAnimationFrame(animateCircle);
+      }
+    }
+    requestAnimationFrame(animateCircle);
 
-    // After boundary animation completes, show fill + text
-    const boundaryTimer = setTimeout(() => {
-      // Fill reveal
-      if (glowPoly.getElement()) {
-        glowPoly.getElement()!.classList.add('cinematic-fill-reveal');
+    // After circle expands, fade it and trace boundary
+    const boundaryDelay = setTimeout(() => {
+      // Fade out circle
+      const circleEl = circle.getElement() as HTMLElement | null;
+      if (circleEl) {
+        circleEl.style.transition = 'opacity 0.6s ease-out';
+        circleEl.style.opacity = '0';
       }
 
-      setPhase('text');
+      // Outer glow layer
+      const glowPoly = L.polygon(latLngs, {
+        color: 'transparent',
+        weight: 0,
+        fillColor: '#00e5ff',
+        fillOpacity: 0,
+        interactive: false,
+        className: 'cinematic-glow-fill'
+      });
+      glowPoly.addTo(map);
+      layersRef.current.push(glowPoly);
 
-      // Create text overlay
-      const bounds = boundaryPoly.getBounds();
-      const center = bounds.getCenter();
-      const point = map.latLngToContainerPoint(center);
+      // Animated boundary stroke
+      const boundaryPoly = L.polygon(latLngs, {
+        color: '#00e5ff',
+        weight: 3,
+        opacity: 1,
+        fillColor: '#00e5ff',
+        fillOpacity: 0,
+        interactive: false,
+        className: 'cinematic-boundary-trace'
+      });
+      boundaryPoly.addTo(map);
+      layersRef.current.push(boundaryPoly);
 
-      const container = map.getContainer();
-      const textDiv = document.createElement('div');
-      textDiv.className = 'cinematic-text-overlay';
-      textDiv.innerHTML = `
-        <div class="cinematic-text-content">
-          <div class="cinematic-plot-area">${plot.area.toLocaleString()} m²</div>
-          <div class="cinematic-plot-dims">${Math.round(Math.sqrt(plot.area))} × ${Math.round(plot.area / Math.sqrt(plot.area))} m</div>
-          <div class="cinematic-plot-id">${plot.id}</div>
-        </div>
-      `;
-      textDiv.style.left = `${point.x}px`;
-      textDiv.style.top = `${point.y}px`;
-      container.appendChild(textDiv);
-      overlayRef.current = textDiv;
+      // Inner glow
+      const innerGlow = L.polygon(latLngs, {
+        color: '#00e5ff',
+        weight: 10,
+        opacity: 0.15,
+        fillColor: 'transparent',
+        fillOpacity: 0,
+        interactive: false,
+        className: 'cinematic-inner-glow'
+      });
+      innerGlow.addTo(map);
+      layersRef.current.push(innerGlow);
 
-      // Update text position on map move
-      const updatePos = () => {
-        if (!overlayRef.current) return;
-        const p = map.latLngToContainerPoint(center);
-        overlayRef.current.style.left = `${p.x}px`;
-        overlayRef.current.style.top = `${p.y}px`;
-      };
-      map.on('move zoom', updatePos);
+      // After boundary trace completes, show fill + text
+      const textTimer = setTimeout(() => {
+        if (glowPoly.getElement()) {
+          glowPoly.getElement()!.classList.add('cinematic-fill-reveal');
+        }
 
-    }, 1800); // Wait for boundary trace to complete
+        setPhase('text');
+
+        const bCenter = bounds.getCenter();
+        const point = map.latLngToContainerPoint(bCenter);
+        const sqft = Math.round(plot.area * 10.7639);
+        const sideFt = Math.round(Math.sqrt(plot.area) * 3.28084);
+
+        const container = map.getContainer();
+        const textDiv = document.createElement('div');
+        textDiv.className = 'cinematic-text-overlay';
+        textDiv.innerHTML = `
+          <div class="cinematic-text-content">
+            <div class="cinematic-plot-area">${sqft.toLocaleString()} sqft</div>
+            <div class="cinematic-plot-dims">${sideFt} × ${Math.round(sqft / sideFt)} ft</div>
+            <div class="cinematic-plot-id">${plot.id}</div>
+          </div>
+        `;
+        textDiv.style.left = `${point.x}px`;
+        textDiv.style.top = `${point.y}px`;
+        container.appendChild(textDiv);
+        overlayRef.current = textDiv;
+
+        const updatePos = () => {
+          if (!overlayRef.current) return;
+          const p = map.latLngToContainerPoint(bCenter);
+          overlayRef.current.style.left = `${p.x}px`;
+          overlayRef.current.style.top = `${p.y}px`;
+        };
+        map.on('move zoom', updatePos);
+      }, 1800);
+
+      return () => clearTimeout(textTimer);
+    }, circleDuration + 200); // Start boundary after circle completes
 
     return () => {
-      clearTimeout(boundaryTimer);
+      clearTimeout(boundaryDelay);
       cleanup();
     };
   }, [map, plot?.id]);
