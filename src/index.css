@@ -233,9 +233,13 @@
   font-family: 'JetBrains Mono', monospace;
   font-size: 22px;
   font-weight: 800;
-  color: #00e5ff;
+  color: #ffffff;
   letter-spacing: 2px;
   line-height: 1.2;
+  text-shadow:
+    0 0 10px rgba(255, 255, 255, 0.9),
+    0 0 25px rgba(0, 229, 255, 0.6),
+    0 0 50px rgba(139, 92, 246, 0.4);
 }
 
 .cinematic-plot-dims {
