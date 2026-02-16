@@ -169,7 +169,7 @@ serve(async (req) => {
       const minArea = url.searchParams.get('minArea');
       const maxArea = url.searchParams.get('maxArea');
       const projectName = url.searchParams.get('project');
-      const limit = url.searchParams.get('limit') || '50';
+      const limit = url.searchParams.get('limit') || '100';
 
       const conditions: string[] = [];
 
@@ -182,8 +182,17 @@ serve(async (req) => {
         if (!isNaN(max)) conditions.push(`AREA_SQM <= ${max}`);
       }
       if (projectName) {
-        const sanitized = projectName.replace(/[^a-zA-Z0-9\s_\-]/g, '');
-        conditions.push(`(PROJECT_NAME LIKE '%${sanitized}%' OR ENTITY_NAME LIKE '%${sanitized}%')`);
+        const sanitized = projectName.replace(/[^a-zA-Z0-9\s_\-]/g, '').toUpperCase();
+        // Split into significant words and match each for fuzzy matching
+        const words = sanitized.split(/\s+/).filter(w => w.length > 2);
+        if (words.length > 0) {
+          const wordConditions = words.map(w => 
+            `(UPPER(PROJECT_NAME) LIKE '%${w}%' OR UPPER(ENTITY_NAME) LIKE '%${w}%')`
+          );
+          conditions.push(`(${wordConditions.join(' AND ')})`);
+        } else {
+          conditions.push(`(UPPER(PROJECT_NAME) LIKE '%${sanitized}%' OR UPPER(ENTITY_NAME) LIKE '%${sanitized}%')`);
+        }
       }
 
       const whereClause = conditions.length > 0 ? conditions.join(' AND ') : '1=1';
