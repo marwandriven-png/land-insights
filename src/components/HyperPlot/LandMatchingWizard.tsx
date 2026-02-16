@@ -2,8 +2,9 @@ import { useState, useCallback, useRef } from 'react';
 import {
   X, Upload, Search, FileText, CheckCircle, AlertTriangle,
   Target, Loader2, MapPin, Building2, Sparkles, ArrowRight,
-  Link2, LayoutGrid
+  Link2, LayoutGrid, ClipboardList
 } from 'lucide-react';
+import { ReviewDataModal } from './ReviewDataModal';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -54,6 +55,8 @@ export function LandMatchingWizard({
   const [sheetName, setSheetName] = useState('');
   const [sheetConnected, setSheetConnected] = useState(false);
   const [isConnectingSheet, setIsConnectingSheet] = useState(false);
+  const [showReviewModal, setShowReviewModal] = useState(false);
+  const [selectedMatchIds, setSelectedMatchIds] = useState<Set<string>>(new Set());
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   // Quick search form fields
@@ -120,6 +123,7 @@ export function LandMatchingWizard({
       }
 
       setMatchResults(results);
+      setSelectedMatchIds(new Set(results.map(r => r.matchedPlotId)));
       setStep('results');
       onHighlightPlots(results.map(r => r.matchedPlotId));
     } catch {
@@ -211,6 +215,7 @@ export function LandMatchingWizard({
         }
 
         setMatchResults(results);
+        setSelectedMatchIds(new Set(results.map(r => r.matchedPlotId)));
         setStep('results');
         onHighlightPlots(results.map(r => r.matchedPlotId));
       } catch (err) {
@@ -737,19 +742,49 @@ export function LandMatchingWizard({
                 </h3>
                 <p className="text-xs text-muted-foreground">
                   {matchResults.length > 0
-                    ? 'Plots within ±6% tolerance'
+                    ? `${matchResults.length} lands · ${selectedMatchIds.size} selected`
                     : 'No matching land found within tolerance'}
                 </p>
               </div>
 
+              {/* Review Data Button */}
+              {matchResults.length > 0 && (
+                <Button
+                  className="w-full gap-2"
+                  variant="secondary"
+                  onClick={() => setShowReviewModal(true)}
+                >
+                  <ClipboardList className="w-4 h-4" />
+                  Review Data ({selectedMatchIds.size > 0 ? selectedMatchIds.size : matchResults.length})
+                </Button>
+              )}
+
               {matchResults.map((result, idx) => (
                 <div
                   key={idx}
-                  className="data-card hover:border-primary/50 cursor-pointer transition-all"
+                  className={`data-card hover:border-primary/50 cursor-pointer transition-all ${
+                    selectedMatchIds.has(result.matchedPlotId) ? 'border-primary/60 bg-primary/5' : ''
+                  }`}
                   onClick={() => handlePlotClick(result.matchedPlotId)}
                 >
                   <div className="flex items-center justify-between mb-2">
                     <div className="flex items-center gap-2">
+                      {/* Checkbox */}
+                      <input
+                        type="checkbox"
+                        checked={selectedMatchIds.has(result.matchedPlotId)}
+                        onChange={(e) => {
+                          e.stopPropagation();
+                          setSelectedMatchIds(prev => {
+                            const next = new Set(prev);
+                            if (next.has(result.matchedPlotId)) next.delete(result.matchedPlotId);
+                            else next.add(result.matchedPlotId);
+                            return next;
+                          });
+                        }}
+                        onClick={(e) => e.stopPropagation()}
+                        className="w-4 h-4 rounded border-primary accent-primary"
+                      />
                       <Building2 className="w-4 h-4 text-primary" />
                       <div>
                         <span className="font-bold text-sm">Plot {result.matchedPlotId}</span>
@@ -839,6 +874,13 @@ export function LandMatchingWizard({
                   New Search
                 </Button>
               </div>
+
+              {/* Review Data Modal */}
+              <ReviewDataModal
+                isOpen={showReviewModal}
+                onClose={() => setShowReviewModal(false)}
+                matches={matchResults}
+              />
             </div>
           )}
         </ScrollArea>
