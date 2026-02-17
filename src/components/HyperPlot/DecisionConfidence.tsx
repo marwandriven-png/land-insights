@@ -296,8 +296,58 @@ export function DecisionConfidence({ plot, isFullscreen, onToggleFullscreen }: D
                 </div>
               </Section>
 
-              {/* 2. Unit Breakdown (100% from Sellable Area) */}
-              <Section title="2 · Unit Breakdown" badge="100% of Sellable Area">
+              {/* 2. Cost Breakdown */}
+              <Section title="2 · Cost Breakdown">
+                <div className="overflow-x-auto">
+                  <Table>
+                    <TableHeader>
+                      <TableRow>
+                        {['', 'Cost Item', 'Basis', 'Rate', 'Amount (AED)', '% of GDV'].map(h => (
+                          <TableHead key={h} className="text-[10px] text-right first:text-left">{h}</TableHead>
+                        ))}
+                      </TableRow>
+                    </TableHeader>
+                    <TableBody>
+                      {[
+                        { key: 'land', item: 'Land Cost', basis: 'GFA × Land PSF', rate: `AED ${fmt(Math.round(fs.landCost / fs.gfa))}/sqft`, amount: fs.landCost, toggle: null },
+                        { key: 'construction', item: 'Construction', basis: `BUA × AED ${overrides.constructionPsf || 420}/sqft`, rate: `AED ${overrides.constructionPsf || 420}/sqft BUA`, amount: fs.constructionCost, toggle: null },
+                        { key: 'authority', item: 'Authority Fees', basis: 'DLD + NOC + RERA', rate: '4% of land', amount: fs.authorityFees, toggle: null },
+                        { key: 'consultant', item: 'Consultant Fees', basis: 'Architecture, PM', rate: '3% of construction', amount: fs.consultantFees, toggle: null },
+                        { key: 'marketing', item: 'Marketing & Sales', basis: 'Broker + campaign', rate: '10% of GDV', amount: fs.marketing, toggle: null },
+                        { key: 'contingency', item: 'Contingency', basis: 'Risk buffer', rate: `${((overrides.contingencyPct ?? 0.05) * 100).toFixed(1)}% of construction`, amount: fs.contingency, toggle: { checked: includeContingency, onChange: setIncludeContingency } },
+                        { key: 'finance', item: 'Financing', basis: 'Construction carry', rate: `${((overrides.financePct ?? 0.04) * 100).toFixed(1)}% of construction`, amount: fs.financing, toggle: { checked: includeFinance, onChange: setIncludeFinance } },
+                      ].map(r => (
+                        <TableRow key={r.key} className={r.toggle && !r.toggle.checked ? 'opacity-40' : ''}>
+                          <TableCell className="py-1.5 w-8">
+                            {r.toggle && (
+                              <Checkbox
+                                checked={r.toggle.checked}
+                                onCheckedChange={(v) => r.toggle!.onChange(!!v)}
+                                className="h-3.5 w-3.5"
+                              />
+                            )}
+                          </TableCell>
+                          <TableCell className="text-xs font-medium py-1.5">{r.item}</TableCell>
+                          <TableCell className="text-[10px] text-right text-muted-foreground py-1.5">{r.basis}</TableCell>
+                          <TableCell className="text-[10px] text-right text-muted-foreground py-1.5">{r.rate}</TableCell>
+                          <TableCell className="text-xs text-right font-mono py-1.5">{fmtA(r.amount)}</TableCell>
+                          <TableCell className="text-xs text-right py-1.5">{pct(r.amount / fs.grossSales)}</TableCell>
+                        </TableRow>
+                      ))}
+                    </TableBody>
+                    <TableFooter>
+                      <TableRow>
+                        <TableCell className="text-xs font-bold py-1.5" colSpan={4}>TOTAL DEVELOPMENT COST</TableCell>
+                        <TableCell className="text-xs text-right font-bold py-1.5">{fmtA(fs.totalCost)}</TableCell>
+                        <TableCell className="text-xs text-right font-bold py-1.5">{pct(fs.totalCost / fs.grossSales)}</TableCell>
+                      </TableRow>
+                    </TableFooter>
+                  </Table>
+                </div>
+              </Section>
+
+              {/* 3. Unit Breakdown (100% from Sellable Area) */}
+              <Section title="3 · Unit Breakdown" badge="100% of Sellable Area">
                 <div className="overflow-x-auto">
                   <Table>
                     <TableHeader>
@@ -346,7 +396,6 @@ export function DecisionConfidence({ plot, isFullscreen, onToggleFullscreen }: D
                 </div>
               </Section>
 
-              {/* 3. Value View */}
               {/* Sales Transactions Reference */}
               <Section title="Sales Transactions" badge={`${TXN_COUNT.total} total`}>
                 <div className="overflow-x-auto">
@@ -382,7 +431,7 @@ export function DecisionConfidence({ plot, isFullscreen, onToggleFullscreen }: D
                 </div>
               </Section>
 
-              <Section title="3 · Unit Breakdown — Value View">
+              <Section title="4 · Unit Breakdown — Value View">
                 <div className="overflow-x-auto">
                   <Table>
                     <TableHeader>
@@ -419,59 +468,6 @@ export function DecisionConfidence({ plot, isFullscreen, onToggleFullscreen }: D
                         <TableCell className="text-xs text-right font-bold py-1.5">100%</TableCell>
                         <TableCell className="text-xs text-right py-1.5">—</TableCell>
                         <TableCell className="text-xs text-right font-bold py-1.5">{fmtA(fs.annualRent)}</TableCell>
-                      </TableRow>
-                    </TableFooter>
-                  </Table>
-                </div>
-              </Section>
-
-              {/* 4. Cost Breakdown */}
-              <Section title="4 · Cost Breakdown">
-                {/* Toggle controls for optional cost items */}
-                <div className="flex items-center gap-4 mb-3 p-2 rounded-lg bg-muted/30 border border-border/30">
-                  <span className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wide">Include:</span>
-                  <label className="flex items-center gap-1.5 cursor-pointer">
-                    <Checkbox checked={includeContingency} onCheckedChange={(v) => setIncludeContingency(!!v)} className="h-3.5 w-3.5" />
-                    <span className="text-xs font-medium text-foreground">Contingency</span>
-                  </label>
-                  <label className="flex items-center gap-1.5 cursor-pointer">
-                    <Checkbox checked={includeFinance} onCheckedChange={(v) => setIncludeFinance(!!v)} className="h-3.5 w-3.5" />
-                    <span className="text-xs font-medium text-foreground">Finance</span>
-                  </label>
-                </div>
-                <div className="overflow-x-auto">
-                  <Table>
-                    <TableHeader>
-                      <TableRow>
-                        {['Cost Item', 'Basis', 'Rate', 'Amount (AED)', '% of GDV'].map(h => (
-                          <TableHead key={h} className="text-[10px] text-right first:text-left">{h}</TableHead>
-                        ))}
-                      </TableRow>
-                    </TableHeader>
-                    <TableBody>
-                      {[
-                        ['Land Cost', 'GFA × Land PSF', `AED ${fmt(Math.round(fs.landCost / fs.gfa))}/sqft`, fs.landCost, fs.landCost / fs.grossSales],
-                        ['Construction', `BUA × AED ${overrides.constructionPsf || 420}/sqft`, `AED ${overrides.constructionPsf || 420}/sqft BUA`, fs.constructionCost, fs.constructionCost / fs.grossSales],
-                        ['Authority Fees', 'DLD + NOC + RERA', '4% of land', fs.authorityFees, fs.authorityFees / fs.grossSales],
-                        ['Consultant Fees', 'Architecture, PM', '3% of construction', fs.consultantFees, fs.consultantFees / fs.grossSales],
-                        ['Marketing & Sales', 'Broker + campaign', '10% of GDV', fs.marketing, fs.marketing / fs.grossSales],
-                        ...(includeContingency ? [['Contingency', 'Risk buffer', `${((overrides.contingencyPct ?? 0.05) * 100).toFixed(1)}% of construction`, fs.contingency, fs.contingency / fs.grossSales]] : []),
-                        ...(includeFinance ? [['Financing', 'Construction carry', `${((overrides.financePct ?? 0.04) * 100).toFixed(1)}% of construction`, fs.financing, fs.financing / fs.grossSales]] : []),
-                      ].map(([item, basis, rate, amount, gdvPct]) => (
-                        <TableRow key={item as string}>
-                          <TableCell className="text-xs font-medium py-1.5">{item}</TableCell>
-                          <TableCell className="text-[10px] text-right text-muted-foreground py-1.5">{basis}</TableCell>
-                          <TableCell className="text-[10px] text-right text-muted-foreground py-1.5">{rate}</TableCell>
-                          <TableCell className="text-xs text-right font-mono py-1.5">{fmtA(amount as number)}</TableCell>
-                          <TableCell className="text-xs text-right py-1.5">{pct(gdvPct as number)}</TableCell>
-                        </TableRow>
-                      ))}
-                    </TableBody>
-                    <TableFooter>
-                      <TableRow>
-                        <TableCell className="text-xs font-bold py-1.5" colSpan={3}>TOTAL DEVELOPMENT COST</TableCell>
-                        <TableCell className="text-xs text-right font-bold py-1.5">{fmtA(fs.totalCost)}</TableCell>
-                        <TableCell className="text-xs text-right font-bold py-1.5">{pct(fs.totalCost / fs.grossSales)}</TableCell>
                       </TableRow>
                     </TableFooter>
                   </Table>
