@@ -86,7 +86,10 @@ export interface DSCFeasibilityResult {
   payPlan: { booking: number; construction: number; handover: number };
 }
 
-export function calcDSCFeasibility(plot: DSCPlotInput, mixKey: MixKey, overrides: { gfa?: number; landCost?: number; landCostPsf?: number; efficiency?: number; buaMultiplier?: number; constructionPsf?: number; mix?: Partial<{ studio: number; br1: number; br2: number; br3: number }> } = {}): DSCFeasibilityResult {
+// Average PSF from 6 benchmarks
+export const BENCHMARK_AVG_PSF = Math.round(COMPS.reduce((s, c) => s + c.psf, 0) / COMPS.length);
+
+export function calcDSCFeasibility(plot: DSCPlotInput, mixKey: MixKey, overrides: { gfa?: number; landCost?: number; landCostPsf?: number; efficiency?: number; buaMultiplier?: number; constructionPsf?: number; avgPsfOverride?: number; contingencyPct?: number; financePct?: number; mix?: Partial<{ studio: number; br1: number; br2: number; br3: number }> } = {}): DSCFeasibilityResult {
   const tmpl = MIX_TEMPLATES[mixKey];
   const mix = { ...tmpl.mix, ...overrides.mix };
   const gfa = overrides.gfa || (plot.area * plot.ratio);
@@ -97,8 +100,13 @@ export function calcDSCFeasibility(plot: DSCPlotInput, mixKey: MixKey, overrides
   const landCostPsf = overrides.landCostPsf || 148.23;
   const landCost = overrides.landCost || (gfa * landCostPsf);
 
-  const densityFactor = mixKey === "investor" ? 1.15 : mixKey === "balanced" ? 1.0 : 0.85;
-  const totalUnits = Math.round((sellableArea / 1000) * densityFactor);
+  // Unit count derived from sellable area (100% allocation)
+  const avgUnitSize =
+    mix.studio * UNIT_SIZES.studio +
+    mix.br1 * UNIT_SIZES.br1 +
+    mix.br2 * UNIT_SIZES.br2 +
+    mix.br3 * UNIT_SIZES.br3;
+  const totalUnits = Math.round(sellableArea / avgUnitSize);
 
   const units = {
     studio: Math.round(totalUnits * mix.studio),
@@ -109,24 +117,19 @@ export function calcDSCFeasibility(plot: DSCPlotInput, mixKey: MixKey, overrides
   };
   units.total = units.studio + units.br1 + units.br2 + units.br3;
 
-  // Weighted average PSF from unit mix
-  const weightedPsf =
-    mix.studio * (UNIT_PRICES.studio / UNIT_SIZES.studio) +
-    mix.br1 * (UNIT_PRICES.br1 / UNIT_SIZES.br1) +
-    mix.br2 * (UNIT_PRICES.br2 / UNIT_SIZES.br2) +
-    mix.br3 * (UNIT_PRICES.br3 / UNIT_SIZES.br3);
-
-  const psfAdj = mixKey === "investor" ? 0.97 : mixKey === "family" ? 1.04 : 1.0;
-  const avgPsf = weightedPsf * psfAdj;
+  // Avg PSF: use override if provided, otherwise benchmark average of 6 projects
+  const avgPsf = overrides.avgPsfOverride || BENCHMARK_AVG_PSF;
 
   // GDV = Sellable Area × Avg PSF
   const grossSales = sellableArea * avgPsf;
 
+  const psfAdj = mixKey === "investor" ? 0.97 : mixKey === "family" ? 1.04 : 1.0;
+
   const prices = {
-    studio: UNIT_PRICES.studio * psfAdj,
-    br1: UNIT_PRICES.br1 * psfAdj,
-    br2: UNIT_PRICES.br2 * psfAdj,
-    br3: UNIT_PRICES.br3 * (psfAdj * 1.02),
+    studio: UNIT_SIZES.studio * avgPsf * psfAdj,
+    br1: UNIT_SIZES.br1 * avgPsf * psfAdj,
+    br2: UNIT_SIZES.br2 * avgPsf * psfAdj,
+    br3: UNIT_SIZES.br3 * avgPsf * (psfAdj * 1.02),
   };
 
   const revBreak = {
@@ -141,8 +144,10 @@ export function calcDSCFeasibility(plot: DSCPlotInput, mixKey: MixKey, overrides
   const authorityFees = landCost * 0.04;
   const consultantFees = constructionCost * 0.03;
   const marketing = grossSales * 0.10;
-  const contingency = constructionCost * 0.05;
-  const financing = constructionCost * 0.04;
+  const contingencyPct = overrides.contingencyPct ?? 0.05;
+  const financePct = overrides.financePct ?? 0.04;
+  const contingency = constructionCost * contingencyPct;
+  const financing = constructionCost * financePct;
   const totalCost = landCost + constructionCost + authorityFees + consultantFees + marketing + contingency + financing;
 
   const grossProfit = grossSales - totalCost;

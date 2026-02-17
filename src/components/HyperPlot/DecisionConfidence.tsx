@@ -1,7 +1,7 @@
 import { useState, useMemo, useEffect } from 'react';
 import { Loader2, TrendingUp, DollarSign, Building2, BarChart3, Target, Shield, Printer, Maximize2, Minimize2 } from 'lucide-react';
 import { PlotData, AffectionPlanData, gisService } from '@/services/DDAGISService';
-import { calcDSCFeasibility, DSCPlotInput, DSCFeasibilityResult, MixKey, MIX_TEMPLATES, COMPS, UNIT_SIZES, RENT_PSF_YR, fmt, fmtM, fmtA, pct } from '@/lib/dscFeasibility';
+import { calcDSCFeasibility, DSCPlotInput, DSCFeasibilityResult, MixKey, MIX_TEMPLATES, COMPS, UNIT_SIZES, RENT_PSF_YR, BENCHMARK_AVG_PSF, fmt, fmtM, fmtA, pct } from '@/lib/dscFeasibility';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Table, TableHeader, TableBody, TableRow, TableHead, TableCell, TableFooter } from '@/components/ui/table';
 import { Badge } from '@/components/ui/badge';
@@ -71,7 +71,7 @@ export function DecisionConfidence({ plot, isFullscreen, onToggleFullscreen }: D
   const [plan, setPlan] = useState<AffectionPlanData | null>(null);
   const [loading, setLoading] = useState(true);
   const [editMode, setEditMode] = useState(false);
-  const [overrides, setOverrides] = useState<{ area?: number; ratio?: number; height?: string; efficiency?: number; landCostPsf?: number; constructionPsf?: number; buaMultiplier?: number }>({});
+  const [overrides, setOverrides] = useState<{ area?: number; ratio?: number; height?: string; efficiency?: number; landCostPsf?: number; constructionPsf?: number; buaMultiplier?: number; avgPsfOverride?: number; contingencyPct?: number; financePct?: number }>({});
   const [activeTab, setActiveTab] = useState<'feasibility' | 'comparison' | 'sensitivity'>('feasibility');
 
   // Fetch affection plan on plot change
@@ -99,7 +99,10 @@ export function DecisionConfidence({ plot, isFullscreen, onToggleFullscreen }: D
     landCostPsf: overrides.landCostPsf,
     constructionPsf: overrides.constructionPsf,
     buaMultiplier: overrides.buaMultiplier,
-  }), [dscInput, activeMix, overrides.efficiency, overrides.landCostPsf, overrides.constructionPsf, overrides.buaMultiplier]);
+    avgPsfOverride: overrides.avgPsfOverride,
+    contingencyPct: overrides.contingencyPct,
+    financePct: overrides.financePct,
+  }), [dscInput, activeMix, overrides]);
 
   if (loading) {
     return (
@@ -183,12 +186,27 @@ export function DecisionConfidence({ plot, isFullscreen, onToggleFullscreen }: D
               <Input type="number" step="0.05" className="h-7 text-xs mt-0.5" defaultValue={overrides.buaMultiplier || 1.45}
                 onChange={e => setOverrides(p => ({ ...p, buaMultiplier: parseFloat(e.target.value) || undefined }))} />
             </div>
+            <div>
+              <label className="text-[10px] text-muted-foreground">Selling PSF (AED)</label>
+              <Input type="number" className="h-7 text-xs mt-0.5" defaultValue={overrides.avgPsfOverride || BENCHMARK_AVG_PSF}
+                onChange={e => setOverrides(p => ({ ...p, avgPsfOverride: parseFloat(e.target.value) || undefined }))} />
+            </div>
+            <div>
+              <label className="text-[10px] text-muted-foreground">Contingency (%)</label>
+              <Input type="number" step="0.5" className="h-7 text-xs mt-0.5" defaultValue={overrides.contingencyPct != null ? overrides.contingencyPct * 100 : 5}
+                onChange={e => { const v = parseFloat(e.target.value); setOverrides(p => ({ ...p, contingencyPct: !isNaN(v) ? v / 100 : undefined })); }} />
+            </div>
+            <div>
+              <label className="text-[10px] text-muted-foreground">Finance (%)</label>
+              <Input type="number" step="0.5" className="h-7 text-xs mt-0.5" defaultValue={overrides.financePct != null ? overrides.financePct * 100 : 4}
+                onChange={e => { const v = parseFloat(e.target.value); setOverrides(p => ({ ...p, financePct: !isNaN(v) ? v / 100 : undefined })); }} />
+            </div>
           </div>
         )}
 
         {/* KPI Strip */}
         <div className="flex gap-2 mt-3 flex-wrap">
-          <KpiCard label="Total GDV" value={fmtM(fs.grossSales)} sub={`Sellable ${fmt(Math.round(fs.sellableArea))} sqft × AED ${fmt(Math.round(fs.avgPsf))}/sqft`} accent />
+          <KpiCard label="Total GDV" value={fmtM(fs.grossSales)} sub={`Sellable ${fmt(Math.round(fs.sellableArea))} sqft × AED ${fmt(Math.round(fs.avgPsf))}/sqft (Benchmark Avg)`} accent />
           <KpiCard label="Total Cost" value={fmtM(fs.totalCost)} sub={`${pct(fs.totalCost / fs.grossSales)} of GDV`} />
           <KpiCard label="Net Profit" value={fmtM(fs.grossProfit)} sub={`Margin: ${pct(fs.grossMargin)}`} positive={fs.grossMargin > 0.2} negative={fs.grossMargin < 0} />
           <KpiCard label="ROI" value={pct(fs.roi)} sub="Return on cost" positive={fs.roi > 0.2} negative={fs.roi < 0} />
@@ -232,8 +250,8 @@ export function DecisionConfidence({ plot, isFullscreen, onToggleFullscreen }: D
                         ['Approved Height', dscInput.height, 'From affection plan'],
                         ['Est. Floors', `${fs.residentialFloors}`, `GFA ÷ (Plot × ${((overrides.efficiency || 0.95) * 100).toFixed(0)}%)`],
                         ['Floor Plate Efficiency', `${((overrides.efficiency || 0.95) * 100).toFixed(0)}%`, 'Overridable'],
-                        ['Avg PSF', `AED ${fmt(Math.round(fs.avgPsf))}`, 'Weighted from unit mix'],
-                        ['Total GDV', fmtA(fs.grossSales), 'Sellable Area × Avg PSF'],
+                        ['Selling PSF', `AED ${fmt(Math.round(fs.avgPsf))}`, `Benchmark avg of 6 projects (AED ${BENCHMARK_AVG_PSF})`],
+                        ['Total GDV', fmtA(fs.grossSales), 'Sellable Area × Selling PSF'],
                         ['Units/1,000 sqft', `${(fs.units.total / (fs.sellableArea / 1000)).toFixed(2)}`, MIX_TEMPLATES[activeMix].tag],
                       ].map(([param, val, note]) => (
                         <TableRow key={param}>
@@ -247,13 +265,13 @@ export function DecisionConfidence({ plot, isFullscreen, onToggleFullscreen }: D
                 </div>
               </Section>
 
-              {/* 2. Unit Breakdown */}
-              <Section title="2 · Unit Breakdown">
+              {/* 2. Unit Breakdown (100% from Sellable Area) */}
+              <Section title="2 · Unit Breakdown" badge="100% of Sellable Area">
                 <div className="overflow-x-auto">
                   <Table>
                     <TableHeader>
                       <TableRow>
-                        {['Type', 'Count', 'Mix %', 'Size (sqft)', 'Floor Space', 'Price (AED)', 'Rent PSF/yr', 'Yield'].map(h => (
+                        {['Type', 'Count', 'Mix %', 'Size (sqft)', 'Floor Space', '% Sellable', 'Price (AED)', 'Rent PSF/yr', 'Yield'].map(h => (
                           <TableHead key={h} className="text-[10px] text-right first:text-left">{h}</TableHead>
                         ))}
                       </TableRow>
@@ -271,6 +289,7 @@ export function DecisionConfidence({ plot, isFullscreen, onToggleFullscreen }: D
                           <TableCell className="text-xs text-right py-1.5">{pct(r.u / fs.units.total)}</TableCell>
                           <TableCell className="text-xs text-right py-1.5">{fmt(r.sz)}</TableCell>
                           <TableCell className="text-xs text-right py-1.5">{fmt(r.u * r.sz)}</TableCell>
+                          <TableCell className="text-xs text-right py-1.5">{pct((r.u * r.sz) / fs.sellableArea)}</TableCell>
                           <TableCell className="text-xs text-right font-mono py-1.5">{fmtA(r.pr)}</TableCell>
                           <TableCell className="text-xs text-right py-1.5">AED {r.rent}</TableCell>
                           <TableCell className="text-xs text-right py-1.5">{pct((r.sz * r.rent) / r.pr)}</TableCell>
@@ -282,8 +301,9 @@ export function DecisionConfidence({ plot, isFullscreen, onToggleFullscreen }: D
                         <TableCell className="text-xs font-bold py-1.5">TOTAL</TableCell>
                         <TableCell className="text-xs text-right font-bold py-1.5">{fmt(fs.units.total)}</TableCell>
                         <TableCell className="text-xs text-right font-bold py-1.5">100%</TableCell>
-                        <TableCell className="text-xs text-right py-1.5">{fmt(Math.round(fs.bua / fs.units.total))} avg</TableCell>
-                        <TableCell className="text-xs text-right font-bold py-1.5">{fmt(Math.round(fs.bua))}</TableCell>
+                        <TableCell className="text-xs text-right py-1.5">{fmt(Math.round(fs.sellableArea / fs.units.total))} avg</TableCell>
+                        <TableCell className="text-xs text-right font-bold py-1.5">{fmt(Math.round(fs.sellableArea))}</TableCell>
+                        <TableCell className="text-xs text-right font-bold py-1.5">100%</TableCell>
                         <TableCell className="text-xs text-right py-1.5">—</TableCell>
                         <TableCell className="text-xs text-right py-1.5">—</TableCell>
                         <TableCell className="text-xs text-right font-bold py-1.5">{pct(fs.grossYield)}</TableCell>
@@ -350,13 +370,13 @@ export function DecisionConfidence({ plot, isFullscreen, onToggleFullscreen }: D
                     </TableHeader>
                     <TableBody>
                       {[
-                        ['Land Cost', 'GFA × Land PSF', `AED ${fmt(Math.round(fs.landCost / fs.gfa))}/sqft × GFA`, fs.landCost, fs.landCost / fs.grossSales],
-                        ['Construction', 'BUA × AED 420/sqft', 'AED 420/sqft BUA', fs.constructionCost, fs.constructionCost / fs.grossSales],
+                        ['Land Cost', 'GFA × Land PSF', `AED ${fmt(Math.round(fs.landCost / fs.gfa))}/sqft`, fs.landCost, fs.landCost / fs.grossSales],
+                        ['Construction', `BUA × AED ${overrides.constructionPsf || 420}/sqft`, `AED ${overrides.constructionPsf || 420}/sqft BUA`, fs.constructionCost, fs.constructionCost / fs.grossSales],
                         ['Authority Fees', 'DLD + NOC + RERA', '4% of land', fs.authorityFees, fs.authorityFees / fs.grossSales],
                         ['Consultant Fees', 'Architecture, PM', '3% of construction', fs.consultantFees, fs.consultantFees / fs.grossSales],
                         ['Marketing & Sales', 'Broker + campaign', '10% of GDV', fs.marketing, fs.marketing / fs.grossSales],
-                        ['Contingency', 'Risk buffer', '5% of construction', fs.contingency, fs.contingency / fs.grossSales],
-                        ['Financing', 'Construction carry', '4% of construction', fs.financing, fs.financing / fs.grossSales],
+                        ['Contingency', 'Risk buffer', `${((overrides.contingencyPct ?? 0.05) * 100).toFixed(1)}% of construction`, fs.contingency, fs.contingency / fs.grossSales],
+                        ['Financing', 'Construction carry', `${((overrides.financePct ?? 0.04) * 100).toFixed(1)}% of construction`, fs.financing, fs.financing / fs.grossSales],
                       ].map(([item, basis, rate, amount, gdvPct]) => (
                         <TableRow key={item as string}>
                           <TableCell className="text-xs font-medium py-1.5">{item}</TableCell>
@@ -386,7 +406,7 @@ export function DecisionConfidence({ plot, isFullscreen, onToggleFullscreen }: D
                   <KpiCard label="GDV" value={fmtM(fs.grossSales)} sub={`Sellable ${fmt(Math.round(fs.sellableArea))} × AED ${fmt(Math.round(fs.avgPsf))}/sqft`} accent />
                   <KpiCard label="Annual Rental" value={fmtM(fs.annualRent)} sub={`AED ${fmt(Math.round(fs.annualRent / fs.units.total))}/unit/yr`} />
                   <KpiCard label="Rental Yield" value={pct(fs.grossYield)} sub="vs 5.5–6.5% DSC avg" positive={fs.grossYield > 0.055} />
-                  <KpiCard label="Your ASP" value={`AED ${fmt(Math.round(fs.avgPsf))}`} sub={fs.avgPsf > 1508 ? 'Above DSC median' : 'Below DSC median'} positive={fs.avgPsf > 1508} />
+                  <KpiCard label="Selling PSF" value={`AED ${fmt(Math.round(fs.avgPsf))}`} sub={`Benchmark avg: AED ${BENCHMARK_AVG_PSF}`} positive={fs.avgPsf >= BENCHMARK_AVG_PSF} />
                 </div>
 
                 {/* 5.3 Profit Summary */}
