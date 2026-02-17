@@ -146,14 +146,22 @@ export function HyperPlotAI() {
     });
   }, [plots, searchQuery, filters]);
 
-  // Update highlighted plots when search/filter changes
+  // Update highlighted plots: same-location plots when selected, or search/filter results
   useEffect(() => {
-    if (searchQuery || filters.status.length > 0 || filters.zoning.length > 0) {
+    if (selectedPlot) {
+      const area = selectedPlot.location || selectedPlot.project || '';
+      if (area) {
+        const sameAreaIds = plots.filter(p => (p.location || p.project || '') === area).map(p => p.id);
+        setHighlightedPlots(sameAreaIds);
+      } else {
+        setHighlightedPlots([selectedPlot.id]);
+      }
+    } else if (searchQuery || filters.status.length > 0 || filters.zoning.length > 0) {
       setHighlightedPlots(filteredPlots.map(p => p.id));
     } else {
       setHighlightedPlots([]);
     }
-  }, [searchQuery, filters, filteredPlots]);
+  }, [selectedPlot, plots, searchQuery, filters, filteredPlots]);
 
   const saveLastSeen = useCallback((plot: PlotData) => {
     // Only save if coordinates are valid (non-zero)
@@ -178,13 +186,7 @@ export function HyperPlotAI() {
     if (goToMap) {
       setActiveTab('map');
     }
-    // Highlight all plots in the same area/community
-    const area = plot.location || plot.project || '';
-    if (area) {
-      const sameAreaIds = plots.filter(p => (p.location || p.project || '') === area).map(p => p.id);
-      setHighlightedPlots(sameAreaIds);
-    }
-  }, [saveLastSeen, plots]);
+  }, [saveLastSeen]);
 
   const handlePlotFound = useCallback((plot: PlotData) => {
     // If this plot isn't in the loaded plots array (e.g. live API lookup), add it
