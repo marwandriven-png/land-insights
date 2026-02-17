@@ -146,22 +146,16 @@ export function HyperPlotAI() {
     });
   }, [plots, searchQuery, filters]);
 
-  // Update highlighted plots: all plots in same location/community glow when one is selected
+  // Update highlighted plots: only the clicked plot glows (no community-wide glow)
   useEffect(() => {
     if (selectedPlot) {
-      const area = selectedPlot.location || selectedPlot.project || '';
-      if (area) {
-        const sameAreaIds = plots.filter(p => (p.location || p.project || '') === area).map(p => p.id);
-        setHighlightedPlots(sameAreaIds);
-      } else {
-        setHighlightedPlots([selectedPlot.id]);
-      }
+      setHighlightedPlots([selectedPlot.id]);
     } else if (searchQuery || filters.status.length > 0 || filters.zoning.length > 0) {
       setHighlightedPlots(filteredPlots.map(p => p.id));
     } else {
       setHighlightedPlots([]);
     }
-  }, [selectedPlot, plots, searchQuery, filters, filteredPlots]);
+  }, [selectedPlot, searchQuery, filters, filteredPlots]);
 
   const saveLastSeen = useCallback((plot: PlotData) => {
     // Only save if coordinates are valid (non-zero)
