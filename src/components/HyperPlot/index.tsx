@@ -34,6 +34,7 @@ export function HyperPlotAI() {
   const [showDetailPanel, setShowDetailPanel] = useState(false);
   const [showWizard, setShowWizard] = useState(false);
   const [showFeasibilitySettings, setShowFeasibilitySettings] = useState(false);
+  const [decisionFullscreen, setDecisionFullscreen] = useState(false);
   const [lastSeen, setLastSeen] = useState<LastSeenEntry[]>(getLastSeen());
   const [filters, setFilters] = useState<FilterState>({
     status: [],
@@ -287,6 +288,11 @@ export function HyperPlotAI() {
       )}
 
       {/* Main Content */}
+      {decisionFullscreen && activeTab === 'feasibility' && selectedPlot ? (
+        <div className="flex-1 min-h-0 overflow-hidden">
+          <DecisionConfidence plot={selectedPlot} isFullscreen onToggleFullscreen={() => setDecisionFullscreen(false)} />
+        </div>
+      ) : (
       <div className="container mx-auto px-4 py-4 flex-1 min-h-0 overflow-hidden">
         <div className="grid grid-cols-12 gap-4 h-full overflow-hidden">
           {/* Sidebar Navigation */}
@@ -323,7 +329,7 @@ export function HyperPlotAI() {
               </div>
             )}
             {activeTab === 'feasibility' && selectedPlot ? (
-              <DecisionConfidence plot={selectedPlot} />
+              <DecisionConfidence plot={selectedPlot} isFullscreen={false} onToggleFullscreen={() => setDecisionFullscreen(true)} />
             ) : activeTab === 'feasibility' ? (
               <div className="h-full flex items-center justify-center glass-card glow-border">
                 <div className="text-center">
@@ -462,6 +468,7 @@ export function HyperPlotAI() {
           </div>
         </div>
       </div>
+      )}
 
       {/* Land Matching Wizard */}
       <LandMatchingWizard
