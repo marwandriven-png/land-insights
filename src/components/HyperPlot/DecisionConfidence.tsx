@@ -1,5 +1,5 @@
 import { useState, useMemo, useEffect } from 'react';
-import { Loader2, TrendingUp, DollarSign, Building2, BarChart3, Target, Shield, Printer, Maximize2, Minimize2 } from 'lucide-react';
+import { Loader2, TrendingUp, DollarSign, Building2, BarChart3, Target, Shield, Printer } from 'lucide-react';
 import { PlotData, AffectionPlanData, gisService } from '@/services/DDAGISService';
 import { calcDSCFeasibility, DSCPlotInput, DSCFeasibilityResult, MixKey, MIX_TEMPLATES, COMPS, UNIT_SIZES, RENT_PSF_YR, fmt, fmtM, fmtA, pct } from '@/lib/dscFeasibility';
 import { ScrollArea } from '@/components/ui/scroll-area';
@@ -10,8 +10,6 @@ import { Input } from '@/components/ui/input';
 
 interface DecisionConfidenceProps {
   plot: PlotData;
-  isFullscreen?: boolean;
-  onToggleFullscreen?: () => void;
 }
 
 // Convert PlotData + AffectionPlan into DSCPlotInput (sqft)
@@ -66,12 +64,12 @@ function Viability({ pass, label }: { pass: boolean; label: string }) {
   );
 }
 
-export function DecisionConfidence({ plot, isFullscreen, onToggleFullscreen }: DecisionConfidenceProps) {
+export function DecisionConfidence({ plot }: DecisionConfidenceProps) {
   const [activeMix, setActiveMix] = useState<MixKey>('balanced');
   const [plan, setPlan] = useState<AffectionPlanData | null>(null);
   const [loading, setLoading] = useState(true);
   const [editMode, setEditMode] = useState(false);
-  const [overrides, setOverrides] = useState<{ area?: number; ratio?: number; height?: string }>({});
+  const [overrides, setOverrides] = useState<{ area?: number; ratio?: number; height?: string; efficiency?: number; landCostPsf?: number; constructionPsf?: number; buaMultiplier?: number }>({});
   const [activeTab, setActiveTab] = useState<'feasibility' | 'comparison' | 'sensitivity'>('feasibility');
 
   // Fetch affection plan on plot change
@@ -94,7 +92,12 @@ export function DecisionConfidence({ plot, isFullscreen, onToggleFullscreen }: D
     return base;
   }, [plot, plan, overrides]);
 
-  const fs = useMemo(() => calcDSCFeasibility(dscInput, activeMix), [dscInput, activeMix]);
+  const fs = useMemo(() => calcDSCFeasibility(dscInput, activeMix, {
+    efficiency: overrides.efficiency,
+    landCostPsf: overrides.landCostPsf,
+    constructionPsf: overrides.constructionPsf,
+    buaMultiplier: overrides.buaMultiplier,
+  }), [dscInput, activeMix, overrides.efficiency, overrides.landCostPsf, overrides.constructionPsf, overrides.buaMultiplier]);
 
   if (loading) {
     return (
@@ -134,7 +137,7 @@ export function DecisionConfidence({ plot, isFullscreen, onToggleFullscreen }: D
 
         {/* Override inputs */}
         {editMode && (
-          <div className="grid grid-cols-3 gap-2 mt-2 p-2 rounded-lg bg-muted/30 border border-border/30">
+          <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 mt-2 p-2 rounded-lg bg-muted/30 border border-border/30">
             <div>
               <label className="text-[10px] text-muted-foreground">Plot Area (sqft)</label>
               <Input type="number" className="h-7 text-xs mt-0.5" defaultValue={Math.round(dscInput.area)}
@@ -149,6 +152,26 @@ export function DecisionConfidence({ plot, isFullscreen, onToggleFullscreen }: D
               <label className="text-[10px] text-muted-foreground">Height</label>
               <Input className="h-7 text-xs mt-0.5" defaultValue={dscInput.height}
                 onChange={e => setOverrides(p => ({ ...p, height: e.target.value || undefined }))} />
+            </div>
+            <div>
+              <label className="text-[10px] text-muted-foreground">Floor Plate Eff. (%)</label>
+              <Input type="number" step="1" className="h-7 text-xs mt-0.5" defaultValue={overrides.efficiency ? overrides.efficiency * 100 : 95}
+                onChange={e => { const v = parseFloat(e.target.value); setOverrides(p => ({ ...p, efficiency: v > 0 ? v / 100 : undefined })); }} />
+            </div>
+            <div>
+              <label className="text-[10px] text-muted-foreground">Land Cost (PSF)</label>
+              <Input type="number" className="h-7 text-xs mt-0.5" defaultValue={overrides.landCostPsf || 148}
+                onChange={e => setOverrides(p => ({ ...p, landCostPsf: parseFloat(e.target.value) || undefined }))} />
+            </div>
+            <div>
+              <label className="text-[10px] text-muted-foreground">Construction (PSF)</label>
+              <Input type="number" className="h-7 text-xs mt-0.5" defaultValue={overrides.constructionPsf || 420}
+                onChange={e => setOverrides(p => ({ ...p, constructionPsf: parseFloat(e.target.value) || undefined }))} />
+            </div>
+            <div>
+              <label className="text-[10px] text-muted-foreground">BUA Multiplier (×)</label>
+              <Input type="number" step="0.05" className="h-7 text-xs mt-0.5" defaultValue={overrides.buaMultiplier || 1.45}
+                onChange={e => setOverrides(p => ({ ...p, buaMultiplier: parseFloat(e.target.value) || undefined }))} />
             </div>
           </div>
         )}
@@ -194,10 +217,10 @@ export function DecisionConfidence({ plot, isFullscreen, onToggleFullscreen }: D
                         ['Plot Area', `${fmt(dscInput.area)} sqft`, `${(dscInput.area / 43560).toFixed(2)} acres`],
                         ['Plot Ratio', `× ${dscInput.ratio.toFixed(2)}`, 'Authority-approved FAR'],
                         ['GFA', `${fmt(Math.round(fs.gfa))} sqft`, 'Plot Area × Ratio'],
-                        ['BUA', `${fmt(Math.round(fs.bua))} sqft`, 'GFA × 1.45'],
+                        ['BUA', `${fmt(Math.round(fs.bua))} sqft`, `GFA × ${overrides.buaMultiplier || 1.45}`],
                         ['Approved Height', dscInput.height, 'From affection plan'],
-                        ['Est. Floors', `${fs.residentialFloors}`, 'GFA ÷ (Plot × 0.80)'],
-                        ['Floor Plate Efficiency', '80%', 'Core/circulation/amenities'],
+                        ['Est. Floors', `${fs.residentialFloors}`, `GFA ÷ (Plot × ${((overrides.efficiency || 0.95) * 100).toFixed(0)}%)`],
+                        ['Floor Plate Efficiency', `${((overrides.efficiency || 0.95) * 100).toFixed(0)}%`, 'Overridable'],
                         ['Units/1,000 sqft BUA', `${(fs.units.total / (fs.bua / 1000)).toFixed(2)}`, MIX_TEMPLATES[activeMix].tag],
                       ].map(([param, val, note]) => (
                         <TableRow key={param}>
@@ -314,7 +337,7 @@ export function DecisionConfidence({ plot, isFullscreen, onToggleFullscreen }: D
                     </TableHeader>
                     <TableBody>
                       {[
-                        ['Land Cost', 'Affection plan', `AED ${fmt(Math.round(fs.landCost / dscInput.area))}/sqft`, fs.landCost, fs.landCost / fs.grossSales],
+                        ['Land Cost', 'GFA × Land PSF', `AED ${fmt(Math.round(fs.landCost / fs.gfa))}/sqft × GFA`, fs.landCost, fs.landCost / fs.grossSales],
                         ['Construction', 'BUA × AED 420/sqft', 'AED 420/sqft BUA', fs.constructionCost, fs.constructionCost / fs.grossSales],
                         ['Authority Fees', 'DLD + NOC + RERA', '4% of land', fs.authorityFees, fs.authorityFees / fs.grossSales],
                         ['Consultant Fees', 'Architecture, PM', '3% of construction', fs.consultantFees, fs.consultantFees / fs.grossSales],
@@ -526,50 +549,26 @@ export function DecisionConfidence({ plot, isFullscreen, onToggleFullscreen }: D
           )}
 
           {/* Bottom spacer for mix nav */}
-          <div className="h-24" />
+          <div className="h-20" />
         </div>
       </ScrollArea>
 
-      {/* ─── Bottom Dock Bar (macOS style) ─── */}
-      <div className="shrink-0 border-t border-border/50 bg-card/90 backdrop-blur-xl">
-        {/* Unit Mix Selector */}
-        <div className="px-2 pt-2 pb-1">
-          <div className="flex items-center gap-2">
-            <span className="text-[10px] text-muted-foreground font-bold uppercase tracking-wider whitespace-nowrap">UNIT MIX:</span>
-            {(Object.entries(MIX_TEMPLATES) as [MixKey, typeof MIX_TEMPLATES.investor][]).map(([k, v]) => (
-              <button key={k} onClick={() => setActiveMix(k)}
-                className={`flex-1 flex flex-col items-center gap-0.5 py-2 px-2 rounded-lg border transition-all ${
-                  activeMix === k
-                    ? 'bg-primary/20 border-primary/50 text-foreground'
-                    : 'bg-muted/20 border-border/30 text-muted-foreground hover:bg-muted/40'
-                }`}>
-                <span className="text-sm">{v.icon}</span>
-                <span className="text-[10px] font-bold uppercase tracking-wider">{v.label}</span>
-                <span className="text-[8px] text-muted-foreground">{v.tag}</span>
-              </button>
-            ))}
-          </div>
-        </div>
-
-        {/* Window Control Bar */}
-        <div className="flex items-center justify-between px-3 py-1.5 border-t border-border/30">
-          <div className="flex items-center gap-1.5">
-            <div className="w-3 h-3 rounded-full bg-destructive/70 hover:bg-destructive cursor-pointer transition-colors" title="Close" onClick={onToggleFullscreen && isFullscreen ? onToggleFullscreen : undefined} />
-            <div className="w-3 h-3 rounded-full bg-warning/70 hover:bg-warning cursor-pointer transition-colors" title="Minimize" />
-            <div className="w-3 h-3 rounded-full bg-success/70 hover:bg-success cursor-pointer transition-colors" title={isFullscreen ? 'Exit Fullscreen' : 'Maximize'} onClick={onToggleFullscreen} />
-          </div>
-          <div className="flex items-center gap-2">
-            <span className="text-[9px] text-muted-foreground font-medium">Decision Confidence · {plot.id}</span>
-            {onToggleFullscreen && (
-              <button
-                onClick={onToggleFullscreen}
-                className="flex items-center gap-1 text-[10px] text-muted-foreground hover:text-foreground transition-colors px-2 py-0.5 rounded hover:bg-muted/40"
-              >
-                {isFullscreen ? <Minimize2 className="w-3 h-3" /> : <Maximize2 className="w-3 h-3" />}
-                {isFullscreen ? 'Exit' : 'Maximize'}
-              </button>
-            )}
-          </div>
+      {/* ─── Bottom Unit Mix Selector ─── */}
+      <div className="shrink-0 border-t border-border/50 bg-card/90 backdrop-blur-xl px-2 py-2">
+        <div className="flex items-center gap-2">
+          <span className="text-[10px] text-muted-foreground font-bold uppercase tracking-wider whitespace-nowrap">UNIT MIX:</span>
+          {(Object.entries(MIX_TEMPLATES) as [MixKey, typeof MIX_TEMPLATES.investor][]).map(([k, v]) => (
+            <button key={k} onClick={() => setActiveMix(k)}
+              className={`flex-1 flex flex-col items-center gap-0.5 py-2 px-2 rounded-lg border transition-all ${
+                activeMix === k
+                  ? 'bg-primary/20 border-primary/50 text-foreground'
+                  : 'bg-muted/20 border-border/30 text-muted-foreground hover:bg-muted/40'
+              }`}>
+              <span className="text-sm">{v.icon}</span>
+              <span className="text-[10px] font-bold uppercase tracking-wider">{v.label}</span>
+              <span className="text-[8px] text-muted-foreground">{v.tag}</span>
+            </button>
+          ))}
         </div>
       </div>
     </div>

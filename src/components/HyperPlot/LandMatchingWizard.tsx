@@ -28,6 +28,39 @@ import {
   SelectValue
 } from '@/components/ui/select';
 
+// Calculate confidence from deviation percentages
+function calcConfidence(areaDev: number, gfaDev: number, hasArea: boolean, hasGfa: boolean): number {
+  let score = 0;
+  if (hasArea) {
+    // 0% dev = full score, ≤6% = 80+, 6-10% = 50-80
+    score += (areaDev === 0 ? 40 : areaDev <= 6 ? Math.max(32, 40 - areaDev * 1.3) : Math.max(20, 40 - areaDev * 2)) * (hasGfa ? 1 : 1.5);
+  }
+  if (hasGfa) {
+    score += (gfaDev === 0 ? 40 : gfaDev <= 6 ? Math.max(32, 40 - gfaDev * 1.3) : Math.max(20, 40 - gfaDev * 2)) * (hasArea ? 1 : 1.5);
+  }
+  return Math.min(100, Math.max(10, Math.round(score)));
+}
+
+// Build match results from API plots
+function buildApiResults(apiPlots: PlotData[], input: ParcelInput): MatchResult[] {
+  return apiPlots.map(ap => {
+    const areaDev = input.plotAreaSqm > 0 ? parseFloat((Math.abs(ap.area - input.plotAreaSqm) / input.plotAreaSqm * 100).toFixed(2)) : 0;
+    const gfaDev = input.gfaSqm > 0 ? parseFloat((Math.abs(ap.gfa - input.gfaSqm) / input.gfaSqm * 100).toFixed(2)) : 0;
+    return {
+      input,
+      matchedPlotId: ap.id,
+      matchedPlotArea: ap.area,
+      matchedGfa: ap.gfa,
+      matchedZoning: ap.zoning,
+      matchedStatus: ap.status,
+      matchedLocation: ap.location,
+      areaDeviation: areaDev,
+      gfaDeviation: gfaDev,
+      confidenceScore: calcConfidence(areaDev, gfaDev, input.plotAreaSqm > 0, input.gfaSqm > 0),
+    };
+  }).sort((a, b) => b.confidenceScore - a.confidenceScore);
+}
+
 interface LandMatchingWizardProps {
   isOpen: boolean;
   onClose: () => void;
@@ -113,7 +146,7 @@ export function LandMatchingWizard({
       // If no local matches, try live GIS API
       if (results.length === 0) {
         const { gisService } = await import('@/services/DDAGISService');
-        const tolerance = 0.06;
+        const tolerance = 0.10; // Use broader tolerance for GIS API search
         const minArea = parcel.plotAreaSqm > 0 ? parcel.plotAreaSqm * (1 - tolerance) : undefined;
         const maxArea = parcel.plotAreaSqm > 0 ? parcel.plotAreaSqm * (1 + tolerance) : undefined;
         try {
@@ -121,37 +154,13 @@ export function LandMatchingWizard({
             // Area name specified: ONLY search with project name, no fallback
             const apiPlots = await gisService.searchByArea(minArea, maxArea, parcel.area);
             if (apiPlots.length > 0) {
-              results = apiPlots.map(ap => ({
-                input: parcel,
-                matchedPlotId: ap.id,
-                matchedPlotArea: ap.area,
-                matchedGfa: ap.gfa,
-                matchedZoning: ap.zoning,
-                matchedStatus: ap.status,
-                matchedLocation: ap.location,
-                areaDeviation: parcel.plotAreaSqm > 0 ? parseFloat((Math.abs(ap.area - parcel.plotAreaSqm) / parcel.plotAreaSqm * 100).toFixed(2)) : 0,
-                gfaDeviation: parcel.gfaSqm > 0 ? parseFloat((Math.abs(ap.gfa - parcel.gfaSqm) / parcel.gfaSqm * 100).toFixed(2)) : 0,
-                confidenceScore: Math.round(Math.max(0, 100 - (parcel.plotAreaSqm > 0 ? Math.abs(ap.area - parcel.plotAreaSqm) / parcel.plotAreaSqm * 100 : 0))),
-              }));
-              results.sort((a, b) => b.confidenceScore - a.confidenceScore);
+              results = buildApiResults(apiPlots, parcel);
             }
           } else {
             // No area name: show all matches by area range
             const apiPlots = await gisService.searchByArea(minArea, maxArea);
             if (apiPlots.length > 0) {
-              results = apiPlots.map(ap => ({
-                input: parcel,
-                matchedPlotId: ap.id,
-                matchedPlotArea: ap.area,
-                matchedGfa: ap.gfa,
-                matchedZoning: ap.zoning,
-                matchedStatus: ap.status,
-                matchedLocation: ap.location,
-                areaDeviation: parcel.plotAreaSqm > 0 ? parseFloat((Math.abs(ap.area - parcel.plotAreaSqm) / parcel.plotAreaSqm * 100).toFixed(2)) : 0,
-                gfaDeviation: parcel.gfaSqm > 0 ? parseFloat((Math.abs(ap.gfa - parcel.gfaSqm) / parcel.gfaSqm * 100).toFixed(2)) : 0,
-                confidenceScore: Math.round(Math.max(0, 100 - (parcel.plotAreaSqm > 0 ? Math.abs(ap.area - parcel.plotAreaSqm) / parcel.plotAreaSqm * 100 : 0))),
-              }));
-              results.sort((a, b) => b.confidenceScore - a.confidenceScore);
+              results = buildApiResults(apiPlots, parcel);
             }
           }
         } catch { /* continue */ }
@@ -235,7 +244,7 @@ export function LandMatchingWizard({
                 }
               } catch { /* continue */ }
             }
-            const tolerance = 0.06;
+            const tolerance = 0.10;
             const minArea = input.plotAreaSqm > 0 ? input.plotAreaSqm * (1 - tolerance) : undefined;
             const maxArea = input.plotAreaSqm > 0 ? input.plotAreaSqm * (1 + tolerance) : undefined;
             try {
@@ -244,38 +253,14 @@ export function LandMatchingWizard({
                 // Area name specified: strict search only
                 const apiPlots = await gisService.searchByArea(minArea, maxArea, input.area);
                 if (apiPlots.length > 0) {
-                  results = apiPlots.map(ap => ({
-                    input,
-                    matchedPlotId: ap.id,
-                    matchedPlotArea: ap.area,
-                    matchedGfa: ap.gfa,
-                    matchedZoning: ap.zoning,
-                    matchedStatus: ap.status,
-                    matchedLocation: ap.location,
-                    areaDeviation: input.plotAreaSqm > 0 ? parseFloat((Math.abs(ap.area - input.plotAreaSqm) / input.plotAreaSqm * 100).toFixed(2)) : 0,
-                    gfaDeviation: input.gfaSqm > 0 ? parseFloat((Math.abs(ap.gfa - input.gfaSqm) / input.gfaSqm * 100).toFixed(2)) : 0,
-                    confidenceScore: Math.round(Math.max(0, 100 - (input.plotAreaSqm > 0 ? Math.abs(ap.area - input.plotAreaSqm) / input.plotAreaSqm * 100 : 0))),
-                  }));
-                  results.sort((a, b) => b.confidenceScore - a.confidenceScore);
+                  results = buildApiResults(apiPlots, input);
                   break;
                 }
               } else {
                 // No area name: show all matches
                 const apiPlots = await gisService.searchByArea(minArea, maxArea);
                 if (apiPlots.length > 0) {
-                  results = apiPlots.map(ap => ({
-                    input,
-                    matchedPlotId: ap.id,
-                    matchedPlotArea: ap.area,
-                    matchedGfa: ap.gfa,
-                    matchedZoning: ap.zoning,
-                    matchedStatus: ap.status,
-                    matchedLocation: ap.location,
-                    areaDeviation: input.plotAreaSqm > 0 ? parseFloat((Math.abs(ap.area - input.plotAreaSqm) / input.plotAreaSqm * 100).toFixed(2)) : 0,
-                    gfaDeviation: input.gfaSqm > 0 ? parseFloat((Math.abs(ap.gfa - input.gfaSqm) / input.gfaSqm * 100).toFixed(2)) : 0,
-                    confidenceScore: Math.round(Math.max(0, 100 - (input.plotAreaSqm > 0 ? Math.abs(ap.area - input.plotAreaSqm) / input.plotAreaSqm * 100 : 0))),
-                  }));
-                  results.sort((a, b) => b.confidenceScore - a.confidenceScore);
+                  results = buildApiResults(apiPlots, input);
                   break;
                 }
               }
@@ -346,7 +331,7 @@ export function LandMatchingWizard({
             } catch { /* continue */ }
           }
 
-          const tolerance = 0.06;
+          const tolerance = 0.10;
           const minArea = input.plotAreaSqm > 0 ? input.plotAreaSqm * (1 - tolerance) : undefined;
           const maxArea = input.plotAreaSqm > 0 ? input.plotAreaSqm * (1 + tolerance) : undefined;
           try {
@@ -354,37 +339,13 @@ export function LandMatchingWizard({
             if (hasAreaName) {
               const apiPlots = await gisService.searchByArea(minArea, maxArea, input.area);
               if (apiPlots.length > 0) {
-                results = apiPlots.map(ap => ({
-                  input,
-                  matchedPlotId: ap.id,
-                  matchedPlotArea: ap.area,
-                  matchedGfa: ap.gfa,
-                  matchedZoning: ap.zoning,
-                  matchedStatus: ap.status,
-                  matchedLocation: ap.location,
-                  areaDeviation: input.plotAreaSqm > 0 ? parseFloat((Math.abs(ap.area - input.plotAreaSqm) / input.plotAreaSqm * 100).toFixed(2)) : 0,
-                  gfaDeviation: input.gfaSqm > 0 ? parseFloat((Math.abs(ap.gfa - input.gfaSqm) / input.gfaSqm * 100).toFixed(2)) : 0,
-                  confidenceScore: Math.round(Math.max(0, 100 - (input.plotAreaSqm > 0 ? Math.abs(ap.area - input.plotAreaSqm) / input.plotAreaSqm * 100 : 0))),
-                }));
-                results.sort((a, b) => b.confidenceScore - a.confidenceScore);
+                results = buildApiResults(apiPlots, input);
                 break;
               }
             } else {
               const apiPlots = await gisService.searchByArea(minArea, maxArea);
               if (apiPlots.length > 0) {
-                results = apiPlots.map(ap => ({
-                  input,
-                  matchedPlotId: ap.id,
-                  matchedPlotArea: ap.area,
-                  matchedGfa: ap.gfa,
-                  matchedZoning: ap.zoning,
-                  matchedStatus: ap.status,
-                  matchedLocation: ap.location,
-                  areaDeviation: input.plotAreaSqm > 0 ? parseFloat((Math.abs(ap.area - input.plotAreaSqm) / input.plotAreaSqm * 100).toFixed(2)) : 0,
-                  gfaDeviation: input.gfaSqm > 0 ? parseFloat((Math.abs(ap.gfa - input.gfaSqm) / input.gfaSqm * 100).toFixed(2)) : 0,
-                  confidenceScore: Math.round(Math.max(0, 100 - (input.plotAreaSqm > 0 ? Math.abs(ap.area - input.plotAreaSqm) / input.plotAreaSqm * 100 : 0))),
-                }));
-                results.sort((a, b) => b.confidenceScore - a.confidenceScore);
+                results = buildApiResults(apiPlots, input);
                 break;
               }
             }

@@ -85,12 +85,14 @@ export interface DSCFeasibilityResult {
   payPlan: { booking: number; construction: number; handover: number };
 }
 
-export function calcDSCFeasibility(plot: DSCPlotInput, mixKey: MixKey, overrides: { gfa?: number; landCost?: number; mix?: Partial<{ studio: number; br1: number; br2: number; br3: number }> } = {}): DSCFeasibilityResult {
+export function calcDSCFeasibility(plot: DSCPlotInput, mixKey: MixKey, overrides: { gfa?: number; landCost?: number; landCostPsf?: number; efficiency?: number; buaMultiplier?: number; constructionPsf?: number; mix?: Partial<{ studio: number; br1: number; br2: number; br3: number }> } = {}): DSCFeasibilityResult {
   const tmpl = MIX_TEMPLATES[mixKey];
   const mix = { ...tmpl.mix, ...overrides.mix };
   const gfa = overrides.gfa || (plot.area * plot.ratio);
-  const bua = gfa * 1.45;
-  const landCost = overrides.landCost || (plot.area * 148.23);
+  const buaMultiplier = overrides.buaMultiplier || 1.45;
+  const bua = gfa * buaMultiplier;
+  const landCostPsf = overrides.landCostPsf || 148.23;
+  const landCost = overrides.landCost || (gfa * landCostPsf);
 
   const densityFactor = mixKey === "investor" ? 1.15 : mixKey === "balanced" ? 1.0 : 0.85;
   const totalUnits = Math.round((bua / 1000) * densityFactor);
@@ -121,7 +123,8 @@ export function calcDSCFeasibility(plot: DSCPlotInput, mixKey: MixKey, overrides
   const grossSales = revBreak.studio + revBreak.br1 + revBreak.br2 + revBreak.br3;
   const avgPsf = grossSales / bua;
 
-  const constructionCost = bua * 420;
+  const constructionPsf = overrides.constructionPsf || 420;
+  const constructionCost = bua * constructionPsf;
   const authorityFees = landCost * 0.04;
   const consultantFees = constructionCost * 0.03;
   const marketing = grossSales * 0.10;
@@ -141,7 +144,7 @@ export function calcDSCFeasibility(plot: DSCPlotInput, mixKey: MixKey, overrides
     units.br3 * (UNIT_SIZES.br3 * RENT_PSF_YR.br3);
   const grossYield = annualRent / grossSales;
 
-  const efficiency = 0.80;
+  const efficiency = overrides.efficiency || 0.95;
   const floorPlate = plot.area * efficiency;
   const residentialFloors = Math.ceil(gfa / floorPlate);
 
