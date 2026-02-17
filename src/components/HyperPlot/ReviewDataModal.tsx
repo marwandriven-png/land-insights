@@ -158,7 +158,7 @@ export function ReviewDataModal({ isOpen, onClose, matches }: ReviewDataModalPro
   return (
     <div className="fixed inset-0 z-[100] flex items-center justify-center">
       <div className="fixed inset-0 bg-black/60 backdrop-blur-sm" onClick={onClose} />
-      <div className="relative w-[960px] max-w-[95vw] max-h-[85vh] bg-card border border-border rounded-2xl shadow-2xl flex flex-col animate-in fade-in zoom-in-95 duration-200">
+      <div className="relative w-full h-full bg-card flex flex-col animate-in fade-in duration-200">
         {/* Header */}
         <div className="flex items-center justify-between p-5 border-b border-border/50">
           <div>

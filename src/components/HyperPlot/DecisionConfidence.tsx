@@ -1,5 +1,5 @@
 import { useState, useMemo, useEffect } from 'react';
-import { Loader2, TrendingUp, DollarSign, Building2, BarChart3, Target, Shield, Printer } from 'lucide-react';
+import { Loader2, TrendingUp, DollarSign, Building2, BarChart3, Target, Shield, Printer, Maximize2, Minimize2 } from 'lucide-react';
 import { PlotData, AffectionPlanData, gisService } from '@/services/DDAGISService';
 import { calcDSCFeasibility, DSCPlotInput, DSCFeasibilityResult, MixKey, MIX_TEMPLATES, COMPS, UNIT_SIZES, RENT_PSF_YR, fmt, fmtM, fmtA, pct } from '@/lib/dscFeasibility';
 import { ScrollArea } from '@/components/ui/scroll-area';
@@ -10,6 +10,8 @@ import { Input } from '@/components/ui/input';
 
 interface DecisionConfidenceProps {
   plot: PlotData;
+  isFullscreen?: boolean;
+  onToggleFullscreen?: () => void;
 }
 
 // Convert PlotData + AffectionPlan into DSCPlotInput (sqft)
@@ -64,7 +66,7 @@ function Viability({ pass, label }: { pass: boolean; label: string }) {
   );
 }
 
-export function DecisionConfidence({ plot }: DecisionConfidenceProps) {
+export function DecisionConfidence({ plot, isFullscreen, onToggleFullscreen }: DecisionConfidenceProps) {
   const [activeMix, setActiveMix] = useState<MixKey>('balanced');
   const [plan, setPlan] = useState<AffectionPlanData | null>(null);
   const [loading, setLoading] = useState(true);
@@ -132,6 +134,12 @@ export function DecisionConfidence({ plot }: DecisionConfidenceProps) {
             <Button variant="outline" size="sm" className="text-xs h-7 gap-1" onClick={() => window.print()}>
               <Printer className="w-3 h-3" /> Print
             </Button>
+            {onToggleFullscreen && (
+              <Button variant="outline" size="sm" className="text-xs h-7 gap-1" onClick={onToggleFullscreen}>
+                {isFullscreen ? <Minimize2 className="w-3 h-3" /> : <Maximize2 className="w-3 h-3" />}
+                {isFullscreen ? 'Exit' : 'Maximize'}
+              </Button>
+            )}
           </div>
         </div>
 
@@ -433,6 +441,56 @@ export function DecisionConfidence({ plot }: DecisionConfidenceProps) {
 
           {/* ─── COMPARISON TAB ─── */}
           {activeTab === 'comparison' && (
+            <>
+            {/* Summary Comparison Table */}
+            <Section title="Summary Comparison" badge="Strategy Classification">
+              <div className="overflow-x-auto">
+                <Table>
+                  <TableHeader>
+                    <TableRow>
+                      {['Project', 'Total Units', 'Studio %', '1BR %', '2BR %', '3BR %', 'Strategy'].map(h => (
+                        <TableHead key={h} className="text-[10px] text-right first:text-left">{h}</TableHead>
+                      ))}
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {COMPS.map(c => {
+                      const strategy = c.studioP >= 50 ? 'Investor' : c.br2P >= 40 ? 'Family' : 'Balanced';
+                      return (
+                        <TableRow key={c.name}>
+                          <TableCell className="text-xs font-bold py-1.5">{c.name}</TableCell>
+                          <TableCell className="text-xs text-right font-mono py-1.5">{c.units}</TableCell>
+                          <TableCell className="text-xs text-right py-1.5">{c.studioP}%</TableCell>
+                          <TableCell className="text-xs text-right py-1.5">{c.br1P}%</TableCell>
+                          <TableCell className="text-xs text-right py-1.5">{c.br2P}%</TableCell>
+                          <TableCell className="text-xs text-right py-1.5">{c.br3P}%</TableCell>
+                          <TableCell className="text-xs text-right py-1.5">
+                            <Badge variant="outline" className={`text-[10px] ${strategy === 'Investor' ? 'border-primary/40 text-primary' : strategy === 'Family' ? 'border-success/40 text-success' : 'border-warning/40 text-warning'}`}>
+                              {strategy}
+                            </Badge>
+                          </TableCell>
+                        </TableRow>
+                      );
+                    })}
+                    {/* Your Plot row */}
+                    <TableRow className="bg-primary/5 border-t-2 border-primary/30">
+                      <TableCell className="text-xs font-bold py-1.5 text-primary">Your Plot</TableCell>
+                      <TableCell className="text-xs text-right font-mono font-bold py-1.5">{fs.units.total}</TableCell>
+                      <TableCell className="text-xs text-right font-bold py-1.5">{pct(fs.mix.studio)}</TableCell>
+                      <TableCell className="text-xs text-right font-bold py-1.5">{pct(fs.mix.br1)}</TableCell>
+                      <TableCell className="text-xs text-right font-bold py-1.5">{pct(fs.mix.br2)}</TableCell>
+                      <TableCell className="text-xs text-right font-bold py-1.5">{pct(fs.mix.br3)}</TableCell>
+                      <TableCell className="text-xs text-right py-1.5">
+                        <Badge className="bg-primary/20 text-primary border-primary/40 text-[10px]">
+                          {MIX_TEMPLATES[activeMix].label}
+                        </Badge>
+                      </TableCell>
+                    </TableRow>
+                  </TableBody>
+                </Table>
+              </div>
+            </Section>
+
             <Section title="Project Comparison — Active DSC Benchmarks" badge="6 projects">
               <div className="overflow-x-auto">
                 <Table>
@@ -498,6 +556,7 @@ export function DecisionConfidence({ plot }: DecisionConfidenceProps) {
                 <strong className="text-foreground">Market Intelligence:</strong> DSC sales avg AED 1,565/sqft (809 txns) · Rental avg AED 86/sqft/yr (3,191 txns) · Rental-to-sales ratio 3.9:1 · Avg service charge AED 13–15/sqft
               </div>
             </Section>
+            </>
           )}
 
           {/* ─── SENSITIVITY TAB ─── */}
