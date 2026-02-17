@@ -46,9 +46,10 @@ export function PlotListItem({ plot, isSelected, isHighlighted, onClick }: PlotL
   return (
     <div
       onClick={onClick}
+      data-plot-id={plot.id}
       className={`p-3 rounded-xl cursor-pointer transition-all duration-200 ${
         isSelected 
-          ? 'bg-primary/20 border border-primary/50 shadow-lg' 
+          ? 'ring-2 ring-[hsl(217,91%,60%)] border border-[hsl(217,91%,60%)]/50 bg-[hsl(217,91%,60%)]/15 shadow-lg shadow-[hsl(217,91%,60%)]/10' 
           : isHighlighted
             ? 'bg-muted/70 border border-primary/30'
             : 'bg-muted/30 border border-transparent hover:bg-muted/50 hover:border-border/50'
