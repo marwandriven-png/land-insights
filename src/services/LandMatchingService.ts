@@ -33,6 +33,7 @@ export interface MatchResult {
 
 const SQFT_TO_SQM = 0.092903;
 const TOLERANCE = 0.06; // ±6%
+const RELAXED_TOLERANCE = 0.10; // ±10% for broader matches
 
 function parseUnit(value: string): { num: number; unit: 'sqm' | 'sqft' | 'unknown' } {
   const cleaned = value.trim().toLowerCase();
@@ -281,19 +282,21 @@ export function matchParcels(
       }
       
       // 2. Tolerance matching: ±6% for Plot Area AND/OR GFA
+      // Use both strict (6%) and relaxed (10%) — strict gets higher confidence
       let areaCheck = { match: true, deviation: 0 };
       let gfaCheck = { match: true, deviation: 0 };
 
       if (hasPlotArea) {
-        areaCheck = isWithinTolerance(plot.area, input.plotAreaSqm, TOLERANCE);
+        areaCheck = isWithinTolerance(plot.area, input.plotAreaSqm, RELAXED_TOLERANCE);
       }
       if (hasGfa) {
-        gfaCheck = isWithinTolerance(plot.gfa, input.gfaSqm, TOLERANCE);
+        gfaCheck = isWithinTolerance(plot.gfa, input.gfaSqm, RELAXED_TOLERANCE);
       }
 
-      // Both provided → both must match. One provided → that one must match.
+      // Both provided → at least one must match within relaxed tolerance
+      // Only one provided → that one must match
       if (hasPlotArea && hasGfa) {
-        if (!areaCheck.match || !gfaCheck.match) continue;
+        if (!areaCheck.match && !gfaCheck.match) continue;
       } else if (hasPlotArea) {
         if (!areaCheck.match) continue;
       } else if (hasGfa) {
@@ -304,10 +307,13 @@ export function matchParcels(
       let confidenceScore = 0;
 
       if (hasPlotArea) {
-        confidenceScore += Math.max(0, 1 - areaCheck.deviation / TOLERANCE) * (hasGfa ? 35 : 60);
+        // Exact match (0%) = full points, within 6% = good, 6-10% = reduced
+        const areaPts = areaCheck.deviation === 0 ? 1 : areaCheck.deviation <= TOLERANCE ? Math.max(0, 1 - areaCheck.deviation / TOLERANCE) * 0.9 : Math.max(0, 1 - areaCheck.deviation / RELAXED_TOLERANCE) * 0.5;
+        confidenceScore += areaPts * (hasGfa ? 35 : 60);
       }
       if (hasGfa) {
-        confidenceScore += Math.max(0, 1 - gfaCheck.deviation / TOLERANCE) * (hasPlotArea ? 35 : 60);
+        const gfaPts = gfaCheck.deviation === 0 ? 1 : gfaCheck.deviation <= TOLERANCE ? Math.max(0, 1 - gfaCheck.deviation / TOLERANCE) * 0.9 : Math.max(0, 1 - gfaCheck.deviation / RELAXED_TOLERANCE) * 0.5;
+        confidenceScore += gfaPts * (hasPlotArea ? 35 : 60);
       }
 
       // 4. Optional enhancers

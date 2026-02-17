@@ -34,7 +34,7 @@ export function HyperPlotAI() {
   const [showDetailPanel, setShowDetailPanel] = useState(false);
   const [showWizard, setShowWizard] = useState(false);
   const [showFeasibilitySettings, setShowFeasibilitySettings] = useState(false);
-  const [decisionFullscreen, setDecisionFullscreen] = useState(false);
+  const decisionFullscreen = false;
   const [lastSeen, setLastSeen] = useState<LastSeenEntry[]>(getLastSeen());
   const [filters, setFilters] = useState<FilterState>({
     status: [],
@@ -290,7 +290,7 @@ export function HyperPlotAI() {
       {/* Main Content */}
       {decisionFullscreen && activeTab === 'feasibility' && selectedPlot ? (
         <div className="flex-1 min-h-0 overflow-hidden">
-          <DecisionConfidence plot={selectedPlot} isFullscreen onToggleFullscreen={() => setDecisionFullscreen(false)} />
+          <DecisionConfidence plot={selectedPlot} />
         </div>
       ) : (
       <div className="container mx-auto px-4 py-4 flex-1 min-h-0 overflow-hidden">
@@ -329,7 +329,7 @@ export function HyperPlotAI() {
               </div>
             )}
             {activeTab === 'feasibility' && selectedPlot ? (
-              <DecisionConfidence plot={selectedPlot} isFullscreen={false} onToggleFullscreen={() => setDecisionFullscreen(true)} />
+              <DecisionConfidence plot={selectedPlot} />
             ) : activeTab === 'feasibility' ? (
               <div className="h-full flex items-center justify-center glass-card glow-border">
                 <div className="text-center">
