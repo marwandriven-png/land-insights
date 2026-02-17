@@ -2,7 +2,7 @@ import { useState, useEffect, useMemo } from 'react';
 import { Calculator, DollarSign, TrendingUp, Building2, Edit3, Check } from 'lucide-react';
 import { PlotData, AffectionPlanData, gisService } from '@/services/DDAGISService';
 import { Input } from '@/components/ui/input';
-import { calcDSCFeasibility, DSCPlotInput, MIX_TEMPLATES, fmt, fmtM, fmtA, pct, MixKey, BENCHMARK_AVG_PSF } from '@/lib/dscFeasibility';
+import { calcDSCFeasibility, DSCPlotInput, MIX_TEMPLATES, fmt, fmtM, fmtA, pct, MixKey, TXN_AVG_PSF, TXN_WEIGHTED_AVG_PSF } from '@/lib/dscFeasibility';
 
 interface FeasibilityCalculatorProps {
   plot: PlotData;
@@ -15,7 +15,6 @@ interface FeasibilityParams {
   consultantFeePct: number;
   buaMultiplier: number;
   efficiency: number;
-  avgPsfOverride: number;
   contingencyPct: number;
   financePct: number;
 }
@@ -27,7 +26,6 @@ const DEFAULT_PARAMS: FeasibilityParams = {
   consultantFeePct: 3,
   buaMultiplier: 1.45,
   efficiency: 0.95,
-  avgPsfOverride: BENCHMARK_AVG_PSF,
   contingencyPct: 5,
   financePct: 4,
 };
@@ -64,7 +62,6 @@ export function FeasibilityCalculator({ plot }: FeasibilityCalculatorProps) {
     landCostPsf: params.landCostPsf,
     buaMultiplier: params.buaMultiplier,
     efficiency: params.efficiency,
-    avgPsfOverride: params.avgPsfOverride,
     contingencyPct: params.contingencyPct / 100,
     financePct: params.financePct / 100,
   }), [dscInput, params]);
@@ -120,8 +117,8 @@ export function FeasibilityCalculator({ plot }: FeasibilityCalculatorProps) {
             <Input type="number" value={Math.round(params.efficiency * 100)} onChange={(e) => { const v = parseFloat(e.target.value); if (!isNaN(v) && v > 0) setParams(p => ({ ...p, efficiency: v / 100 })); }} className="h-7 text-xs mt-0.5" />
           </div>
           <div>
-            <label className="text-[10px] text-muted-foreground">Selling PSF (AED)</label>
-            <Input type="number" value={params.avgPsfOverride} onChange={(e) => updateParam('avgPsfOverride', e.target.value)} className="h-7 text-xs mt-0.5" />
+            <label className="text-[10px] text-muted-foreground">Avg PSF (Txn)</label>
+            <div className="h-7 text-xs mt-0.5 px-2 flex items-center bg-muted/50 rounded-md text-muted-foreground font-mono">AED {fmt(TXN_WEIGHTED_AVG_PSF)}</div>
           </div>
           <div>
             <label className="text-[10px] text-muted-foreground">Contingency (%)</label>
@@ -142,11 +139,11 @@ export function FeasibilityCalculator({ plot }: FeasibilityCalculatorProps) {
         </span>
       </div>
       <div className="flex justify-between text-xs mb-1">
-        <span className="text-muted-foreground">Selling PSF (Benchmark Avg)</span>
+        <span className="text-muted-foreground">Avg Selling PSF (Txn)</span>
         <span className="text-foreground font-medium">AED {fmt(Math.round(fs.avgPsf))}</span>
       </div>
       <div className="flex justify-between text-xs mb-2 font-semibold">
-        <span className="text-muted-foreground">GDV (Sellable × Selling PSF)</span>
+        <span className="text-muted-foreground">GDV (Σ Units × Avg Price)</span>
         <span className="text-foreground">{fmtA(fs.grossSales)}</span>
       </div>
 
