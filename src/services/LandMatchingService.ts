@@ -286,11 +286,13 @@ export function matchParcels(
       let areaCheck = { match: true, deviation: 0 };
       let gfaCheck = { match: true, deviation: 0 };
 
+      // Use strict ±6% when area name is specified, relaxed ±10% otherwise
+      const activeTolerance = hasAreaName ? TOLERANCE : RELAXED_TOLERANCE;
       if (hasPlotArea) {
-        areaCheck = isWithinTolerance(plot.area, input.plotAreaSqm, RELAXED_TOLERANCE);
+        areaCheck = isWithinTolerance(plot.area, input.plotAreaSqm, activeTolerance);
       }
       if (hasGfa) {
-        gfaCheck = isWithinTolerance(plot.gfa, input.gfaSqm, RELAXED_TOLERANCE);
+        gfaCheck = isWithinTolerance(plot.gfa, input.gfaSqm, activeTolerance);
       }
 
       // Both provided → at least one must match within relaxed tolerance

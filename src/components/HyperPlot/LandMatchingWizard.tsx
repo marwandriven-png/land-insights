@@ -153,7 +153,7 @@ export function LandMatchingWizard({
       // If no local matches, try live GIS API
       if (results.length === 0) {
         const { gisService } = await import('@/services/DDAGISService');
-        const tolerance = 0.10; // Use broader tolerance for GIS API search
+        const tolerance = hasAreaName ? 0.06 : 0.10; // Strict ±6% when area specified
         const minArea = parcel.plotAreaSqm > 0 ? parcel.plotAreaSqm * (1 - tolerance) : undefined;
         const maxArea = parcel.plotAreaSqm > 0 ? parcel.plotAreaSqm * (1 + tolerance) : undefined;
         try {
@@ -251,7 +251,8 @@ export function LandMatchingWizard({
                 }
               } catch { /* continue */ }
             }
-            const tolerance = 0.10;
+            const hasAreaName = input.area.trim().length > 0;
+            const tolerance = hasAreaName ? 0.06 : 0.10;
             const minArea = input.plotAreaSqm > 0 ? input.plotAreaSqm * (1 - tolerance) : undefined;
             const maxArea = input.plotAreaSqm > 0 ? input.plotAreaSqm * (1 + tolerance) : undefined;
             try {
@@ -338,7 +339,8 @@ export function LandMatchingWizard({
             } catch { /* continue */ }
           }
 
-          const tolerance = 0.10;
+          const hasAreaName = input.area.trim().length > 0;
+          const tolerance = hasAreaName ? 0.06 : 0.10;
           const minArea = input.plotAreaSqm > 0 ? input.plotAreaSqm * (1 - tolerance) : undefined;
           const maxArea = input.plotAreaSqm > 0 ? input.plotAreaSqm * (1 + tolerance) : undefined;
           try {
@@ -483,7 +485,7 @@ export function LandMatchingWizard({
             </div>
             <div>
               <h2 className="font-bold text-sm">Land Matching Wizard</h2>
-              <p className="text-xs text-muted-foreground">Area + Land Area or GFA</p>
+              <p className="text-xs text-muted-foreground">Area + Land Size or GFA</p>
             </div>
           </div>
           <button onClick={onClose} className="p-2 rounded-lg hover:bg-muted/50 transition-colors">
@@ -557,7 +559,7 @@ export function LandMatchingWizard({
                   {/* Land Area */}
                   <div className="space-y-1.5">
                     <Label className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">
-                      Land Area {!formGfa && <span className="text-destructive">*</span>}
+                      Land Size {!formGfa && <span className="text-destructive">*</span>}
                     </Label>
                     <div className="flex gap-2">
                       <Input
@@ -640,7 +642,7 @@ export function LandMatchingWizard({
                   </Button>
 
                   <p className="text-[10px] text-center text-muted-foreground">
-                    Minimum: Area name + Land Area or GFA
+                    Minimum: Area name + Land Size or GFA
                   </p>
                 </div>
               )}
@@ -816,17 +818,22 @@ export function LandMatchingWizard({
                 </p>
               </div>
 
-              {/* Review Data Button */}
-              {matchResults.length > 0 && (
-                <Button
-                  className="w-full gap-2"
-                  variant="secondary"
-                  onClick={() => setShowReviewModal(true)}
-                >
-                  <ClipboardList className="w-4 h-4" />
-                  Review Data ({selectedMatchIds.size > 0 ? selectedMatchIds.size : matchResults.length})
+              {/* Action Buttons Row */}
+              <div className="flex gap-2">
+                <Button variant="outline" className="flex-1 gap-2 text-xs" onClick={handleReset}>
+                  New Search
                 </Button>
-              )}
+                {matchResults.length > 0 && (
+                  <Button
+                    className="flex-1 gap-2"
+                    variant="secondary"
+                    onClick={() => setShowReviewModal(true)}
+                  >
+                    <ClipboardList className="w-4 h-4" />
+                    Review Data ({selectedMatchIds.size > 0 ? selectedMatchIds.size : matchResults.length})
+                  </Button>
+                )}
+              </div>
 
               {matchResults.map((result, idx) => (
                 <div
@@ -888,7 +895,7 @@ export function LandMatchingWizard({
 
                   <div className="grid grid-cols-2 gap-2 text-xs mb-2">
                     <div>
-                      <span className="text-muted-foreground">Plot Area:</span>
+                      <span className="text-muted-foreground">Land Size:</span>
                       <span className="ml-1 font-medium">{result.matchedPlotArea.toLocaleString()} m²</span>
                       {result.areaDeviation > 0 && (
                         <span className="text-muted-foreground ml-1">(Δ {result.areaDeviation}%)</span>
@@ -946,11 +953,6 @@ export function LandMatchingWizard({
                 </div>
               ))}
 
-              <div className="flex gap-2">
-                <Button variant="outline" className="flex-1 gap-2 text-xs" onClick={handleReset}>
-                  New Search
-                </Button>
-              </div>
 
               {/* Review Data Modal */}
               <ReviewDataModal
