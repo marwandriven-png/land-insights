@@ -326,6 +326,15 @@ export function HyperPlotAI() {
                   selectedPlot={selectedPlot}
                   onPlotClick={handlePlotClick}
                   highlightedPlots={highlightedPlots}
+                  onFocusPlot={async (plotId) => {
+                    const existing = plots.find(p => p.id === plotId);
+                    if (existing) {
+                      handlePlotClick(existing);
+                    } else {
+                      const fetched = await gisService.fetchPlotById(plotId);
+                      if (fetched) handlePlotFound(fetched);
+                    }
+                  }}
                 />
               </div>
             )}
