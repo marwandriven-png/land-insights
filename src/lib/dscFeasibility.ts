@@ -8,8 +8,15 @@ export const COMPS = [
   { name: "Fairway Res.", developer: "Prescott", plotSqft: 158269, units: 156, bua: 158268, floors: "G+P+14+R", handover: "Q3 2026", priceFrom: 1200000, psf: 1387, studioP: 27, br1P: 27, br2P: 42, br3P: 4, payPlan: "20/20/60", svc: 14, density: 0.99 },
 ];
 
-export const UNIT_SIZES = { studio: 485, br1: 750, br2: 1100, br3: 1650 };
-export const UNIT_PRICES = { studio: 850000, br1: 1200000, br2: 1650000, br3: 2250000 };
+// ─── DSC Sales Transactions (809 total) — Real market data ───────────────────
+export const TXN_AVG_PSF = { studio: 1796, br1: 1531, br2: 1368, br3: 1449 };
+export const TXN_AVG_SIZE = { studio: 426, br1: 771, br2: 1208, br3: 1680 };
+export const TXN_AVG_PRICE = { studio: 757028, br1: 1155437, br2: 1643427, br3: 2390616 };
+export const TXN_MEDIAN_PSF = { studio: 1765, br1: 1511, br2: 1424, br3: 1325 };
+export const TXN_COUNT = { studio: 257, br1: 292, br2: 237, br3: 23, total: 809 };
+
+export const UNIT_SIZES = { studio: 426, br1: 771, br2: 1208, br3: 1680 };
+export const UNIT_PRICES = { studio: 757028, br1: 1155437, br2: 1643427, br3: 2390616 };
 export const RENT_PSF_YR = { studio: 90, br1: 86, br2: 83, br3: 78 };
 
 export type MixKey = 'investor' | 'balanced' | 'family';
@@ -86,8 +93,12 @@ export interface DSCFeasibilityResult {
   payPlan: { booking: number; construction: number; handover: number };
 }
 
-// Average PSF from 6 benchmarks
+// Average PSF from 6 benchmarks (for reference)
 export const BENCHMARK_AVG_PSF = Math.round(COMPS.reduce((s, c) => s + c.psf, 0) / COMPS.length);
+// Weighted avg PSF from real transactions
+export const TXN_WEIGHTED_AVG_PSF = Math.round(
+  (TXN_AVG_PSF.studio * TXN_COUNT.studio + TXN_AVG_PSF.br1 * TXN_COUNT.br1 + TXN_AVG_PSF.br2 * TXN_COUNT.br2 + TXN_AVG_PSF.br3 * TXN_COUNT.br3) / TXN_COUNT.total
+);
 
 export function calcDSCFeasibility(plot: DSCPlotInput, mixKey: MixKey, overrides: { gfa?: number; landCost?: number; landCostPsf?: number; efficiency?: number; buaMultiplier?: number; constructionPsf?: number; avgPsfOverride?: number; contingencyPct?: number; financePct?: number; mix?: Partial<{ studio: number; br1: number; br2: number; br3: number }> } = {}): DSCFeasibilityResult {
   const tmpl = MIX_TEMPLATES[mixKey];
@@ -117,20 +128,24 @@ export function calcDSCFeasibility(plot: DSCPlotInput, mixKey: MixKey, overrides
   };
   units.total = units.studio + units.br1 + units.br2 + units.br3;
 
-  // Avg PSF: use override if provided, otherwise benchmark average of 6 projects
-  const avgPsf = overrides.avgPsfOverride || BENCHMARK_AVG_PSF;
-
-  // GDV = Sellable Area × Avg PSF
-  const grossSales = sellableArea * avgPsf;
-
-  const psfAdj = mixKey === "investor" ? 0.97 : mixKey === "family" ? 1.04 : 1.0;
-
+  // Per-unit-type prices from real transaction data (809 txns)
+  // Price per unit = Unit Size × Transaction Avg PSF for that type
   const prices = {
-    studio: UNIT_SIZES.studio * avgPsf * psfAdj,
-    br1: UNIT_SIZES.br1 * avgPsf * psfAdj,
-    br2: UNIT_SIZES.br2 * avgPsf * psfAdj,
-    br3: UNIT_SIZES.br3 * avgPsf * (psfAdj * 1.02),
+    studio: UNIT_SIZES.studio * TXN_AVG_PSF.studio,  // 426 × 1,796
+    br1: UNIT_SIZES.br1 * TXN_AVG_PSF.br1,            // 771 × 1,531
+    br2: UNIT_SIZES.br2 * TXN_AVG_PSF.br2,            // 1,208 × 1,368
+    br3: UNIT_SIZES.br3 * TXN_AVG_PSF.br3,            // 1,680 × 1,449
   };
+
+  // GDV = Sum of (units per type × avg selling price per type)
+  const grossSales =
+    units.studio * prices.studio +
+    units.br1 * prices.br1 +
+    units.br2 * prices.br2 +
+    units.br3 * prices.br3;
+
+  // Derived weighted average PSF (for display)
+  const avgPsf = sellableArea > 0 ? grossSales / sellableArea : TXN_WEIGHTED_AVG_PSF;
 
   const revBreak = {
     studio: units.studio * prices.studio,

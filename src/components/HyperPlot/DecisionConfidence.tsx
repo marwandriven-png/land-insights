@@ -1,7 +1,7 @@
 import { useState, useMemo, useEffect } from 'react';
 import { Loader2, TrendingUp, DollarSign, Building2, BarChart3, Target, Shield, Printer, Maximize2, Minimize2 } from 'lucide-react';
 import { PlotData, AffectionPlanData, gisService } from '@/services/DDAGISService';
-import { calcDSCFeasibility, DSCPlotInput, DSCFeasibilityResult, MixKey, MIX_TEMPLATES, COMPS, UNIT_SIZES, RENT_PSF_YR, BENCHMARK_AVG_PSF, fmt, fmtM, fmtA, pct } from '@/lib/dscFeasibility';
+import { calcDSCFeasibility, DSCPlotInput, DSCFeasibilityResult, MixKey, MIX_TEMPLATES, COMPS, UNIT_SIZES, RENT_PSF_YR, BENCHMARK_AVG_PSF, TXN_AVG_PSF, TXN_AVG_SIZE, TXN_AVG_PRICE, TXN_MEDIAN_PSF, TXN_COUNT, TXN_WEIGHTED_AVG_PSF, fmt, fmtM, fmtA, pct } from '@/lib/dscFeasibility';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Table, TableHeader, TableBody, TableRow, TableHead, TableCell, TableFooter } from '@/components/ui/table';
 import { Badge } from '@/components/ui/badge';
@@ -187,11 +187,6 @@ export function DecisionConfidence({ plot, isFullscreen, onToggleFullscreen }: D
                 onChange={e => setOverrides(p => ({ ...p, buaMultiplier: parseFloat(e.target.value) || undefined }))} />
             </div>
             <div>
-              <label className="text-[10px] text-muted-foreground">Selling PSF (AED)</label>
-              <Input type="number" className="h-7 text-xs mt-0.5" defaultValue={overrides.avgPsfOverride || BENCHMARK_AVG_PSF}
-                onChange={e => setOverrides(p => ({ ...p, avgPsfOverride: parseFloat(e.target.value) || undefined }))} />
-            </div>
-            <div>
               <label className="text-[10px] text-muted-foreground">Contingency (%)</label>
               <Input type="number" step="0.5" className="h-7 text-xs mt-0.5" defaultValue={overrides.contingencyPct != null ? overrides.contingencyPct * 100 : 5}
                 onChange={e => { const v = parseFloat(e.target.value); setOverrides(p => ({ ...p, contingencyPct: !isNaN(v) ? v / 100 : undefined })); }} />
@@ -206,7 +201,7 @@ export function DecisionConfidence({ plot, isFullscreen, onToggleFullscreen }: D
 
         {/* KPI Strip */}
         <div className="flex gap-2 mt-3 flex-wrap">
-          <KpiCard label="Total GDV" value={fmtM(fs.grossSales)} sub={`Sellable ${fmt(Math.round(fs.sellableArea))} sqft × AED ${fmt(Math.round(fs.avgPsf))}/sqft (Benchmark Avg)`} accent />
+          <KpiCard label="Total GDV" value={fmtM(fs.grossSales)} sub={`Σ(Units × Avg Price) · Avg PSF AED ${fmt(Math.round(fs.avgPsf))}`} accent />
           <KpiCard label="Total Cost" value={fmtM(fs.totalCost)} sub={`${pct(fs.totalCost / fs.grossSales)} of GDV`} />
           <KpiCard label="Net Profit" value={fmtM(fs.grossProfit)} sub={`Margin: ${pct(fs.grossMargin)}`} positive={fs.grossMargin > 0.2} negative={fs.grossMargin < 0} />
           <KpiCard label="ROI" value={pct(fs.roi)} sub="Return on cost" positive={fs.roi > 0.2} negative={fs.roi < 0} />
@@ -250,8 +245,8 @@ export function DecisionConfidence({ plot, isFullscreen, onToggleFullscreen }: D
                         ['Approved Height', dscInput.height, 'From affection plan'],
                         ['Est. Floors', `${fs.residentialFloors}`, `GFA ÷ (Plot × ${((overrides.efficiency || 0.95) * 100).toFixed(0)}%)`],
                         ['Floor Plate Efficiency', `${((overrides.efficiency || 0.95) * 100).toFixed(0)}%`, 'Overridable'],
-                        ['Selling PSF', `AED ${fmt(Math.round(fs.avgPsf))}`, `Benchmark avg of 6 projects (AED ${BENCHMARK_AVG_PSF})`],
-                        ['Total GDV', fmtA(fs.grossSales), 'Sellable Area × Selling PSF'],
+                        ['Avg Selling PSF', `AED ${fmt(Math.round(fs.avgPsf))}`, `Weighted avg from 809 transactions (AED ${TXN_WEIGHTED_AVG_PSF})`],
+                        ['Total GDV', fmtA(fs.grossSales), 'Σ(Units × Avg Selling Price per Type)'],
                         ['Units/1,000 sqft', `${(fs.units.total / (fs.sellableArea / 1000)).toFixed(2)}`, MIX_TEMPLATES[activeMix].tag],
                       ].map(([param, val, note]) => (
                         <TableRow key={param}>
@@ -271,17 +266,17 @@ export function DecisionConfidence({ plot, isFullscreen, onToggleFullscreen }: D
                   <Table>
                     <TableHeader>
                       <TableRow>
-                        {['Type', 'Count', 'Mix %', 'Size (sqft)', 'Floor Space', '% Sellable', 'Price (AED)', 'Rent PSF/yr', 'Yield'].map(h => (
+                        {['Type', 'Count', 'Mix %', 'Size (sqft)', 'Floor Space', '% Sellable', 'Avg PSF', 'Price (AED)', 'Rent PSF/yr', 'Yield'].map(h => (
                           <TableHead key={h} className="text-[10px] text-right first:text-left">{h}</TableHead>
                         ))}
                       </TableRow>
                     </TableHeader>
                     <TableBody>
                       {[
-                        { type: 'Studio', u: fs.units.studio, sz: UNIT_SIZES.studio, pr: fs.prices.studio, rent: RENT_PSF_YR.studio },
-                        { type: '1 Bedroom', u: fs.units.br1, sz: UNIT_SIZES.br1, pr: fs.prices.br1, rent: RENT_PSF_YR.br1 },
-                        { type: '2 Bedroom', u: fs.units.br2, sz: UNIT_SIZES.br2, pr: fs.prices.br2, rent: RENT_PSF_YR.br2 },
-                        { type: '3 Bedroom', u: fs.units.br3, sz: UNIT_SIZES.br3, pr: fs.prices.br3, rent: RENT_PSF_YR.br3 },
+                        { type: 'Studio', u: fs.units.studio, sz: UNIT_SIZES.studio, pr: fs.prices.studio, rent: RENT_PSF_YR.studio, txnPsf: TXN_AVG_PSF.studio },
+                        { type: '1 Bedroom', u: fs.units.br1, sz: UNIT_SIZES.br1, pr: fs.prices.br1, rent: RENT_PSF_YR.br1, txnPsf: TXN_AVG_PSF.br1 },
+                        { type: '2 Bedroom', u: fs.units.br2, sz: UNIT_SIZES.br2, pr: fs.prices.br2, rent: RENT_PSF_YR.br2, txnPsf: TXN_AVG_PSF.br2 },
+                        { type: '3 Bedroom', u: fs.units.br3, sz: UNIT_SIZES.br3, pr: fs.prices.br3, rent: RENT_PSF_YR.br3, txnPsf: TXN_AVG_PSF.br3 },
                       ].map(r => (
                         <TableRow key={r.type}>
                           <TableCell className="text-xs font-medium py-1.5">{r.type}</TableCell>
@@ -290,6 +285,7 @@ export function DecisionConfidence({ plot, isFullscreen, onToggleFullscreen }: D
                           <TableCell className="text-xs text-right py-1.5">{fmt(r.sz)}</TableCell>
                           <TableCell className="text-xs text-right py-1.5">{fmt(r.u * r.sz)}</TableCell>
                           <TableCell className="text-xs text-right py-1.5">{pct((r.u * r.sz) / fs.sellableArea)}</TableCell>
+                          <TableCell className="text-xs text-right font-mono py-1.5">AED {fmt(r.txnPsf)}</TableCell>
                           <TableCell className="text-xs text-right font-mono py-1.5">{fmtA(r.pr)}</TableCell>
                           <TableCell className="text-xs text-right py-1.5">AED {r.rent}</TableCell>
                           <TableCell className="text-xs text-right py-1.5">{pct((r.sz * r.rent) / r.pr)}</TableCell>
@@ -304,6 +300,7 @@ export function DecisionConfidence({ plot, isFullscreen, onToggleFullscreen }: D
                         <TableCell className="text-xs text-right py-1.5">{fmt(Math.round(fs.sellableArea / fs.units.total))} avg</TableCell>
                         <TableCell className="text-xs text-right font-bold py-1.5">{fmt(Math.round(fs.sellableArea))}</TableCell>
                         <TableCell className="text-xs text-right font-bold py-1.5">100%</TableCell>
+                        <TableCell className="text-xs text-right font-mono py-1.5">AED {fmt(Math.round(fs.avgPsf))}</TableCell>
                         <TableCell className="text-xs text-right py-1.5">—</TableCell>
                         <TableCell className="text-xs text-right py-1.5">—</TableCell>
                         <TableCell className="text-xs text-right font-bold py-1.5">{pct(fs.grossYield)}</TableCell>
@@ -314,6 +311,41 @@ export function DecisionConfidence({ plot, isFullscreen, onToggleFullscreen }: D
               </Section>
 
               {/* 3. Value View */}
+              {/* Sales Transactions Reference */}
+              <Section title="Sales Transactions" badge={`${TXN_COUNT.total} total`}>
+                <div className="overflow-x-auto">
+                  <Table>
+                    <TableHeader>
+                      <TableRow>
+                        {['Unit Type', 'Transactions', 'Avg PSF', 'Median PSF', 'Avg Size', 'Avg Price'].map(h => (
+                          <TableHead key={h} className="text-[10px] text-right first:text-left">{h}</TableHead>
+                        ))}
+                      </TableRow>
+                    </TableHeader>
+                    <TableBody>
+                      {[
+                        { type: 'Studio', txn: TXN_COUNT.studio, avgPsf: TXN_AVG_PSF.studio, medPsf: TXN_MEDIAN_PSF.studio, sz: TXN_AVG_SIZE.studio, pr: TXN_AVG_PRICE.studio },
+                        { type: '1 Bedroom', txn: TXN_COUNT.br1, avgPsf: TXN_AVG_PSF.br1, medPsf: TXN_MEDIAN_PSF.br1, sz: TXN_AVG_SIZE.br1, pr: TXN_AVG_PRICE.br1 },
+                        { type: '2 Bedroom', txn: TXN_COUNT.br2, avgPsf: TXN_AVG_PSF.br2, medPsf: TXN_MEDIAN_PSF.br2, sz: TXN_AVG_SIZE.br2, pr: TXN_AVG_PRICE.br2 },
+                        { type: '3 Bedroom', txn: TXN_COUNT.br3, avgPsf: TXN_AVG_PSF.br3, medPsf: TXN_MEDIAN_PSF.br3, sz: TXN_AVG_SIZE.br3, pr: TXN_AVG_PRICE.br3 },
+                      ].map(r => (
+                        <TableRow key={r.type}>
+                          <TableCell className="text-xs font-medium py-1.5">{r.type}</TableCell>
+                          <TableCell className="text-xs text-right font-mono py-1.5">{fmt(r.txn)}</TableCell>
+                          <TableCell className="text-xs text-right font-mono font-bold py-1.5">AED {fmt(r.avgPsf)}</TableCell>
+                          <TableCell className="text-xs text-right font-mono py-1.5">AED {fmt(r.medPsf)}</TableCell>
+                          <TableCell className="text-xs text-right py-1.5">{fmt(r.sz)} sqft</TableCell>
+                          <TableCell className="text-xs text-right font-mono py-1.5">{fmtA(r.pr)}</TableCell>
+                        </TableRow>
+                      ))}
+                    </TableBody>
+                  </Table>
+                </div>
+                <div className="mt-2 text-[10px] text-muted-foreground p-2 rounded-lg bg-muted/30 border border-border/30">
+                  💡 GDV is calculated using average selling prices from {TXN_COUNT.total} real DSC transactions per unit type, not a flat benchmark PSF.
+                </div>
+              </Section>
+
               <Section title="3 · Unit Breakdown — Value View">
                 <div className="overflow-x-auto">
                   <Table>
@@ -403,10 +435,10 @@ export function DecisionConfidence({ plot, isFullscreen, onToggleFullscreen }: D
                 {/* 5.1 Revenue */}
                 <div className="text-[10px] text-muted-foreground font-bold uppercase tracking-widest mb-2">5.1 Revenue Projection</div>
                 <div className="flex gap-2 flex-wrap mb-4">
-                  <KpiCard label="GDV" value={fmtM(fs.grossSales)} sub={`Sellable ${fmt(Math.round(fs.sellableArea))} × AED ${fmt(Math.round(fs.avgPsf))}/sqft`} accent />
+                  <KpiCard label="GDV" value={fmtM(fs.grossSales)} sub={`Σ(Units × Avg Price) · ${fmt(fs.units.total)} units`} accent />
                   <KpiCard label="Annual Rental" value={fmtM(fs.annualRent)} sub={`AED ${fmt(Math.round(fs.annualRent / fs.units.total))}/unit/yr`} />
                   <KpiCard label="Rental Yield" value={pct(fs.grossYield)} sub="vs 5.5–6.5% DSC avg" positive={fs.grossYield > 0.055} />
-                  <KpiCard label="Selling PSF" value={`AED ${fmt(Math.round(fs.avgPsf))}`} sub={`Benchmark avg: AED ${BENCHMARK_AVG_PSF}`} positive={fs.avgPsf >= BENCHMARK_AVG_PSF} />
+                  <KpiCard label="Avg Selling PSF" value={`AED ${fmt(Math.round(fs.avgPsf))}`} sub={`Wtd avg from ${TXN_COUNT.total} txns`} positive={fs.avgPsf >= TXN_WEIGHTED_AVG_PSF} />
                 </div>
 
                 {/* 5.3 Profit Summary */}
