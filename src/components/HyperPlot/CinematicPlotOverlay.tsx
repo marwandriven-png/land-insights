@@ -24,7 +24,7 @@ export function CinematicPlotOverlay({ map, plot }: CinematicPlotOverlayProps) {
   const layersRef = useRef<L.Layer[]>([]);
   const overlayRef = useRef<HTMLDivElement | null>(null);
   const prevPlotIdRef = useRef<string | null>(null);
-  const selectionCountRef = useRef(0);
+  
 
   const cleanup = () => {
     if (map) {
@@ -42,14 +42,11 @@ export function CinematicPlotOverlay({ map, plot }: CinematicPlotOverlayProps) {
     if (!map || !plot) {
       cleanup();
       prevPlotIdRef.current = null;
-      selectionCountRef.current = 0;
       return;
     }
 
     if (prevPlotIdRef.current === plot.id) return;
     prevPlotIdRef.current = plot.id;
-    selectionCountRef.current++;
-    const isSecondSelection = selectionCountRef.current === 2;
     cleanup();
 
     const rawAttrs = plot.rawAttributes;
@@ -140,7 +137,7 @@ export function CinematicPlotOverlay({ map, plot }: CinematicPlotOverlayProps) {
       const glowPoly = L.polygon(latLngs, {
         color: 'transparent',
         weight: 0,
-        fillColor: isSecondSelection ? '#00ffaa' : '#00e5ff',
+        fillColor: '#00e5ff',
         fillOpacity: 0,
         interactive: false,
         className: 'cinematic-glow-fill'
@@ -148,81 +145,29 @@ export function CinematicPlotOverlay({ map, plot }: CinematicPlotOverlayProps) {
       glowPoly.addTo(map);
       layersRef.current.push(glowPoly);
 
-      if (isSecondSelection) {
-        // 4-layer neon glow (reduced intensity) — only on 2nd selection
-        const baseStroke = L.polygon(latLngs, {
-          color: '#00ffaa',
-          weight: 3,
-          opacity: 0.9,
-          fillColor: '#00ffaa',
-          fillOpacity: 0,
-          interactive: false,
-          className: 'cinematic-boundary-trace cinematic-neon-pulse'
-        });
-        baseStroke.addTo(map);
-        layersRef.current.push(baseStroke);
+      const boundaryPoly = L.polygon(latLngs, {
+        color: '#00e5ff',
+        weight: 3,
+        opacity: 1,
+        fillColor: '#00e5ff',
+        fillOpacity: 0,
+        interactive: false,
+        className: 'cinematic-boundary-trace'
+      });
+      boundaryPoly.addTo(map);
+      layersRef.current.push(boundaryPoly);
 
-        const glow1 = L.polygon(latLngs, {
-          color: '#00ffaa',
-          weight: 6,
-          opacity: 0.35,
-          fillColor: 'transparent',
-          fillOpacity: 0,
-          interactive: false,
-          className: 'cinematic-neon-glow-1 cinematic-neon-pulse'
-        });
-        glow1.addTo(map);
-        layersRef.current.push(glow1);
-
-        const glow2 = L.polygon(latLngs, {
-          color: '#00ffaa',
-          weight: 9,
-          opacity: 0.2,
-          fillColor: 'transparent',
-          fillOpacity: 0,
-          interactive: false,
-          className: 'cinematic-neon-glow-2 cinematic-neon-pulse'
-        });
-        glow2.addTo(map);
-        layersRef.current.push(glow2);
-
-        const glow3 = L.polygon(latLngs, {
-          color: '#00ffaa',
-          weight: 12,
-          opacity: 0.1,
-          fillColor: 'transparent',
-          fillOpacity: 0,
-          interactive: false,
-          className: 'cinematic-neon-glow-3 cinematic-neon-pulse'
-        });
-        glow3.addTo(map);
-        layersRef.current.push(glow3);
-      } else {
-        // Standard boundary — 1st and 3rd+ selections
-        const boundaryPoly = L.polygon(latLngs, {
-          color: '#00e5ff',
-          weight: 3,
-          opacity: 1,
-          fillColor: '#00e5ff',
-          fillOpacity: 0,
-          interactive: false,
-          className: 'cinematic-boundary-trace'
-        });
-        boundaryPoly.addTo(map);
-        layersRef.current.push(boundaryPoly);
-
-        const innerGlow = L.polygon(latLngs, {
-          color: '#00e5ff',
-          weight: 10,
-          opacity: 0.15,
-          fillColor: 'transparent',
-          fillOpacity: 0,
-          interactive: false,
-          className: 'cinematic-inner-glow'
-        });
-        innerGlow.addTo(map);
-        layersRef.current.push(innerGlow);
-      }
+      const innerGlow = L.polygon(latLngs, {
+        color: '#00e5ff',
+        weight: 10,
+        opacity: 0.15,
+        fillColor: 'transparent',
+        fillOpacity: 0,
+        interactive: false,
+        className: 'cinematic-inner-glow'
+      });
+      innerGlow.addTo(map);
+      layersRef.current.push(innerGlow);
 
       const textTimer = setTimeout(() => {
         if (glowPoly.getElement()) {
