@@ -113,13 +113,20 @@ export function FeasibilityCalculator({ plot }: FeasibilityCalculatorProps) {
         </div>
       )}
 
-      {/* BUA */}
-      <div className="flex justify-between text-xs mb-2">
-        <span className="text-muted-foreground">BUA (GFA × {params.buaMultiplier})</span>
+      {/* Sellable Area */}
+      <div className="flex justify-between text-xs mb-1">
+        <span className="text-muted-foreground">Sellable Area (GFA × {Math.round(params.efficiency * 100)}%)</span>
         <span className="text-foreground font-medium">
-          {fmt(Math.round(fs.bua / 10.764))} m²
-          <span className="text-muted-foreground ml-1">({fmt(Math.round(fs.bua))} sqft)</span>
+          {fmt(Math.round(fs.sellableArea))} sqft
         </span>
+      </div>
+      <div className="flex justify-between text-xs mb-1">
+        <span className="text-muted-foreground">Avg PSF</span>
+        <span className="text-foreground font-medium">AED {fmt(Math.round(fs.avgPsf))}</span>
+      </div>
+      <div className="flex justify-between text-xs mb-2 font-semibold">
+        <span className="text-muted-foreground">GDV (Sellable × Avg PSF)</span>
+        <span className="text-foreground">{fmtA(fs.grossSales)}</span>
       </div>
 
       {/* Cost Breakdown */}

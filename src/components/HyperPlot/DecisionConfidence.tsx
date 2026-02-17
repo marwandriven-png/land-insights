@@ -188,7 +188,7 @@ export function DecisionConfidence({ plot, isFullscreen, onToggleFullscreen }: D
 
         {/* KPI Strip */}
         <div className="flex gap-2 mt-3 flex-wrap">
-          <KpiCard label="Total GDV" value={fmtM(fs.grossSales)} sub={`AED ${fmt(Math.round(fs.avgPsf))} avg/sqft`} accent />
+          <KpiCard label="Total GDV" value={fmtM(fs.grossSales)} sub={`Sellable ${fmt(Math.round(fs.sellableArea))} sqft × AED ${fmt(Math.round(fs.avgPsf))}/sqft`} accent />
           <KpiCard label="Total Cost" value={fmtM(fs.totalCost)} sub={`${pct(fs.totalCost / fs.grossSales)} of GDV`} />
           <KpiCard label="Net Profit" value={fmtM(fs.grossProfit)} sub={`Margin: ${pct(fs.grossMargin)}`} positive={fs.grossMargin > 0.2} negative={fs.grossMargin < 0} />
           <KpiCard label="ROI" value={pct(fs.roi)} sub="Return on cost" positive={fs.roi > 0.2} negative={fs.roi < 0} />
@@ -227,11 +227,14 @@ export function DecisionConfidence({ plot, isFullscreen, onToggleFullscreen }: D
                         ['Plot Area', `${fmt(dscInput.area)} sqft`, `${(dscInput.area / 43560).toFixed(2)} acres`],
                         ['Plot Ratio', `× ${dscInput.ratio.toFixed(2)}`, 'Authority-approved FAR'],
                         ['GFA', `${fmt(Math.round(fs.gfa))} sqft`, 'Plot Area × Ratio'],
+                        ['Sellable Area', `${fmt(Math.round(fs.sellableArea))} sqft`, `GFA × ${((overrides.efficiency || 0.95) * 100).toFixed(0)}% Efficiency`],
                         ['BUA', `${fmt(Math.round(fs.bua))} sqft`, `GFA × ${overrides.buaMultiplier || 1.45}`],
                         ['Approved Height', dscInput.height, 'From affection plan'],
                         ['Est. Floors', `${fs.residentialFloors}`, `GFA ÷ (Plot × ${((overrides.efficiency || 0.95) * 100).toFixed(0)}%)`],
                         ['Floor Plate Efficiency', `${((overrides.efficiency || 0.95) * 100).toFixed(0)}%`, 'Overridable'],
-                        ['Units/1,000 sqft BUA', `${(fs.units.total / (fs.bua / 1000)).toFixed(2)}`, MIX_TEMPLATES[activeMix].tag],
+                        ['Avg PSF', `AED ${fmt(Math.round(fs.avgPsf))}`, 'Weighted from unit mix'],
+                        ['Total GDV', fmtA(fs.grossSales), 'Sellable Area × Avg PSF'],
+                        ['Units/1,000 sqft', `${(fs.units.total / (fs.sellableArea / 1000)).toFixed(2)}`, MIX_TEMPLATES[activeMix].tag],
                       ].map(([param, val, note]) => (
                         <TableRow key={param}>
                           <TableCell className="text-xs font-medium py-1.5">{param}</TableCell>
@@ -380,7 +383,7 @@ export function DecisionConfidence({ plot, isFullscreen, onToggleFullscreen }: D
                 {/* 5.1 Revenue */}
                 <div className="text-[10px] text-muted-foreground font-bold uppercase tracking-widest mb-2">5.1 Revenue Projection</div>
                 <div className="flex gap-2 flex-wrap mb-4">
-                  <KpiCard label="GDV" value={fmtM(fs.grossSales)} sub={`AED ${fmt(Math.round(fs.avgPsf))}/sqft`} accent />
+                  <KpiCard label="GDV" value={fmtM(fs.grossSales)} sub={`Sellable ${fmt(Math.round(fs.sellableArea))} × AED ${fmt(Math.round(fs.avgPsf))}/sqft`} accent />
                   <KpiCard label="Annual Rental" value={fmtM(fs.annualRent)} sub={`AED ${fmt(Math.round(fs.annualRent / fs.units.total))}/unit/yr`} />
                   <KpiCard label="Rental Yield" value={pct(fs.grossYield)} sub="vs 5.5–6.5% DSC avg" positive={fs.grossYield > 0.055} />
                   <KpiCard label="Your ASP" value={`AED ${fmt(Math.round(fs.avgPsf))}`} sub={fs.avgPsf > 1508 ? 'Above DSC median' : 'Below DSC median'} positive={fs.avgPsf > 1508} />
