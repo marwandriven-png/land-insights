@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback, useMemo } from 'react';
+import { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import { Map, Home, BarChart3, Brain, AlertCircle, X, RefreshCw, Wifi, WifiOff, Target, Clock, Settings, Shield, GitCompareArrows } from 'lucide-react';
 import xEstateLogo from '@/assets/X-Estate_Logo.svg';
 import { addLastSeen, getLastSeen, LastSeenEntry } from '@/services/LastSeenService';
@@ -38,6 +38,7 @@ export function HyperPlotAI() {
   const [decisionFullscreen, setDecisionFullscreen] = useState(false);
   const [lastSeen, setLastSeen] = useState<LastSeenEntry[]>(getLastSeen());
   const [comparisonPlots, setComparisonPlots] = useState<PlotData[]>([]);
+  const plotsListRef = useRef<HTMLDivElement>(null);
   const [filters, setFilters] = useState<FilterState>({
     status: [],
     zoning: [],
@@ -46,6 +47,15 @@ export function HyperPlotAI() {
     minGFA: null,
     maxGFA: null
   });
+
+  // Auto-scroll to selected plot in sidebar
+  useEffect(() => {
+    if (!selectedPlot || !plotsListRef.current) return;
+    const el = plotsListRef.current.querySelector(`[data-plot-id="${selectedPlot.id}"]`);
+    if (el) {
+      el.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+    }
+  }, [selectedPlot]);
 
   useEffect(() => {
     loadGISData();
@@ -464,7 +474,7 @@ export function HyperPlotAI() {
 
             {/* Plots List */}
             <ScrollArea className="flex-1 mt-4">
-              <div className="space-y-2 pr-2">
+              <div ref={plotsListRef} className="space-y-2 pr-2">
                 {/* Last Seen Section */}
                 {lastSeen.length > 0 && !searchQuery && filters.status.length === 0 && filters.zoning.length === 0 && (
                   <div className="mb-3">
@@ -514,7 +524,12 @@ export function HyperPlotAI() {
                       plot={plot}
                       isSelected={selectedPlot?.id === plot.id}
                       isHighlighted={highlightedPlots.includes(plot.id)}
-                      onClick={() => handlePlotClick(plot)}
+                      onClick={() => {
+                        setActiveTab('map');
+                        // Force re-trigger map zoom by clearing and re-setting
+                        setSelectedPlot(null);
+                        setTimeout(() => handlePlotClick(plot, true), 50);
+                      }}
                     />
                     {/* Compare toggle button */}
                     <button
