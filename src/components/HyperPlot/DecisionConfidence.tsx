@@ -38,9 +38,9 @@ function KpiCard({ label, value, sub, accent, positive, negative }: {
   const colorClass = negative ? 'text-destructive' : positive ? 'text-success' : accent ? 'text-primary' : 'text-foreground';
   return (
     <div className={`data-card min-w-[130px] flex-1 ${accent ? 'border-primary/40' : ''}`}>
-      <div className="text-[10px] text-muted-foreground font-semibold uppercase tracking-wider mb-1">{label}</div>
-      <div className={`text-lg font-bold font-mono ${colorClass}`}>{value}</div>
-      {sub && <div className="text-[10px] text-muted-foreground mt-0.5">{sub}</div>}
+      <div className="text-xs text-muted-foreground font-semibold uppercase tracking-wider mb-1">{label}</div>
+      <div className={`text-xl font-bold font-mono ${colorClass}`}>{value}</div>
+      {sub && <div className="text-xs text-muted-foreground mt-0.5">{sub}</div>}
     </div>
   );
 }
@@ -50,8 +50,8 @@ function Section({ title, badge, children }: { title: string; badge?: string; ch
   return (
     <div className="mb-6">
       <div className="flex items-center gap-2 mb-3 pb-2 border-b border-border/50">
-        <h3 className="text-xs font-bold text-muted-foreground uppercase tracking-widest">{title}</h3>
-        {badge && <Badge variant="outline" className="text-[10px] border-primary/40 text-primary">{badge}</Badge>}
+        <h3 className="text-sm font-bold text-muted-foreground uppercase tracking-widest">{title}</h3>
+        {badge && <Badge variant="outline" className="text-xs border-primary/40 text-primary">{badge}</Badge>}
       </div>
       {children}
     </div>
@@ -61,7 +61,7 @@ function Section({ title, badge, children }: { title: string; badge?: string; ch
 // Viability indicator
 function Viability({ pass, label }: { pass: boolean; label: string }) {
   return (
-    <span className={`text-[11px] font-bold ${pass ? 'text-success' : 'text-destructive'}`}>
+    <span className={`text-xs font-bold ${pass ? 'text-success' : 'text-destructive'}`}>
       {pass ? '✓' : '⚠'} {label}
     </span>
   );
@@ -154,11 +154,11 @@ export function DecisionConfidence({ plot, isFullscreen, onToggleFullscreen }: D
       <div className="shrink-0 px-4 pt-4 pb-3 border-b border-border/50">
         <div className="flex items-center justify-between mb-2">
           <div>
-            <h2 className="text-base font-bold text-foreground flex items-center gap-2">
-              <Shield className="w-4 h-4 text-primary" />
+             <h2 className="text-lg font-bold text-foreground flex items-center gap-2">
+              <Shield className="w-5 h-5 text-primary" />
               Decision Confidence
             </h2>
-            <p className="text-[11px] text-muted-foreground">
+            <p className="text-xs text-muted-foreground">
               Plot {plot.id} · {dscInput.zone} · {dscInput.height}
             </p>
           </div>
@@ -269,7 +269,7 @@ export function DecisionConfidence({ plot, isFullscreen, onToggleFullscreen }: D
                 <div className="overflow-x-auto">
                   <Table>
                     <TableHeader>
-                      <TableRow><TableHead className="text-[10px]">Parameter</TableHead><TableHead className="text-[10px] text-right">Value</TableHead><TableHead className="text-[10px] text-right">Notes</TableHead></TableRow>
+                      <TableRow><TableHead className="text-xs">Parameter</TableHead><TableHead className="text-xs text-right">Value</TableHead><TableHead className="text-xs text-right">Notes</TableHead></TableRow>
                     </TableHeader>
                     <TableBody>
                       {[
@@ -286,9 +286,9 @@ export function DecisionConfidence({ plot, isFullscreen, onToggleFullscreen }: D
                         ['Units/1,000 sqft', `${(fs.units.total / (fs.sellableArea / 1000)).toFixed(2)}`, MIX_TEMPLATES[activeMix].tag],
                       ].map(([param, val, note]) => (
                         <TableRow key={param}>
-                          <TableCell className="text-xs font-medium py-1.5">{param}</TableCell>
-                          <TableCell className="text-xs text-right font-mono py-1.5">{val}</TableCell>
-                          <TableCell className="text-[10px] text-right text-muted-foreground py-1.5">{note}</TableCell>
+                          <TableCell className="text-sm font-medium py-2">{param}</TableCell>
+                          <TableCell className="text-sm text-right font-mono py-2">{val}</TableCell>
+                          <TableCell className="text-xs text-right text-muted-foreground py-2">{note}</TableCell>
                         </TableRow>
                       ))}
                     </TableBody>
@@ -303,7 +303,7 @@ export function DecisionConfidence({ plot, isFullscreen, onToggleFullscreen }: D
                     <TableHeader>
                       <TableRow>
                         {['', 'Cost Item', 'Basis', 'Rate', 'Amount (AED)', '% of GDV'].map(h => (
-                          <TableHead key={h} className="text-[10px] text-right first:text-left">{h}</TableHead>
+                          <TableHead key={h} className="text-xs text-right first:text-left">{h}</TableHead>
                         ))}
                       </TableRow>
                     </TableHeader>
@@ -327,19 +327,19 @@ export function DecisionConfidence({ plot, isFullscreen, onToggleFullscreen }: D
                               />
                             )}
                           </TableCell>
-                          <TableCell className="text-xs font-medium py-1.5">{r.item}</TableCell>
-                          <TableCell className="text-[10px] text-right text-muted-foreground py-1.5">{r.basis}</TableCell>
-                          <TableCell className="text-[10px] text-right text-muted-foreground py-1.5">{r.rate}</TableCell>
-                          <TableCell className="text-xs text-right font-mono py-1.5">{fmtA(r.amount)}</TableCell>
-                          <TableCell className="text-xs text-right py-1.5">{pct(r.amount / fs.grossSales)}</TableCell>
+                          <TableCell className="text-sm font-medium py-2">{r.item}</TableCell>
+                          <TableCell className="text-xs text-right text-muted-foreground py-2">{r.basis}</TableCell>
+                          <TableCell className="text-xs text-right text-muted-foreground py-2">{r.rate}</TableCell>
+                          <TableCell className="text-sm text-right font-mono py-2">{fmtA(r.amount)}</TableCell>
+                          <TableCell className="text-sm text-right py-2">{pct(r.amount / fs.grossSales)}</TableCell>
                         </TableRow>
                       ))}
                     </TableBody>
                     <TableFooter>
                       <TableRow>
-                        <TableCell className="text-xs font-bold py-1.5" colSpan={4}>TOTAL DEVELOPMENT COST</TableCell>
-                        <TableCell className="text-xs text-right font-bold py-1.5">{fmtA(fs.totalCost)}</TableCell>
-                        <TableCell className="text-xs text-right font-bold py-1.5">{pct(fs.totalCost / fs.grossSales)}</TableCell>
+                        <TableCell className="text-sm font-bold py-2" colSpan={4}>TOTAL DEVELOPMENT COST</TableCell>
+                        <TableCell className="text-sm text-right font-bold py-2">{fmtA(fs.totalCost)}</TableCell>
+                        <TableCell className="text-sm text-right font-bold py-2">{pct(fs.totalCost / fs.grossSales)}</TableCell>
                       </TableRow>
                     </TableFooter>
                   </Table>
@@ -353,7 +353,7 @@ export function DecisionConfidence({ plot, isFullscreen, onToggleFullscreen }: D
                     <TableHeader>
                       <TableRow>
                         {['Type', 'Count', 'Mix %', 'Size (sqft)', 'Floor Space', '% Sellable', 'Avg PSF', 'Price (AED)', 'Rent PSF/yr', 'Yield'].map(h => (
-                          <TableHead key={h} className="text-[10px] text-right first:text-left">{h}</TableHead>
+                          <TableHead key={h} className="text-xs text-right first:text-left">{h}</TableHead>
                         ))}
                       </TableRow>
                     </TableHeader>
@@ -365,31 +365,31 @@ export function DecisionConfidence({ plot, isFullscreen, onToggleFullscreen }: D
                         { type: '3 Bedroom', u: fs.units.br3, sz: UNIT_SIZES.br3, pr: fs.prices.br3, rent: RENT_PSF_YR.br3, txnPsf: TXN_AVG_PSF.br3 },
                       ].map(r => (
                         <TableRow key={r.type}>
-                          <TableCell className="text-xs font-medium py-1.5">{r.type}</TableCell>
-                          <TableCell className="text-xs text-right font-mono py-1.5">{fmt(r.u)}</TableCell>
-                          <TableCell className="text-xs text-right py-1.5">{pct(r.u / fs.units.total)}</TableCell>
-                          <TableCell className="text-xs text-right py-1.5">{fmt(r.sz)}</TableCell>
-                          <TableCell className="text-xs text-right py-1.5">{fmt(r.u * r.sz)}</TableCell>
-                          <TableCell className="text-xs text-right py-1.5">{pct((r.u * r.sz) / fs.sellableArea)}</TableCell>
-                          <TableCell className="text-xs text-right font-mono py-1.5">AED {fmt(r.txnPsf)}</TableCell>
-                          <TableCell className="text-xs text-right font-mono py-1.5">{fmtA(r.pr)}</TableCell>
-                          <TableCell className="text-xs text-right py-1.5">AED {r.rent}</TableCell>
-                          <TableCell className="text-xs text-right py-1.5">{pct((r.sz * r.rent) / r.pr)}</TableCell>
+                          <TableCell className="text-sm font-medium py-2">{r.type}</TableCell>
+                          <TableCell className="text-sm text-right font-mono py-2">{fmt(r.u)}</TableCell>
+                          <TableCell className="text-sm text-right py-2">{pct(r.u / fs.units.total)}</TableCell>
+                          <TableCell className="text-sm text-right py-2">{fmt(r.sz)}</TableCell>
+                          <TableCell className="text-sm text-right py-2">{fmt(r.u * r.sz)}</TableCell>
+                          <TableCell className="text-sm text-right py-2">{pct((r.u * r.sz) / fs.sellableArea)}</TableCell>
+                          <TableCell className="text-sm text-right font-mono py-2">AED {fmt(r.txnPsf)}</TableCell>
+                          <TableCell className="text-sm text-right font-mono py-2">{fmtA(r.pr)}</TableCell>
+                          <TableCell className="text-sm text-right py-2">AED {r.rent}</TableCell>
+                          <TableCell className="text-sm text-right py-2">{pct((r.sz * r.rent) / r.pr)}</TableCell>
                         </TableRow>
                       ))}
                     </TableBody>
                     <TableFooter>
                       <TableRow>
-                        <TableCell className="text-xs font-bold py-1.5">TOTAL</TableCell>
-                        <TableCell className="text-xs text-right font-bold py-1.5">{fmt(fs.units.total)}</TableCell>
-                        <TableCell className="text-xs text-right font-bold py-1.5">100%</TableCell>
-                        <TableCell className="text-xs text-right py-1.5">{fmt(Math.round(fs.sellableArea / fs.units.total))} avg</TableCell>
-                        <TableCell className="text-xs text-right font-bold py-1.5">{fmt(Math.round(fs.sellableArea))}</TableCell>
-                        <TableCell className="text-xs text-right font-bold py-1.5">100%</TableCell>
-                        <TableCell className="text-xs text-right font-mono py-1.5">AED {fmt(Math.round(fs.avgPsf))}</TableCell>
-                        <TableCell className="text-xs text-right py-1.5">—</TableCell>
-                        <TableCell className="text-xs text-right py-1.5">—</TableCell>
-                        <TableCell className="text-xs text-right font-bold py-1.5">{pct(fs.grossYield)}</TableCell>
+                        <TableCell className="text-sm font-bold py-2">TOTAL</TableCell>
+                        <TableCell className="text-sm text-right font-bold py-2">{fmt(fs.units.total)}</TableCell>
+                        <TableCell className="text-sm text-right font-bold py-2">100%</TableCell>
+                        <TableCell className="text-sm text-right py-2">{fmt(Math.round(fs.sellableArea / fs.units.total))} avg</TableCell>
+                        <TableCell className="text-sm text-right font-bold py-2">{fmt(Math.round(fs.sellableArea))}</TableCell>
+                        <TableCell className="text-sm text-right font-bold py-2">100%</TableCell>
+                        <TableCell className="text-sm text-right font-mono py-2">AED {fmt(Math.round(fs.avgPsf))}</TableCell>
+                        <TableCell className="text-sm text-right py-2">—</TableCell>
+                        <TableCell className="text-sm text-right py-2">—</TableCell>
+                        <TableCell className="text-sm text-right font-bold py-2">{pct(fs.grossYield)}</TableCell>
                       </TableRow>
                     </TableFooter>
                   </Table>

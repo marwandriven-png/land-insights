@@ -69,7 +69,7 @@ export function SimilarLandPanel({ plot, onSelectPlot }: SimilarLandPanelProps) 
 
       {/* Context info */}
       {!searched && (
-        <p className="text-[10px] text-muted-foreground mb-2">
+        <p className="text-xs text-muted-foreground mb-2">
           Searches for plots with ±6% area & GFA in <span className="font-medium text-foreground">{plot.project || plot.location || 'same area'}</span>
         </p>
       )}
@@ -92,14 +92,14 @@ export function SimilarLandPanel({ plot, onSelectPlot }: SimilarLandPanelProps) 
               <button
                 key={p.id}
                 onClick={() => onSelectPlot(p)}
-                className="w-full text-left px-3 py-2 rounded-lg border border-border/50 bg-muted/20 hover:bg-muted/40 transition-all text-xs"
+                className="w-full text-left px-3 py-2.5 rounded-lg border border-border/50 bg-muted/20 hover:bg-muted/40 transition-all text-sm"
               >
                 <div className="flex items-center justify-between">
                   <span className="font-semibold text-foreground flex items-center gap-1">
-                    <MapPin className="w-3 h-3 text-primary" />
+                    <MapPin className="w-3.5 h-3.5 text-primary" />
                     Plot {p.id}
                   </span>
-                  <span className={`px-1.5 py-0.5 rounded text-[10px] font-medium ${
+                  <span className={`px-1.5 py-0.5 rounded text-xs font-medium ${
                     p.status === 'Frozen' ? 'bg-destructive/20 text-destructive' :
                     p.status === 'Available' ? 'bg-success/20 text-success' :
                     'bg-warning/20 text-warning'
@@ -107,11 +107,11 @@ export function SimilarLandPanel({ plot, onSelectPlot }: SimilarLandPanelProps) 
                 </div>
                 <div className="flex items-center gap-3 mt-1 text-muted-foreground">
                   <span className="flex items-center gap-1">
-                    <Layers className="w-3 h-3" />
+                    <Layers className="w-3.5 h-3.5" />
                     {p.area.toLocaleString()} m²
                   </span>
                   <span className="flex items-center gap-1">
-                    <Building2 className="w-3 h-3" />
+                    <Building2 className="w-3.5 h-3.5" />
                     GFA {p.gfa.toLocaleString()} m²
                   </span>
                 </div>
