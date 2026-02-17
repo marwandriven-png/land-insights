@@ -79,7 +79,7 @@ export function CinematicPlotOverlay({ map, plot }: CinematicPlotOverlayProps) {
     // ─── Smooth 30-frame easeInOutQuad pan + 3× zoom centered on plot ───
     setPhase('boundary');
     const startZoom = map.getZoom();
-    const targetZoom = Math.min(startZoom + 3, map.getMaxZoom());
+    const targetZoom = Math.min(startZoom + 2.5, map.getMaxZoom());
     const startCenter = map.getCenter();
     const totalFrames = 30;
     let frame = 0;
