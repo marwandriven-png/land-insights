@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback, useMemo } from 'react';
-import { Map, Home, BarChart3, Brain, AlertCircle, X, RefreshCw, Wifi, WifiOff, Target, Clock } from 'lucide-react';
+import { Map, Home, BarChart3, Brain, AlertCircle, X, RefreshCw, Wifi, WifiOff, Target, Clock, Settings } from 'lucide-react';
 import { addLastSeen, getLastSeen, LastSeenEntry } from '@/services/LastSeenService';
 import { gisService, PlotData, generateDemoPlots } from '@/services/DDAGISService';
 import { Header } from './Header';
@@ -10,6 +10,7 @@ import { PlotDetailPanel } from './PlotDetailPanel';
 import { SearchFilters, FilterState } from './SearchFilters';
 import { PlotListItem } from './PlotListItem';
 import { LandMatchingWizard } from './LandMatchingWizard';
+import { FeasibilitySettings } from './FeasibilitySettings';
 import { Button } from '@/components/ui/button';
 import { ScrollArea } from '@/components/ui/scroll-area';
 
@@ -32,6 +33,7 @@ export function HyperPlotAI() {
   const [loadProgress, setLoadProgress] = useState(0);
   const [showDetailPanel, setShowDetailPanel] = useState(false);
   const [showWizard, setShowWizard] = useState(false);
+  const [showFeasibilitySettings, setShowFeasibilitySettings] = useState(false);
   const [lastSeen, setLastSeen] = useState<LastSeenEntry[]>(getLastSeen());
   const [filters, setFilters] = useState<FilterState>({
     status: [],
@@ -213,6 +215,16 @@ export function HyperPlotAI() {
                   </>
                 )}
               </div>
+
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => setShowFeasibilitySettings(true)}
+                className="gap-2"
+              >
+                <Settings className="w-4 h-4" />
+                Settings
+              </Button>
 
               <Button
                 variant="outline"
@@ -468,6 +480,12 @@ export function HyperPlotAI() {
           setActiveTab('map');
           saveLastSeen(plot);
         }}
+      />
+
+      {/* Feasibility Settings */}
+      <FeasibilitySettings
+        open={showFeasibilitySettings}
+        onClose={() => setShowFeasibilitySettings(false)}
       />
     </div>
   );
