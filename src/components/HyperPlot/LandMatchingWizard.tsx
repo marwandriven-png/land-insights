@@ -30,15 +30,22 @@ import {
 
 // Calculate confidence from deviation percentages
 function calcConfidence(areaDev: number, gfaDev: number, hasArea: boolean, hasGfa: boolean): number {
+  // Exact match on all provided dimensions = 100%
+  if (hasArea && hasGfa && areaDev === 0 && gfaDev === 0) return 100;
+  if (hasArea && !hasGfa && areaDev === 0) return 100;
+  if (!hasArea && hasGfa && gfaDev === 0) return 100;
+
   let score = 0;
   if (hasArea) {
-    // 0% dev = full score, ≤6% = 80+, 6-10% = 50-80
-    score += (areaDev === 0 ? 40 : areaDev <= 6 ? Math.max(32, 40 - areaDev * 1.3) : Math.max(20, 40 - areaDev * 2)) * (hasGfa ? 1 : 1.5);
+    // ≤6% = high confidence, 6-10% = medium
+    const pts = areaDev <= 6 ? Math.max(35, 50 - areaDev * 2.5) : Math.max(20, 50 - areaDev * 3);
+    score += pts * (hasGfa ? 1 : 2);
   }
   if (hasGfa) {
-    score += (gfaDev === 0 ? 40 : gfaDev <= 6 ? Math.max(32, 40 - gfaDev * 1.3) : Math.max(20, 40 - gfaDev * 2)) * (hasArea ? 1 : 1.5);
+    const pts = gfaDev <= 6 ? Math.max(35, 50 - gfaDev * 2.5) : Math.max(20, 50 - gfaDev * 3);
+    score += pts * (hasArea ? 1 : 2);
   }
-  return Math.min(100, Math.max(10, Math.round(score)));
+  return Math.min(99, Math.max(10, Math.round(score)));
 }
 
 // Build match results from API plots

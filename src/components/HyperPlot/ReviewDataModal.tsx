@@ -232,13 +232,13 @@ export function ReviewDataModal({ isOpen, onClose, matches }: ReviewDataModalPro
                     onCheckedChange={toggleAll}
                   />
                 </TableHead>
-                <TableHead className="text-xs font-semibold">Plot Number</TableHead>
+                <TableHead className="text-xs font-semibold">Land Number</TableHead>
                 <TableHead className="text-xs font-semibold">Location</TableHead>
-                <TableHead className="text-xs font-semibold">Area (m²)</TableHead>
-                <TableHead className="text-xs font-semibold">GFA (m²)</TableHead>
+                <TableHead className="text-xs font-semibold">Area (sqft)</TableHead>
+                <TableHead className="text-xs font-semibold">GFA (sqft)</TableHead>
                 <TableHead className="text-xs font-semibold">Zoning</TableHead>
                 <TableHead className="text-xs font-semibold">Status</TableHead>
-                <TableHead className="text-xs font-semibold">Match</TableHead>
+                <TableHead className="text-xs font-semibold">Match %</TableHead>
                 <TableHead className="text-xs font-semibold">CRM</TableHead>
               </TableRow>
             </TableHeader>
@@ -261,13 +261,13 @@ export function ReviewDataModal({ isOpen, onClose, matches }: ReviewDataModalPro
                     <TableCell className="font-semibold text-sm">{m.matchedPlotId}</TableCell>
                     <TableCell className="text-sm">{m.matchedLocation || '—'}</TableCell>
                     <TableCell className="text-sm font-mono">
-                      {m.matchedPlotArea.toLocaleString(undefined, { maximumFractionDigits: 0 })}
+                      {Math.round(m.matchedPlotArea * SQM_TO_SQFT).toLocaleString()}
                       {m.areaDeviation > 0 && (
                         <span className="text-muted-foreground text-[10px] ml-1">Δ{m.areaDeviation}%</span>
                       )}
                     </TableCell>
                     <TableCell className="text-sm font-mono">
-                      {m.matchedGfa.toLocaleString(undefined, { maximumFractionDigits: 0 })}
+                      {Math.round(m.matchedGfa * SQM_TO_SQFT).toLocaleString()}
                       {m.gfaDeviation > 0 && (
                         <span className="text-muted-foreground text-[10px] ml-1">Δ{m.gfaDeviation}%</span>
                       )}

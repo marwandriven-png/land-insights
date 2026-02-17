@@ -304,16 +304,21 @@ export function matchParcels(
       }
       
       // 3. Calculate confidence score
+      // Exact match on all provided dimensions = 100%
       let confidenceScore = 0;
-
-      if (hasPlotArea) {
-        // Exact match (0%) = full points, within 6% = good, 6-10% = reduced
-        const areaPts = areaCheck.deviation === 0 ? 1 : areaCheck.deviation <= TOLERANCE ? Math.max(0, 1 - areaCheck.deviation / TOLERANCE) * 0.9 : Math.max(0, 1 - areaCheck.deviation / RELAXED_TOLERANCE) * 0.5;
-        confidenceScore += areaPts * (hasGfa ? 35 : 60);
-      }
-      if (hasGfa) {
-        const gfaPts = gfaCheck.deviation === 0 ? 1 : gfaCheck.deviation <= TOLERANCE ? Math.max(0, 1 - gfaCheck.deviation / TOLERANCE) * 0.9 : Math.max(0, 1 - gfaCheck.deviation / RELAXED_TOLERANCE) * 0.5;
-        confidenceScore += gfaPts * (hasPlotArea ? 35 : 60);
+      const exactArea = hasPlotArea && areaCheck.deviation === 0;
+      const exactGfa = hasGfa && gfaCheck.deviation === 0;
+      if ((!hasPlotArea || exactArea) && (!hasGfa || exactGfa)) {
+        confidenceScore = 80; // base 80 for exact, enhancers can add up to 100
+      } else {
+        if (hasPlotArea) {
+          const areaPts = areaCheck.deviation <= TOLERANCE ? Math.max(0.5, 1 - areaCheck.deviation / TOLERANCE) : Math.max(0.2, 1 - areaCheck.deviation / RELAXED_TOLERANCE) * 0.5;
+          confidenceScore += areaPts * (hasGfa ? 35 : 60);
+        }
+        if (hasGfa) {
+          const gfaPts = gfaCheck.deviation <= TOLERANCE ? Math.max(0.5, 1 - gfaCheck.deviation / TOLERANCE) : Math.max(0.2, 1 - gfaCheck.deviation / RELAXED_TOLERANCE) * 0.5;
+          confidenceScore += gfaPts * (hasPlotArea ? 35 : 60);
+        }
       }
 
       // 4. Optional enhancers
