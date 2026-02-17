@@ -875,9 +875,9 @@ export function LandMatchingWizard({
                       />
                       <Building2 className="w-4 h-4 text-primary" />
                       <div>
-                      <span className="font-bold text-base">Plot {result.matchedPlotId}</span>
+                      <span className="font-bold text-lg">Plot {result.matchedPlotId}</span>
                         <div className="flex items-center gap-1.5">
-                          <span className="text-xs text-muted-foreground">{result.matchedLocation}</span>
+                          <span className="text-sm text-muted-foreground">{result.matchedLocation}</span>
                           {isPlotListed(result.matchedPlotId) && (
                             <span className="px-1.5 py-0.5 rounded text-[10px] font-bold bg-success/20 text-success">Listed</span>
                           )}
@@ -888,7 +888,7 @@ export function LandMatchingWizard({
                       </div>
                     </div>
                     <div className="flex items-center gap-1.5">
-                      <div className="px-2.5 py-1 rounded-full text-xs font-bold" style={{
+                      <div className="px-3 py-1.5 rounded-full text-sm font-bold" style={{
                         background: result.confidenceScore > 80
                           ? 'hsl(var(--success) / 0.2)'
                           : result.confidenceScore > 50
@@ -905,10 +905,10 @@ export function LandMatchingWizard({
                     </div>
                   </div>
 
-                  <div className="grid grid-cols-2 gap-2 text-sm mb-2">
+                  <div className="grid grid-cols-2 gap-2 text-base mb-2">
                     <div>
                       <span className="text-muted-foreground">Land Size:</span>
-                      <span className="ml-1 font-medium">{result.matchedPlotArea.toLocaleString()} m²</span>
+                      <span className="ml-1 font-semibold">{result.matchedPlotArea.toLocaleString()} m²</span>
                       {result.areaDeviation > 0 && (
                         <span className="text-muted-foreground ml-1">(Δ {result.areaDeviation}%)</span>
                       )}
