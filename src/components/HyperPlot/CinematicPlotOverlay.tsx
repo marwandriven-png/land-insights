@@ -72,10 +72,33 @@ export function CinematicPlotOverlay({ map, plot }: CinematicPlotOverlayProps) {
       ];
     }
 
-    setPhase('boundary');
-
     const bounds = L.latLngBounds(latLngs);
     const center = bounds.getCenter();
+
+    // ─── PHASE 1: Smooth 30-frame easeInOutQuad zoom to 2.5× ───
+    setPhase('boundary');
+    const startZoom = map.getZoom();
+    const targetZoom = Math.min(startZoom + Math.log2(2.5), 19);
+    const startCenter = map.getCenter();
+    const totalFrames = 30;
+    let frame = 0;
+
+    function easeInOutQuad(t: number) {
+      return t < 0.5 ? 2 * t * t : -1 + (4 - 2 * t) * t;
+    }
+
+    function animateZoom() {
+      frame++;
+      const t = easeInOutQuad(frame / totalFrames);
+      const lat = startCenter.lat + (center.lat - startCenter.lat) * t;
+      const lng = startCenter.lng + (center.lng - startCenter.lng) * t;
+      const zoom = startZoom + (targetZoom - startZoom) * t;
+      map.setView([lat, lng], zoom, { animate: false });
+      if (frame < totalFrames) {
+        requestAnimationFrame(animateZoom);
+      }
+    }
+    requestAnimationFrame(animateZoom);
     const cornerDist = center.distanceTo(latLngs[0]);
     const initialRadius = cornerDist * 1.2;
 

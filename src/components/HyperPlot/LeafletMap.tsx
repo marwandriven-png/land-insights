@@ -168,17 +168,7 @@ export function LeafletMap({ plots, selectedPlot, onPlotClick, highlightedPlots,
       polygon.addTo(map);
       plotLayersRef.current.set(plot.id, polygon);
     });
-
-    if (selectedPlot && plotLayersRef.current.has(selectedPlot.id)) {
-      const layer = plotLayersRef.current.get(selectedPlot.id);
-      if (layer) {
-        if ('getBounds' in layer) {
-          map.fitBounds((layer as L.Polygon).getBounds(), { padding: [100, 100], maxZoom: 17 });
-        } else {
-          map.setView((layer as L.CircleMarker).getLatLng(), 17);
-        }
-      }
-    }
+    // Zoom is handled by CinematicPlotOverlay with smooth easeInOutQuad animation
   }, [plots, selectedPlot, highlightedPlots, onPlotClick]);
 
   const resetView = useCallback(() => {
