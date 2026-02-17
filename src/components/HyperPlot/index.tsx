@@ -519,14 +519,14 @@ export function HyperPlotAI() {
                           return [...prev, plot];
                         });
                       }}
-                      className={`absolute top-2 right-2 p-1 rounded-md transition-all ${
+                      className={`absolute top-2 right-2 p-1.5 rounded-md transition-all ${
                         comparisonPlots.find(p => p.id === plot.id)
-                          ? 'bg-primary text-primary-foreground'
-                          : 'bg-muted/80 text-muted-foreground opacity-0 group-hover:opacity-100'
+                          ? 'bg-primary text-primary-foreground shadow-md'
+                          : 'bg-muted/90 text-muted-foreground opacity-100 hover:bg-primary/20 hover:text-primary'
                       }`}
                       title={comparisonPlots.find(p => p.id === plot.id) ? 'Remove from comparison' : 'Add to comparison'}
                     >
-                      <GitCompareArrows className="w-3.5 h-3.5" />
+                      <GitCompareArrows className="w-4 h-4" />
                     </button>
                   </div>
                 ))}

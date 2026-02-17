@@ -232,14 +232,14 @@ export function ReviewDataModal({ isOpen, onClose, matches }: ReviewDataModalPro
                     onCheckedChange={toggleAll}
                   />
                 </TableHead>
-                <TableHead className="text-xs font-semibold">Land Number</TableHead>
-                <TableHead className="text-xs font-semibold">Location</TableHead>
-                <TableHead className="text-xs font-semibold">Area (sqft)</TableHead>
-                <TableHead className="text-xs font-semibold">GFA (sqft)</TableHead>
-                <TableHead className="text-xs font-semibold">Zoning</TableHead>
-                <TableHead className="text-xs font-semibold">Status</TableHead>
-                <TableHead className="text-xs font-semibold">Match %</TableHead>
-                <TableHead className="text-xs font-semibold">CRM</TableHead>
+                <TableHead className="text-sm font-semibold">Land Number</TableHead>
+                <TableHead className="text-sm font-semibold">Location</TableHead>
+                <TableHead className="text-sm font-semibold">Area (sqft)</TableHead>
+                <TableHead className="text-sm font-semibold">GFA (sqft)</TableHead>
+                <TableHead className="text-sm font-semibold">Zoning</TableHead>
+                <TableHead className="text-sm font-semibold">Status</TableHead>
+                <TableHead className="text-sm font-semibold">Match %</TableHead>
+                <TableHead className="text-sm font-semibold">CRM</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
@@ -258,25 +258,25 @@ export function ReviewDataModal({ isOpen, onClose, matches }: ReviewDataModalPro
                         onCheckedChange={() => toggleSelect(m.matchedPlotId)}
                       />
                     </TableCell>
-                    <TableCell className="font-semibold text-sm">{m.matchedPlotId}</TableCell>
+                    <TableCell className="font-semibold text-base">{m.matchedPlotId}</TableCell>
                     <TableCell className="text-sm">{m.matchedLocation || '—'}</TableCell>
                     <TableCell className="text-sm font-mono">
                       {Math.round(m.matchedPlotArea * SQM_TO_SQFT).toLocaleString()}
                       {m.areaDeviation > 0 && (
-                        <span className="text-muted-foreground text-[10px] ml-1">Δ{m.areaDeviation}%</span>
+                        <span className="text-muted-foreground text-xs ml-1">Δ{m.areaDeviation}%</span>
                       )}
                     </TableCell>
                     <TableCell className="text-sm font-mono">
                       {Math.round(m.matchedGfa * SQM_TO_SQFT).toLocaleString()}
                       {m.gfaDeviation > 0 && (
-                        <span className="text-muted-foreground text-[10px] ml-1">Δ{m.gfaDeviation}%</span>
+                        <span className="text-muted-foreground text-xs ml-1">Δ{m.gfaDeviation}%</span>
                       )}
                     </TableCell>
                     <TableCell className="text-sm">{m.matchedZoning}</TableCell>
                     <TableCell className="text-sm">{m.matchedStatus}</TableCell>
                     <TableCell>
                       <span
-                        className="px-2 py-0.5 rounded-full text-xs font-bold"
+                        className="px-2.5 py-1 rounded-full text-sm font-bold"
                         style={{
                           background: m.confidenceScore > 80
                             ? 'hsl(var(--success) / 0.2)'
@@ -291,11 +291,11 @@ export function ReviewDataModal({ isOpen, onClose, matches }: ReviewDataModalPro
                     </TableCell>
                     <TableCell>
                       {listed ? (
-                        <Badge className="bg-success/20 text-success border-success/30 text-[10px]">
+                        <Badge className="bg-success/20 text-success border-success/30 text-xs">
                           Listed
                         </Badge>
                       ) : exported ? (
-                        <Badge variant="secondary" className="text-[10px]">
+                        <Badge variant="secondary" className="text-xs">
                           Exported
                         </Badge>
                       ) : null}
