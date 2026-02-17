@@ -178,7 +178,13 @@ export function HyperPlotAI() {
     if (goToMap) {
       setActiveTab('map');
     }
-  }, [saveLastSeen]);
+    // Highlight all plots in the same area/community
+    const area = plot.location || plot.project || '';
+    if (area) {
+      const sameAreaIds = plots.filter(p => (p.location || p.project || '') === area).map(p => p.id);
+      setHighlightedPlots(sameAreaIds);
+    }
+  }, [saveLastSeen, plots]);
 
   const handlePlotFound = useCallback((plot: PlotData) => {
     // If this plot isn't in the loaded plots array (e.g. live API lookup), add it
