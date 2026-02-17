@@ -295,10 +295,15 @@ export function matchParcels(
         gfaCheck = isWithinTolerance(plot.gfa, input.gfaSqm, activeTolerance);
       }
 
-      // Both provided → at least one must match within relaxed tolerance
-      // Only one provided → that one must match
+      // When area name specified: BOTH must match (AND logic)
+      // When no area name: at least one must match (OR logic)
       if (hasPlotArea && hasGfa) {
-        if (!areaCheck.match && !gfaCheck.match) continue;
+        if (hasAreaName) {
+          // Strict: both must be within tolerance
+          if (!areaCheck.match || !gfaCheck.match) continue;
+        } else {
+          if (!areaCheck.match && !gfaCheck.match) continue;
+        }
       } else if (hasPlotArea) {
         if (!areaCheck.match) continue;
       } else if (hasGfa) {

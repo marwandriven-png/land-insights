@@ -48,24 +48,36 @@ function calcConfidence(areaDev: number, gfaDev: number, hasArea: boolean, hasGf
   return Math.min(99, Math.max(10, Math.round(score)));
 }
 
-// Build match results from API plots
+// Build match results from API plots, filtering by ±6% tolerance
 function buildApiResults(apiPlots: PlotData[], input: ParcelInput): MatchResult[] {
-  return apiPlots.map(ap => {
-    const areaDev = input.plotAreaSqm > 0 ? parseFloat((Math.abs(ap.area - input.plotAreaSqm) / input.plotAreaSqm * 100).toFixed(2)) : 0;
-    const gfaDev = input.gfaSqm > 0 ? parseFloat((Math.abs(ap.gfa - input.gfaSqm) / input.gfaSqm * 100).toFixed(2)) : 0;
-    return {
-      input,
-      matchedPlotId: ap.id,
-      matchedPlotArea: ap.area,
-      matchedGfa: ap.gfa,
-      matchedZoning: ap.zoning,
-      matchedStatus: ap.status,
-      matchedLocation: ap.location,
-      areaDeviation: areaDev,
-      gfaDeviation: gfaDev,
-      confidenceScore: calcConfidence(areaDev, gfaDev, input.plotAreaSqm > 0, input.gfaSqm > 0),
-    };
-  }).sort((a, b) => b.confidenceScore - a.confidenceScore);
+  const TOLERANCE = 6; // ±6%
+  const hasArea = input.plotAreaSqm > 0;
+  const hasGfa = input.gfaSqm > 0;
+
+  return apiPlots
+    .map(ap => {
+      const areaDev = hasArea ? parseFloat((Math.abs(ap.area - input.plotAreaSqm) / input.plotAreaSqm * 100).toFixed(2)) : 0;
+      const gfaDev = hasGfa ? parseFloat((Math.abs(ap.gfa - input.gfaSqm) / input.gfaSqm * 100).toFixed(2)) : 0;
+      return {
+        input,
+        matchedPlotId: ap.id,
+        matchedPlotArea: ap.area,
+        matchedGfa: ap.gfa,
+        matchedZoning: ap.zoning,
+        matchedStatus: ap.status,
+        matchedLocation: ap.location,
+        areaDeviation: areaDev,
+        gfaDeviation: gfaDev,
+        confidenceScore: calcConfidence(areaDev, gfaDev, hasArea, hasGfa),
+      };
+    })
+    .filter(r => {
+      // Strict ±6% filter: every provided dimension must be within tolerance
+      if (hasArea && r.areaDeviation > TOLERANCE) return false;
+      if (hasGfa && r.gfaDeviation > TOLERANCE) return false;
+      return true;
+    })
+    .sort((a, b) => b.confidenceScore - a.confidenceScore);
 }
 
 interface LandMatchingWizardProps {
@@ -546,7 +558,7 @@ export function LandMatchingWizard({
                   {/* Area Name - mandatory */}
                   <div className="space-y-1.5">
                     <Label className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">
-                      Area Name <span className="text-destructive">*</span>
+                      Community Name <span className="text-destructive">*</span>
                     </Label>
                     <Input
                       value={formArea}
