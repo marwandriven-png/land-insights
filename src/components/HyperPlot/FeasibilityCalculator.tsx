@@ -2,7 +2,7 @@ import { useState, useEffect, useMemo } from 'react';
 import { Calculator, DollarSign, TrendingUp, Building2, Edit3, Check } from 'lucide-react';
 import { PlotData, AffectionPlanData, gisService } from '@/services/DDAGISService';
 import { Input } from '@/components/ui/input';
-import { calcDSCFeasibility, DSCPlotInput, MIX_TEMPLATES, fmt, fmtM, fmtA, pct, MixKey } from '@/lib/dscFeasibility';
+import { calcDSCFeasibility, DSCPlotInput, MIX_TEMPLATES, fmt, fmtM, fmtA, pct, MixKey, BENCHMARK_AVG_PSF } from '@/lib/dscFeasibility';
 
 interface FeasibilityCalculatorProps {
   plot: PlotData;
@@ -15,6 +15,9 @@ interface FeasibilityParams {
   consultantFeePct: number;
   buaMultiplier: number;
   efficiency: number;
+  avgPsfOverride: number;
+  contingencyPct: number;
+  financePct: number;
 }
 
 const DEFAULT_PARAMS: FeasibilityParams = {
@@ -24,6 +27,9 @@ const DEFAULT_PARAMS: FeasibilityParams = {
   consultantFeePct: 3,
   buaMultiplier: 1.45,
   efficiency: 0.95,
+  avgPsfOverride: BENCHMARK_AVG_PSF,
+  contingencyPct: 5,
+  financePct: 4,
 };
 
 function toDSCInput(plot: PlotData, plan: AffectionPlanData | null): DSCPlotInput {
@@ -58,6 +64,9 @@ export function FeasibilityCalculator({ plot }: FeasibilityCalculatorProps) {
     landCostPsf: params.landCostPsf,
     buaMultiplier: params.buaMultiplier,
     efficiency: params.efficiency,
+    avgPsfOverride: params.avgPsfOverride,
+    contingencyPct: params.contingencyPct / 100,
+    financePct: params.financePct / 100,
   }), [dscInput, params]);
 
   const updateParam = (key: keyof FeasibilityParams, value: string) => {
@@ -110,6 +119,18 @@ export function FeasibilityCalculator({ plot }: FeasibilityCalculatorProps) {
             <label className="text-[10px] text-muted-foreground">Floor Plate Eff. (%)</label>
             <Input type="number" value={Math.round(params.efficiency * 100)} onChange={(e) => { const v = parseFloat(e.target.value); if (!isNaN(v) && v > 0) setParams(p => ({ ...p, efficiency: v / 100 })); }} className="h-7 text-xs mt-0.5" />
           </div>
+          <div>
+            <label className="text-[10px] text-muted-foreground">Selling PSF (AED)</label>
+            <Input type="number" value={params.avgPsfOverride} onChange={(e) => updateParam('avgPsfOverride', e.target.value)} className="h-7 text-xs mt-0.5" />
+          </div>
+          <div>
+            <label className="text-[10px] text-muted-foreground">Contingency (%)</label>
+            <Input type="number" value={params.contingencyPct} onChange={(e) => updateParam('contingencyPct', e.target.value)} className="h-7 text-xs mt-0.5" step="0.5" />
+          </div>
+          <div>
+            <label className="text-[10px] text-muted-foreground">Finance (%)</label>
+            <Input type="number" value={params.financePct} onChange={(e) => updateParam('financePct', e.target.value)} className="h-7 text-xs mt-0.5" step="0.5" />
+          </div>
         </div>
       )}
 
@@ -121,11 +142,11 @@ export function FeasibilityCalculator({ plot }: FeasibilityCalculatorProps) {
         </span>
       </div>
       <div className="flex justify-between text-xs mb-1">
-        <span className="text-muted-foreground">Avg PSF</span>
+        <span className="text-muted-foreground">Selling PSF (Benchmark Avg)</span>
         <span className="text-foreground font-medium">AED {fmt(Math.round(fs.avgPsf))}</span>
       </div>
       <div className="flex justify-between text-xs mb-2 font-semibold">
-        <span className="text-muted-foreground">GDV (Sellable × Avg PSF)</span>
+        <span className="text-muted-foreground">GDV (Sellable × Selling PSF)</span>
         <span className="text-foreground">{fmtA(fs.grossSales)}</span>
       </div>
 
@@ -137,6 +158,8 @@ export function FeasibilityCalculator({ plot }: FeasibilityCalculatorProps) {
           { label: `Land (GFA × ${params.landCostPsf} PSF)`, value: fs.landCost },
           { label: `Authority Fees (${params.authorityFeePct}%)`, value: fs.authorityFees },
           { label: `Consultant Fees (${params.consultantFeePct}%)`, value: fs.consultantFees },
+          { label: `Contingency (${params.contingencyPct}%)`, value: fs.contingency },
+          { label: `Finance (${params.financePct}%)`, value: fs.financing },
         ].map(item => (
           <div key={item.label} className="flex justify-between text-xs">
             <span className="text-muted-foreground">{item.label}</span>
