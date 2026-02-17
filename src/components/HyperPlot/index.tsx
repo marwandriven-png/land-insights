@@ -524,12 +524,7 @@ export function HyperPlotAI() {
                       plot={plot}
                       isSelected={selectedPlot?.id === plot.id}
                       isHighlighted={highlightedPlots.includes(plot.id)}
-                      onClick={() => {
-                        setActiveTab('map');
-                        // Force re-trigger map zoom by clearing and re-setting
-                        setSelectedPlot(null);
-                        setTimeout(() => handlePlotClick(plot, true), 50);
-                      }}
+                      onClick={() => handlePlotClick(plot, true)}
                     />
                     {/* Compare toggle button */}
                     <button
