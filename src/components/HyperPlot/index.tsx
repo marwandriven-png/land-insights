@@ -1,10 +1,10 @@
 import { useState, useEffect, useCallback, useMemo } from 'react';
-import { Map, Home, BarChart3, Brain, AlertCircle, X, RefreshCw, Wifi, WifiOff, Target, Clock, Settings } from 'lucide-react';
+import { Map, Home, BarChart3, Brain, AlertCircle, X, RefreshCw, Wifi, WifiOff, Target, Clock, Settings, Shield } from 'lucide-react';
 import { addLastSeen, getLastSeen, LastSeenEntry } from '@/services/LastSeenService';
 import { gisService, PlotData, generateDemoPlots } from '@/services/DDAGISService';
 import { Header } from './Header';
 import { LeafletMap } from './LeafletMap';
-import { FeasibilityPanel } from './FeasibilityPanel';
+import { DecisionConfidence } from './DecisionConfidence';
 import { AIAssistant } from './AIAssistant';
 import { PlotDetailPanel } from './PlotDetailPanel';
 import { SearchFilters, FilterState } from './SearchFilters';
@@ -16,7 +16,7 @@ import { ScrollArea } from '@/components/ui/scroll-area';
 
 const TABS = [
   { id: 'map', icon: Map, label: 'Map' },
-  { id: 'feasibility', icon: BarChart3, label: 'Analysis' },
+  { id: 'feasibility', icon: Shield, label: 'Decision' },
   { id: 'properties', icon: Home, label: 'List' },
   { id: 'ai', icon: Brain, label: 'AI' },
 ];
@@ -323,13 +323,13 @@ export function HyperPlotAI() {
               </div>
             )}
             {activeTab === 'feasibility' && selectedPlot ? (
-              <FeasibilityPanel plot={selectedPlot} />
+              <DecisionConfidence plot={selectedPlot} />
             ) : activeTab === 'feasibility' ? (
               <div className="h-full flex items-center justify-center glass-card glow-border">
                 <div className="text-center">
-                  <BarChart3 className="w-12 h-12 text-muted-foreground/30 mx-auto mb-3" />
+                  <Shield className="w-12 h-12 text-muted-foreground/30 mx-auto mb-3" />
                   <h3 className="text-lg font-bold mb-1">Select a Plot</h3>
-                  <p className="text-sm text-muted-foreground">Choose from the list to view analysis</p>
+                  <p className="text-sm text-muted-foreground">Choose a plot to view Decision Confidence</p>
                 </div>
               </div>
             ) : null}
