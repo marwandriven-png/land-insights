@@ -1,5 +1,5 @@
 import { useState, useMemo, useEffect } from 'react';
-import { Loader2, TrendingUp, DollarSign, Building2, BarChart3, Target, Shield, Printer, Maximize2, Minimize2, Settings2, GitCompareArrows } from 'lucide-react';
+import { Loader2, TrendingUp, DollarSign, Building2, BarChart3, Target, Shield, Printer, Maximize2, Minimize2, Settings2, GitCompareArrows, X, Lightbulb, StickyNote, ChevronRight } from 'lucide-react';
 import { Checkbox } from '@/components/ui/checkbox';
 import { PlotData, AffectionPlanData, gisService } from '@/services/DDAGISService';
 import { calcDSCFeasibility, DSCPlotInput, DSCFeasibilityResult, MixKey, MIX_TEMPLATES, COMPS, UNIT_SIZES, RENT_PSF_YR, BENCHMARK_AVG_PSF, TXN_AVG_PSF, TXN_AVG_SIZE, TXN_AVG_PRICE, TXN_MEDIAN_PSF, TXN_COUNT, TXN_WEIGHTED_AVG_PSF, fmt, fmtM, fmtA, pct } from '@/lib/dscFeasibility';
@@ -8,12 +8,14 @@ import { Table, TableHeader, TableBody, TableRow, TableHead, TableCell, TableFoo
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
+import { Textarea } from '@/components/ui/textarea';
 
 interface DecisionConfidenceProps {
   plot: PlotData;
   comparisonPlots?: PlotData[];
   isFullscreen?: boolean;
   onToggleFullscreen?: () => void;
+  onExitComparison?: () => void;
 }
 
 // Convert PlotData + AffectionPlan into DSCPlotInput (sqft)
@@ -76,7 +78,62 @@ function isDSCPlot(plot: PlotData): boolean {
   return loc.includes('sport') || proj.includes('sport') || loc.includes('dsc') || proj.includes('dsc') || zone.includes('sport');
 }
 
-export function DecisionConfidence({ plot, comparisonPlots = [], isFullscreen, onToggleFullscreen }: DecisionConfidenceProps) {
+// Generate comparison insights
+function generateComparisonNotes(
+  allResults: { id: string; result: DSCFeasibilityResult; input: DSCPlotInput }[]
+): string[] {
+  if (allResults.length < 2) return [];
+  const notes: string[] = [];
+
+  // Best ROI
+  const bestRoi = allResults.reduce((a, b) => a.result.roi > b.result.roi ? a : b);
+  const worstRoi = allResults.reduce((a, b) => a.result.roi < b.result.roi ? a : b);
+  if (bestRoi.id !== worstRoi.id) {
+    const diff = ((bestRoi.result.roi - worstRoi.result.roi) * 100).toFixed(1);
+    notes.push(`${bestRoi.id} offers the highest ROI at ${pct(bestRoi.result.roi)}, outperforming ${worstRoi.id} by ${diff}pp.`);
+  }
+
+  // Best margin
+  const bestMargin = allResults.reduce((a, b) => a.result.grossMargin > b.result.grossMargin ? a : b);
+  if (bestMargin.id !== bestRoi.id) {
+    notes.push(`${bestMargin.id} has the best margin (${pct(bestMargin.result.grossMargin)}), making it lower risk despite not having the highest ROI.`);
+  }
+
+  // Highest profit
+  const bestProfit = allResults.reduce((a, b) => a.result.grossProfit > b.result.grossProfit ? a : b);
+  notes.push(`${bestProfit.id} generates the highest absolute profit at ${fmtM(bestProfit.result.grossProfit)}.`);
+
+  // Lowest cost per sqft
+  const lowestCostPsf = allResults.reduce((a, b) =>
+    (a.result.totalCost / a.result.sellableArea) < (b.result.totalCost / b.result.sellableArea) ? a : b
+  );
+  notes.push(`${lowestCostPsf.id} has the lowest development cost per sqft at AED ${fmt(Math.round(lowestCostPsf.result.totalCost / lowestCostPsf.result.sellableArea))}/sqft.`);
+
+  // Yield comparison
+  const bestYield = allResults.reduce((a, b) => a.result.grossYield > b.result.grossYield ? a : b);
+  if (bestYield.result.grossYield > 0.055) {
+    notes.push(`${bestYield.id} offers the strongest rental yield at ${pct(bestYield.result.grossYield)}, above DSC average of 5.5%.`);
+  }
+
+  // Break-even
+  const lowestBE = allResults.reduce((a, b) => a.result.breakEvenPsf < b.result.breakEvenPsf ? a : b);
+  const highestBE = allResults.reduce((a, b) => a.result.breakEvenPsf > b.result.breakEvenPsf ? a : b);
+  if (lowestBE.id !== highestBE.id) {
+    notes.push(`${lowestBE.id} has the lowest break-even at AED ${fmt(Math.round(lowestBE.result.breakEvenPsf))}/sqft, providing more pricing flexibility.`);
+  }
+
+  // GFA comparison
+  const largestGfa = allResults.reduce((a, b) => a.result.gfa > b.result.gfa ? a : b);
+  const smallestGfa = allResults.reduce((a, b) => a.result.gfa < b.result.gfa ? a : b);
+  if (largestGfa.id !== smallestGfa.id) {
+    const pctDiff = ((largestGfa.result.gfa - smallestGfa.result.gfa) / smallestGfa.result.gfa * 100).toFixed(0);
+    notes.push(`${largestGfa.id} provides ${pctDiff}% more GFA than ${smallestGfa.id}, supporting higher unit density.`);
+  }
+
+  return notes;
+}
+
+export function DecisionConfidence({ plot, comparisonPlots = [], isFullscreen, onToggleFullscreen, onExitComparison }: DecisionConfidenceProps) {
   const [activeMix, setActiveMix] = useState<MixKey>('balanced');
   const [plan, setPlan] = useState<AffectionPlanData | null>(null);
   const [loading, setLoading] = useState(true);
@@ -85,26 +142,52 @@ export function DecisionConfidence({ plot, comparisonPlots = [], isFullscreen, o
   const [activeTab, setActiveTab] = useState<'feasibility' | 'comparison' | 'sensitivity' | 'plotCompare'>('feasibility');
   const [includeContingency, setIncludeContingency] = useState(true);
   const [includeFinance, setIncludeFinance] = useState(true);
+  const [userNotes, setUserNotes] = useState('');
 
-  // Fetch affection plan on plot change
+  // All plots for tabbed navigation (primary + comparison)
+  const allPlots = useMemo(() => {
+    const dscPlots = [plot, ...comparisonPlots].filter(p => isDSCPlot(p));
+    // Deduplicate by id
+    const seen = new Set<string>();
+    return dscPlots.filter(p => {
+      if (seen.has(p.id)) return false;
+      seen.add(p.id);
+      return true;
+    });
+  }, [plot, comparisonPlots]);
+
+  // Active plot tab (which plot's feasibility is shown)
+  const [activeTabPlotId, setActiveTabPlotId] = useState(plot.id);
+
+  // Keep activeTabPlotId in sync when primary plot changes
+  useEffect(() => {
+    if (!allPlots.find(p => p.id === activeTabPlotId)) {
+      setActiveTabPlotId(plot.id);
+    }
+  }, [plot.id, allPlots, activeTabPlotId]);
+
+  const comparisonMode = allPlots.length >= 2;
+  const activePlot = allPlots.find(p => p.id === activeTabPlotId) || plot;
+
+  // Fetch affection plan on active plot change
   useEffect(() => {
     setLoading(true);
     setPlan(null);
     setEditMode(false);
     setOverrides({});
-    gisService.fetchAffectionPlan(plot.id).then(data => {
+    gisService.fetchAffectionPlan(activePlot.id).then(data => {
       setPlan(data);
       setLoading(false);
     }).catch(() => setLoading(false));
-  }, [plot.id]);
+  }, [activePlot.id]);
 
   const dscInput = useMemo(() => {
-    const base = toDSCInput(plot, plan);
+    const base = toDSCInput(activePlot, plan);
     if (overrides.area) base.area = overrides.area;
     if (overrides.ratio) base.ratio = overrides.ratio;
     if (overrides.height) base.height = overrides.height;
     return base;
-  }, [plot, plan, overrides]);
+  }, [activePlot, plan, overrides]);
 
   const fs = useMemo(() => {
     const result = calcDSCFeasibility(dscInput, activeMix, {
@@ -119,14 +202,24 @@ export function DecisionConfidence({ plot, comparisonPlots = [], isFullscreen, o
     return result;
   }, [dscInput, activeMix, overrides, includeContingency, includeFinance]);
 
-  // Compute feasibility for comparison plots
-  const compResults = useMemo(() => {
-    return comparisonPlots.filter(p => isDSCPlot(p)).map(p => {
+  // Compute feasibility for ALL comparison plots (for compare tab + notes)
+  const allResults = useMemo(() => {
+    return allPlots.map(p => {
       const input = toDSCInput(p, null);
       const result = calcDSCFeasibility(input, activeMix);
-      return { plot: p, input, result };
+      return { id: p.id, plot: p, input, result };
     });
-  }, [comparisonPlots, activeMix]);
+  }, [allPlots, activeMix]);
+
+  // Auto-generated comparison notes
+  const compNotes = useMemo(() => generateComparisonNotes(allResults), [allResults]);
+
+  // Auto-switch to compare tab when entering comparison mode
+  useEffect(() => {
+    if (comparisonMode && allPlots.length >= 3 && activeTab === 'feasibility') {
+      setActiveTab('plotCompare');
+    }
+  }, [comparisonMode, allPlots.length]);
 
   if (loading) {
     return (
@@ -141,7 +234,7 @@ export function DecisionConfidence({ plot, comparisonPlots = [], isFullscreen, o
   }
 
   // DSC-only gate
-  if (!isDSCPlot(plot)) {
+  if (!isDSCPlot(activePlot)) {
     return (
       <div className="h-full flex items-center justify-center glass-card glow-border">
         <div className="text-center max-w-sm">
@@ -151,7 +244,7 @@ export function DecisionConfidence({ plot, comparisonPlots = [], isFullscreen, o
             Decision Confidence is currently calibrated for <strong>Dubai Sports City</strong> plots only, using 809 real transactions and 6 active benchmarks.
           </p>
           <p className="text-xs text-muted-foreground mt-2">
-            Plot "{plot.location || plot.id}" is not in DSC.
+            Plot "{activePlot.location || activePlot.id}" is not in DSC.
           </p>
         </div>
       </div>
@@ -160,6 +253,62 @@ export function DecisionConfidence({ plot, comparisonPlots = [], isFullscreen, o
 
   return (
     <div className="h-full flex flex-col overflow-hidden glass-card glow-border">
+      {/* ─── COMPARISON PLOT TABS ─── */}
+      {comparisonMode && (
+        <div className="shrink-0 border-b border-border/50 bg-card/80 backdrop-blur-sm">
+          <div className="flex items-center px-4 pt-3 pb-0">
+            <div className="flex items-center gap-1.5 mr-3">
+              <GitCompareArrows className="w-4 h-4 text-primary" />
+              <span className="text-xs font-bold text-primary uppercase tracking-wider">Compare Mode</span>
+            </div>
+            <div className="flex-1" />
+            {onExitComparison && (
+              <Button
+                variant="ghost"
+                size="sm"
+                className="text-xs h-7 gap-1 text-muted-foreground hover:text-destructive"
+                onClick={onExitComparison}
+              >
+                <X className="w-3 h-3" />
+                Exit Compare
+              </Button>
+            )}
+          </div>
+          <div className="flex gap-0 px-4 pt-2">
+            {allPlots.map((p, i) => {
+              const isActive = p.id === activeTabPlotId;
+              const pResult = allResults.find(r => r.id === p.id);
+              return (
+                <button
+                  key={p.id}
+                  onClick={() => setActiveTabPlotId(p.id)}
+                  className={`relative px-5 py-2.5 text-sm font-bold rounded-t-lg border-x border-t transition-all ${
+                    isActive
+                      ? 'bg-card border-border/50 text-primary -mb-px z-10'
+                      : 'bg-muted/30 border-transparent text-muted-foreground hover:text-foreground hover:bg-muted/50'
+                  }`}
+                >
+                  <div className="flex items-center gap-2">
+                    <span className="text-xs font-mono opacity-50">#{i + 1}</span>
+                    <span>{p.id}</span>
+                  </div>
+                  {pResult && (
+                    <div className={`text-[10px] font-mono mt-0.5 ${
+                      pResult.result.roi > 0.2 ? 'text-success' : pResult.result.roi > 0 ? 'text-warning' : 'text-destructive'
+                    }`}>
+                      ROI {pct(pResult.result.roi)}
+                    </div>
+                  )}
+                  {isActive && (
+                    <div className="absolute bottom-0 left-2 right-2 h-0.5 rounded-full bg-primary" />
+                  )}
+                </button>
+              );
+            })}
+          </div>
+        </div>
+      )}
+
       {/* Header */}
       <div className="shrink-0 px-4 pt-4 pb-3 border-b border-border/50">
         <div className="flex items-center justify-between mb-2">
@@ -167,9 +316,14 @@ export function DecisionConfidence({ plot, comparisonPlots = [], isFullscreen, o
              <h2 className="text-lg font-bold text-foreground flex items-center gap-2">
               <Shield className="w-5 h-5 text-primary" />
               Decision Confidence
+              {comparisonMode && (
+                <Badge variant="outline" className="text-xs border-primary/40 text-primary ml-2">
+                  Viewing: {activePlot.id}
+                </Badge>
+              )}
             </h2>
             <p className="text-xs text-muted-foreground">
-              Plot {plot.id} · {dscInput.zone} · {dscInput.height}
+              Plot {activePlot.id} · {dscInput.zone} · {dscInput.height}
             </p>
           </div>
           <div className="flex gap-2 items-center">
@@ -258,7 +412,12 @@ export function DecisionConfidence({ plot, comparisonPlots = [], isFullscreen, o
 
         {/* Tab bar */}
         <div className="flex gap-1 mt-3 bg-muted/40 p-0.5 rounded-lg">
-          {([['feasibility', '📊 Feasibility'], ['comparison', '📐 Benchmarks'], ['sensitivity', '🎯 Sensitivity'], ...(compResults.length > 0 ? [['plotCompare', `⚔️ Compare (${compResults.length})`]] : [])] as const).map(([k, l]) => (
+          {([
+            ['feasibility', '📊 Feasibility'],
+            ['comparison', '📐 Benchmarks'],
+            ['sensitivity', '🎯 Sensitivity'],
+            ...(comparisonMode ? [['plotCompare', `⚔️ Compare (${allPlots.length})`]] : []),
+          ] as const).map(([k, l]) => (
             <button key={k} onClick={() => setActiveTab(k as typeof activeTab)}
               className={`flex-1 text-[11px] font-bold py-1.5 rounded-md transition-all ${activeTab === k ? 'bg-primary text-primary-foreground' : 'text-muted-foreground hover:text-foreground'}`}>
               {l}
@@ -719,70 +878,127 @@ export function DecisionConfidence({ plot, comparisonPlots = [], isFullscreen, o
           )}
 
           {/* ─── PLOT COMPARE TAB ─── */}
-          {activeTab === 'plotCompare' && compResults.length > 0 && (
-            <Section title="Side-by-Side Plot Comparison" badge={`${compResults.length + 1} plots`}>
-              <div className="overflow-x-auto">
-                <Table>
-                  <TableHeader>
-                    <TableRow>
-                      {['Metric', `📍 ${plot.id} (Primary)`, ...compResults.map(c => `📍 ${c.plot.id}`)].map(h => (
-                        <TableHead key={h} className="text-xs text-right first:text-left whitespace-nowrap">{h}</TableHead>
-                      ))}
-                    </TableRow>
-                  </TableHeader>
-                  <TableBody>
-                    {[
-                      { label: 'Location', vals: [plot.location || '-', ...compResults.map(c => c.plot.location || '-')] },
-                      { label: 'Plot Area (sqft)', vals: [fmt(Math.round(dscInput.area)), ...compResults.map(c => fmt(Math.round(c.input.area)))] },
-                      { label: 'GFA (sqft)', vals: [fmt(Math.round(fs.gfa)), ...compResults.map(c => fmt(Math.round(c.result.gfa)))] },
-                      { label: 'Sellable Area', vals: [fmt(Math.round(fs.sellableArea)), ...compResults.map(c => fmt(Math.round(c.result.sellableArea)))] },
-                      { label: 'Total Units', vals: [fmt(fs.units.total), ...compResults.map(c => fmt(c.result.units.total))] },
-                      { label: 'GDV', vals: [fmtM(fs.grossSales), ...compResults.map(c => fmtM(c.result.grossSales))] },
-                      { label: 'Total Cost', vals: [fmtM(fs.totalCost), ...compResults.map(c => fmtM(c.result.totalCost))] },
-                      { label: 'Net Profit', vals: [fmtM(fs.grossProfit), ...compResults.map(c => fmtM(c.result.grossProfit))] },
-                      { label: 'Gross Margin', vals: [pct(fs.grossMargin), ...compResults.map(c => pct(c.result.grossMargin))] },
-                      { label: 'ROI', vals: [pct(fs.roi), ...compResults.map(c => pct(c.result.roi))] },
-                      { label: 'Avg PSF', vals: [`AED ${fmt(Math.round(fs.avgPsf))}`, ...compResults.map(c => `AED ${fmt(Math.round(c.result.avgPsf))}`)] },
-                      { label: 'Break-Even PSF', vals: [`AED ${fmt(Math.round(fs.breakEvenPsf))}`, ...compResults.map(c => `AED ${fmt(Math.round(c.result.breakEvenPsf))}`)] },
-                      { label: 'Rental Yield', vals: [pct(fs.grossYield), ...compResults.map(c => pct(c.result.grossYield))] },
-                      { label: 'Status', vals: [plot.status, ...compResults.map(c => c.plot.status)] },
-                    ].map(row => (
-                      <TableRow key={row.label}>
-                        <TableCell className="text-sm font-medium py-2">{row.label}</TableCell>
-                        {row.vals.map((v, i) => (
-                          <TableCell key={i} className={`text-sm text-right font-mono py-2 ${i === 0 ? 'text-primary font-bold' : ''}`}>{v}</TableCell>
+          {activeTab === 'plotCompare' && allResults.length >= 2 && (
+            <>
+              {/* Side-by-side comparison table */}
+              <Section title="Side-by-Side Plot Comparison" badge={`${allResults.length} plots`}>
+                <div className="overflow-x-auto">
+                  <Table>
+                    <TableHeader>
+                      <TableRow>
+                        <TableHead className="text-xs whitespace-nowrap">Metric</TableHead>
+                        {allResults.map((r, i) => (
+                          <TableHead key={r.id} className={`text-xs text-right whitespace-nowrap ${r.id === activeTabPlotId ? 'text-primary' : ''}`}>
+                            {i === 0 ? '📍 ' : ''}{r.id}
+                          </TableHead>
                         ))}
+                        <TableHead className="text-xs text-right whitespace-nowrap text-success">Best</TableHead>
                       </TableRow>
-                    ))}
-                  </TableBody>
-                </Table>
-              </div>
+                    </TableHeader>
+                    <TableBody>
+                      {[
+                        { label: 'Location', vals: allResults.map(r => r.plot.location || '-'), best: null },
+                        { label: 'Plot Area (sqft)', vals: allResults.map(r => fmt(Math.round(r.input.area))), best: allResults.reduce((a, b) => a.input.area > b.input.area ? a : b).id },
+                        { label: 'GFA (sqft)', vals: allResults.map(r => fmt(Math.round(r.result.gfa))), best: allResults.reduce((a, b) => a.result.gfa > b.result.gfa ? a : b).id },
+                        { label: 'Sellable Area', vals: allResults.map(r => fmt(Math.round(r.result.sellableArea))), best: allResults.reduce((a, b) => a.result.sellableArea > b.result.sellableArea ? a : b).id },
+                        { label: 'Total Units', vals: allResults.map(r => fmt(r.result.units.total)), best: allResults.reduce((a, b) => a.result.units.total > b.result.units.total ? a : b).id },
+                        { label: 'GDV', vals: allResults.map(r => fmtM(r.result.grossSales)), best: allResults.reduce((a, b) => a.result.grossSales > b.result.grossSales ? a : b).id },
+                        { label: 'Total Cost', vals: allResults.map(r => fmtM(r.result.totalCost)), best: allResults.reduce((a, b) => a.result.totalCost < b.result.totalCost ? a : b).id },
+                        { label: 'Net Profit', vals: allResults.map(r => fmtM(r.result.grossProfit)), best: allResults.reduce((a, b) => a.result.grossProfit > b.result.grossProfit ? a : b).id },
+                        { label: 'Gross Margin', vals: allResults.map(r => pct(r.result.grossMargin)), best: allResults.reduce((a, b) => a.result.grossMargin > b.result.grossMargin ? a : b).id },
+                        { label: 'ROI', vals: allResults.map(r => pct(r.result.roi)), best: allResults.reduce((a, b) => a.result.roi > b.result.roi ? a : b).id },
+                        { label: 'Avg PSF', vals: allResults.map(r => `AED ${fmt(Math.round(r.result.avgPsf))}`), best: null },
+                        { label: 'Break-Even PSF', vals: allResults.map(r => `AED ${fmt(Math.round(r.result.breakEvenPsf))}`), best: allResults.reduce((a, b) => a.result.breakEvenPsf < b.result.breakEvenPsf ? a : b).id },
+                        { label: 'Rental Yield', vals: allResults.map(r => pct(r.result.grossYield)), best: allResults.reduce((a, b) => a.result.grossYield > b.result.grossYield ? a : b).id },
+                        { label: 'Cost/sqft', vals: allResults.map(r => `AED ${fmt(Math.round(r.result.totalCost / r.result.sellableArea))}`), best: allResults.reduce((a, b) => (a.result.totalCost / a.result.sellableArea) < (b.result.totalCost / b.result.sellableArea) ? a : b).id },
+                        { label: 'Status', vals: allResults.map(r => r.plot.status), best: null },
+                      ].map(row => (
+                        <TableRow key={row.label}>
+                          <TableCell className="text-sm font-medium py-2">{row.label}</TableCell>
+                          {row.vals.map((v, i) => (
+                            <TableCell key={i} className={`text-sm text-right font-mono py-2 ${
+                              allResults[i].id === activeTabPlotId ? 'text-primary font-bold' : ''
+                            } ${row.best === allResults[i].id ? 'bg-success/10' : ''}`}>
+                              {v}
+                            </TableCell>
+                          ))}
+                          <TableCell className="text-xs text-right text-success font-bold py-2">
+                            {row.best || '—'}
+                          </TableCell>
+                        </TableRow>
+                      ))}
+                    </TableBody>
+                  </Table>
+                </div>
+              </Section>
 
-              {/* Winner summary */}
-              <div className="mt-4 p-3 rounded-lg bg-muted/30 border border-border/30">
-                <div className="text-xs font-bold text-muted-foreground uppercase tracking-wider mb-2">Quick Verdict</div>
+              {/* Quick Verdict */}
+              <Section title="Quick Verdict">
                 {(() => {
-                  const allPlots = [{ id: plot.id, roi: fs.roi, margin: fs.grossMargin, profit: fs.grossProfit }, ...compResults.map(c => ({ id: c.plot.id, roi: c.result.roi, margin: c.result.grossMargin, profit: c.result.grossProfit }))];
-                  const bestRoi = allPlots.reduce((a, b) => a.roi > b.roi ? a : b);
-                  const bestMargin = allPlots.reduce((a, b) => a.margin > b.margin ? a : b);
-                  const bestProfit = allPlots.reduce((a, b) => a.profit > b.profit ? a : b);
+                  const bestRoi = allResults.reduce((a, b) => a.result.roi > b.result.roi ? a : b);
+                  const bestMargin = allResults.reduce((a, b) => a.result.grossMargin > b.result.grossMargin ? a : b);
+                  const bestProfit = allResults.reduce((a, b) => a.result.grossProfit > b.result.grossProfit ? a : b);
+                  const bestYield = allResults.reduce((a, b) => a.result.grossYield > b.result.grossYield ? a : b);
                   return (
-                    <div className="space-y-1 text-sm">
-                      <div><span className="text-muted-foreground">Highest ROI:</span> <span className="font-bold text-success">{bestRoi.id}</span> ({pct(bestRoi.roi)})</div>
-                      <div><span className="text-muted-foreground">Best Margin:</span> <span className="font-bold text-success">{bestMargin.id}</span> ({pct(bestMargin.margin)})</div>
-                      <div><span className="text-muted-foreground">Highest Profit:</span> <span className="font-bold text-success">{bestProfit.id}</span> ({fmtM(bestProfit.profit)})</div>
+                    <div className="grid grid-cols-2 gap-3">
+                      <div className="data-card">
+                        <div className="text-xs text-muted-foreground font-semibold uppercase mb-1">Highest ROI</div>
+                        <div className="text-base font-bold text-success">{bestRoi.id}</div>
+                        <div className="text-sm font-mono text-muted-foreground">{pct(bestRoi.result.roi)}</div>
+                      </div>
+                      <div className="data-card">
+                        <div className="text-xs text-muted-foreground font-semibold uppercase mb-1">Best Margin</div>
+                        <div className="text-base font-bold text-success">{bestMargin.id}</div>
+                        <div className="text-sm font-mono text-muted-foreground">{pct(bestMargin.result.grossMargin)}</div>
+                      </div>
+                      <div className="data-card">
+                        <div className="text-xs text-muted-foreground font-semibold uppercase mb-1">Highest Profit</div>
+                        <div className="text-base font-bold text-success">{bestProfit.id}</div>
+                        <div className="text-sm font-mono text-muted-foreground">{fmtM(bestProfit.result.grossProfit)}</div>
+                      </div>
+                      <div className="data-card">
+                        <div className="text-xs text-muted-foreground font-semibold uppercase mb-1">Best Yield</div>
+                        <div className="text-base font-bold text-success">{bestYield.id}</div>
+                        <div className="text-sm font-mono text-muted-foreground">{pct(bestYield.result.grossYield)}</div>
+                      </div>
                     </div>
                   );
                 })()}
-              </div>
-            </Section>
+              </Section>
+
+              {/* Comparison Notes - Auto-generated insights */}
+              <Section title="Comparison Notes — Decision Support" badge="AI Insights">
+                <div className="space-y-2 mb-4">
+                  {compNotes.map((note, i) => (
+                    <div key={i} className="flex gap-2 items-start p-2.5 rounded-lg bg-muted/30 border border-border/30">
+                      <Lightbulb className="w-4 h-4 text-warning shrink-0 mt-0.5" />
+                      <p className="text-sm text-foreground leading-relaxed">{note}</p>
+                    </div>
+                  ))}
+                </div>
+
+                {/* User notes */}
+                <div className="mt-4">
+                  <div className="flex items-center gap-2 mb-2">
+                    <StickyNote className="w-4 h-4 text-muted-foreground" />
+                    <span className="text-xs font-bold text-muted-foreground uppercase tracking-wider">Your Notes</span>
+                  </div>
+                  <Textarea
+                    value={userNotes}
+                    onChange={e => setUserNotes(e.target.value)}
+                    placeholder="Add your own analysis notes here... These will persist while comparison mode is active."
+                    className="text-sm min-h-[80px] bg-muted/20 border-border/30"
+                  />
+                </div>
+              </Section>
+            </>
           )}
 
-          {activeTab === 'plotCompare' && compResults.length === 0 && (
+          {activeTab === 'plotCompare' && allResults.length < 2 && (
             <div className="text-center py-12 text-muted-foreground">
               <GitCompareArrows className="w-10 h-10 mx-auto mb-3 opacity-30" />
               <p className="text-sm font-medium">No comparison plots selected</p>
-              <p className="text-xs mt-1">Hover over plots in the right sidebar and click the compare icon to add up to 3 plots.</p>
+              <p className="text-xs mt-1">Click the ⇆ icon on plots in the right sidebar to add up to 3 plots for comparison.</p>
             </div>
           )}
 
