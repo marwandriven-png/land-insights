@@ -1,8 +1,9 @@
 import { useState, useMemo } from 'react';
-import { X, Send, Phone, Ban, ChevronDown } from 'lucide-react';
+import { X, Send, Phone, Ban, ExternalLink } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Checkbox } from '@/components/ui/checkbox';
 import { ScrollArea } from '@/components/ui/scroll-area';
+import { Badge } from '@/components/ui/badge';
 import {
   Select,
   SelectContent,
@@ -18,9 +19,8 @@ import {
   TableHeader,
   TableRow
 } from '@/components/ui/table';
-import { MatchResult } from '@/services/LandMatchingService';
+import { MatchResult, markPlotsExported, getExportedPlotIds, isPlotListed } from '@/services/LandMatchingService';
 import { toast } from '@/hooks/use-toast';
-import { useNavigate } from 'react-router-dom';
 
 interface ReviewDataModalProps {
   isOpen: boolean;
@@ -36,7 +36,8 @@ export function ReviewDataModal({ isOpen, onClose, matches }: ReviewDataModalPro
   );
   const [campaign, setCampaign] = useState('default');
   const [isExporting, setIsExporting] = useState(false);
-  const navigate = useNavigate();
+
+  const exportedIds = useMemo(() => getExportedPlotIds(), []);
 
   const selectedCount = selectedIds.size;
   const totalCount = matches.length;
@@ -72,38 +73,78 @@ export function ReviewDataModal({ isOpen, onClose, matches }: ReviewDataModalPro
     onClose();
   };
 
-  const handleExportToColdCalls = async () => {
+  const handleExportToCRM = async () => {
     if (selectedCount === 0) return;
     setIsExporting(true);
 
-    const prospects = selectedMatches.map(m => ({
-      name: `Plot ${m.matchedPlotId}`,
+    // Filter out already-listed plots
+    const exportable = selectedMatches.filter(m => !isPlotListed(m.matchedPlotId));
+    
+    if (exportable.length === 0) {
+      toast({
+        title: 'Already Listed',
+        description: 'All selected lands are already listed in CRM.',
+        variant: 'destructive',
+      });
+      setIsExporting(false);
+      return;
+    }
+
+    // Mark as exported
+    markPlotsExported(exportable.map(m => m.matchedPlotId));
+
+    // Build export URL with data
+    const exportData = exportable.map(m => ({
       plotNumber: m.matchedPlotId,
       location: m.matchedLocation || 'Dubai',
-      budget: Math.round(m.matchedPlotArea * SQM_TO_SQFT * 2150), // PSF estimate
-      currency: 'AED',
+      areaSqm: Math.round(m.matchedPlotArea),
       areaSqft: Math.round(m.matchedPlotArea * SQM_TO_SQFT),
+      gfaSqm: Math.round(m.matchedGfa),
       gfaSqft: Math.round(m.matchedGfa * SQM_TO_SQFT),
       zoning: m.matchedZoning,
-      source: 'DDA API',
-      status: 'new' as const,
-      phone: '',
-      email: '',
-      lastCall: 'Never',
+      status: m.matchedStatus,
       confidenceScore: m.confidenceScore,
+      feasibilityStatus: 'pending',
     }));
 
-    // Store in sessionStorage for the cold calls page
-    sessionStorage.setItem('coldCallsData', JSON.stringify(prospects));
+    // Store for CRM page and open external CRM
+    sessionStorage.setItem('coldCallsData', JSON.stringify(
+      exportable.map(m => ({
+        name: `Plot ${m.matchedPlotId}`,
+        plotNumber: m.matchedPlotId,
+        location: m.matchedLocation || 'Dubai',
+        budget: Math.round(m.matchedPlotArea * SQM_TO_SQFT * 2150),
+        currency: 'AED',
+        areaSqft: Math.round(m.matchedPlotArea * SQM_TO_SQFT),
+        gfaSqft: Math.round(m.matchedGfa * SQM_TO_SQFT),
+        zoning: m.matchedZoning,
+        source: 'DDA API',
+        status: 'new' as const,
+        phone: '',
+        email: '',
+        lastCall: 'Never',
+        confidenceScore: m.confidenceScore,
+      }))
+    ));
+
+    // Open external CRM in new tab
+    try {
+      const url = new URL('https://agent-harmony-sync.lovable.app/lead-generation');
+      url.searchParams.set('source', 'hyperplot');
+      url.searchParams.set('count', String(exportData.length));
+      window.open(url.toString(), '_blank');
+    } catch { /* fallback */ }
 
     setIsExporting(false);
+    toast({
+      title: 'Exported to CRM',
+      description: `${exportable.length} land(s) exported to CRM call page`,
+    });
     onClose();
-    navigate('/cold-calls');
   };
 
   const handleRejectSelected = () => {
     if (selectedCount === 0) return;
-    // Remove selected from the view
     setSelectedIds(new Set());
     toast({
       title: 'Rejected',
@@ -117,7 +158,7 @@ export function ReviewDataModal({ isOpen, onClose, matches }: ReviewDataModalPro
   return (
     <div className="fixed inset-0 z-[100] flex items-center justify-center">
       <div className="fixed inset-0 bg-black/60 backdrop-blur-sm" onClick={onClose} />
-      <div className="relative w-[900px] max-w-[95vw] max-h-[85vh] bg-card border border-border rounded-2xl shadow-2xl flex flex-col animate-in fade-in zoom-in-95 duration-200">
+      <div className="relative w-[960px] max-w-[95vw] max-h-[85vh] bg-card border border-border rounded-2xl shadow-2xl flex flex-col animate-in fade-in zoom-in-95 duration-200">
         {/* Header */}
         <div className="flex items-center justify-between p-5 border-b border-border/50">
           <div>
@@ -161,11 +202,11 @@ export function ReviewDataModal({ isOpen, onClose, matches }: ReviewDataModalPro
             size="sm"
             variant="secondary"
             className="gap-2"
-            onClick={handleExportToColdCalls}
+            onClick={handleExportToCRM}
             disabled={selectedCount === 0 || isExporting}
           >
-            <Phone className="w-4 h-4" />
-            Export to Call Page ({selectedCount})
+            <ExternalLink className="w-4 h-4" />
+            Export to CRM ({selectedCount})
           </Button>
 
           <Button
@@ -193,18 +234,18 @@ export function ReviewDataModal({ isOpen, onClose, matches }: ReviewDataModalPro
                 </TableHead>
                 <TableHead className="text-xs font-semibold">Plot Number</TableHead>
                 <TableHead className="text-xs font-semibold">Location</TableHead>
-                <TableHead className="text-xs font-semibold">Area (sqft)</TableHead>
-                <TableHead className="text-xs font-semibold">Est. Price</TableHead>
-                <TableHead className="text-xs font-semibold">Source</TableHead>
+                <TableHead className="text-xs font-semibold">Area (m²)</TableHead>
+                <TableHead className="text-xs font-semibold">GFA (m²)</TableHead>
+                <TableHead className="text-xs font-semibold">Zoning</TableHead>
+                <TableHead className="text-xs font-semibold">Status</TableHead>
                 <TableHead className="text-xs font-semibold">Match</TableHead>
-                <TableHead className="text-xs font-semibold">Report</TableHead>
+                <TableHead className="text-xs font-semibold">CRM</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
               {matches.map((m) => {
-                const areaSqft = Math.round(m.matchedPlotArea * SQM_TO_SQFT);
-                const estPrice = Math.round(areaSqft * 2150);
-                const areaSlug = (m.matchedLocation || '').toLowerCase().replace(/[^a-z0-9]+/g, '-');
+                const listed = isPlotListed(m.matchedPlotId);
+                const exported = exportedIds.has(m.matchedPlotId);
 
                 return (
                   <TableRow
@@ -219,11 +260,20 @@ export function ReviewDataModal({ isOpen, onClose, matches }: ReviewDataModalPro
                     </TableCell>
                     <TableCell className="font-semibold text-sm">{m.matchedPlotId}</TableCell>
                     <TableCell className="text-sm">{m.matchedLocation || '—'}</TableCell>
-                    <TableCell className="text-sm font-mono">{areaSqft.toLocaleString()} sf</TableCell>
                     <TableCell className="text-sm font-mono">
-                      AED {(estPrice / 1000).toFixed(0)}K
+                      {m.matchedPlotArea.toLocaleString(undefined, { maximumFractionDigits: 0 })}
+                      {m.areaDeviation > 0 && (
+                        <span className="text-muted-foreground text-[10px] ml-1">Δ{m.areaDeviation}%</span>
+                      )}
                     </TableCell>
-                    <TableCell className="text-sm">DDA</TableCell>
+                    <TableCell className="text-sm font-mono">
+                      {m.matchedGfa.toLocaleString(undefined, { maximumFractionDigits: 0 })}
+                      {m.gfaDeviation > 0 && (
+                        <span className="text-muted-foreground text-[10px] ml-1">Δ{m.gfaDeviation}%</span>
+                      )}
+                    </TableCell>
+                    <TableCell className="text-sm">{m.matchedZoning}</TableCell>
+                    <TableCell className="text-sm">{m.matchedStatus}</TableCell>
                     <TableCell>
                       <span
                         className="px-2 py-0.5 rounded-full text-xs font-bold"
@@ -240,14 +290,15 @@ export function ReviewDataModal({ isOpen, onClose, matches }: ReviewDataModalPro
                       </span>
                     </TableCell>
                     <TableCell>
-                      <a
-                        href={`/reports/stamn-one-report.pdf`}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        className="text-xs text-primary hover:underline"
-                      >
-                        View
-                      </a>
+                      {listed ? (
+                        <Badge className="bg-success/20 text-success border-success/30 text-[10px]">
+                          Listed
+                        </Badge>
+                      ) : exported ? (
+                        <Badge variant="secondary" className="text-[10px]">
+                          Exported
+                        </Badge>
+                      ) : null}
                     </TableCell>
                   </TableRow>
                 );

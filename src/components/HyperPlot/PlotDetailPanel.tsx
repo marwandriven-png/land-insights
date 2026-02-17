@@ -1,8 +1,8 @@
-import { X, MapPin, Building2, Layers, TrendingUp, FileText, Download, AlertCircle, CheckCircle, Shield, Clock, Hash, Loader2, FileWarning, LayoutGrid, Navigation } from 'lucide-react';
+import { X, MapPin, Building2, Layers, TrendingUp, FileText, AlertCircle, CheckCircle, Shield, Clock, Hash, Loader2, FileWarning, LayoutGrid, Navigation } from 'lucide-react';
 import { PlotData, calculateFeasibility, VerificationSource, AffectionPlanData, gisService } from '@/services/DDAGISService';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
-import { generatePlotPDF } from '@/utils/pdfGenerator';
+import { isPlotListed, getExportedPlotIds } from '@/services/LandMatchingService';
 import { useState, useEffect } from 'react';
 import { SimilarLandPanel } from './SimilarLandPanel';
 import { FeasibilityCalculator } from './FeasibilityCalculator';
@@ -109,7 +109,6 @@ function AffectionPlanSection({ plotId }: { plotId: string }) {
       </div>
 
       <div className="space-y-3">
-        {/* Land Use */}
         {(plan.mainLanduse || plan.landuseCategory) && (
           <div className="space-y-1">
             <span className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wide">Land Use</span>
@@ -137,7 +136,6 @@ function AffectionPlanSection({ plotId }: { plotId: string }) {
           </div>
         )}
 
-        {/* Height & Coverage */}
         <div className="space-y-1">
           <span className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wide">Height & Coverage</span>
           {plan.maxHeight && (
@@ -178,7 +176,6 @@ function AffectionPlanSection({ plotId }: { plotId: string }) {
           )}
         </div>
 
-        {/* Building Setbacks */}
         {hasSetbacks && (
           <div className="space-y-1">
             <span className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wide">Building Setbacks</span>
@@ -189,7 +186,6 @@ function AffectionPlanSection({ plotId }: { plotId: string }) {
           </div>
         )}
 
-        {/* Podium Setbacks */}
         {hasPodiumSetbacks && (
           <div className="space-y-1">
             <span className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wide">Podium Setbacks</span>
@@ -200,7 +196,6 @@ function AffectionPlanSection({ plotId }: { plotId: string }) {
           </div>
         )}
 
-        {/* Site Plan Dates */}
         {(plan.siteplanIssueDate || plan.siteplanExpiryDate) && (
           <div className="space-y-1">
             <span className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wide">Site Plan</span>
@@ -219,7 +214,6 @@ function AffectionPlanSection({ plotId }: { plotId: string }) {
           </div>
         )}
 
-        {/* General Notes */}
         {plan.generalNotes && (
           <div className="space-y-1">
             <span className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wide">Notes</span>
@@ -232,11 +226,8 @@ function AffectionPlanSection({ plotId }: { plotId: string }) {
 }
 
 export function PlotDetailPanel({ plot, onClose, onSelectPlot, onGoToLocation }: PlotDetailPanelProps) {
-  const feasibility = calculateFeasibility(plot);
-
-  const handleExportPDF = async () => {
-    await generatePlotPDF(plot, feasibility);
-  };
+  const listed = isPlotListed(plot.id);
+  const exported = getExportedPlotIds().has(plot.id);
 
   return (
     <div className="fixed right-4 top-4 bottom-4 w-96 z-[1001] animate-in slide-in-from-right duration-300">
@@ -261,18 +252,26 @@ export function PlotDetailPanel({ plot, onClose, onSelectPlot, onGoToLocation }:
             </button>
           </div>
 
-          {/* Status Badge & Go to Location */}
-          <div className="mb-4 flex items-center justify-between">
-            <span className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-sm font-medium border ${getStatusBadge(plot.status)}`}>
-              {plot.status === 'Available' ? (
-                <CheckCircle className="w-4 h-4" />
-              ) : plot.status === 'Frozen' ? (
-                <AlertCircle className="w-4 h-4" />
-              ) : (
-                <Building2 className="w-4 h-4" />
+          {/* Status Badge, Listed Badge & Go to Location */}
+          <div className="mb-4 flex items-center justify-between gap-2 flex-wrap">
+            <div className="flex items-center gap-2">
+              <span className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-sm font-medium border ${getStatusBadge(plot.status)}`}>
+                {plot.status === 'Available' ? (
+                  <CheckCircle className="w-4 h-4" />
+                ) : plot.status === 'Frozen' ? (
+                  <AlertCircle className="w-4 h-4" />
+                ) : (
+                  <Building2 className="w-4 h-4" />
+                )}
+                {plot.status}
+              </span>
+              {listed && (
+                <Badge className="bg-success/20 text-success border-success/30">Listed</Badge>
               )}
-              {plot.status}
-            </span>
+              {!listed && exported && (
+                <Badge variant="secondary">Exported</Badge>
+              )}
+            </div>
             {onGoToLocation && (
               <Button
                 variant="outline"
@@ -398,16 +397,6 @@ export function PlotDetailPanel({ plot, onClose, onSelectPlot, onGoToLocation }:
           {onSelectPlot && (
             <SimilarLandPanel plot={plot} onSelectPlot={onSelectPlot} />
           )}
-
-          {/* Export Button */}
-          <Button
-            onClick={handleExportPDF}
-            className="w-full gap-2"
-            variant="default"
-          >
-            <Download className="w-4 h-4" />
-            Export Plot Report (PDF)
-          </Button>
 
           {/* Bottom spacer for scroll */}
           <div className="h-4" />

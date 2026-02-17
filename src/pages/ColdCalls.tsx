@@ -4,6 +4,7 @@ import { Phone, MessageSquare, ArrowUpRight, ArrowLeft, Search, Filter } from 'l
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { ScrollArea } from '@/components/ui/scroll-area';
+import { markPlotListed } from '@/services/LandMatchingService';
 import {
   Table,
   TableBody,
@@ -102,9 +103,10 @@ export default function ColdCalls() {
 
   const handleConvert = (prospect: ColdCallProspect) => {
     updateStatus(prospect.plotNumber, 'interested');
+    markPlotListed(prospect.plotNumber);
     toast({
-      title: 'Converted!',
-      description: `${prospect.name} marked as Interested`,
+      title: 'Converted & Listed!',
+      description: `${prospect.name} marked as Listed in CRM`,
     });
   };
 
