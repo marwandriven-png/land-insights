@@ -127,10 +127,12 @@ export function DecisionConfidence({ plot, isFullscreen, onToggleFullscreen }: D
               Plot {plot.id} · {dscInput.zone} · {dscInput.height}
             </p>
           </div>
-          <div className="flex gap-2">
-            <Button variant="outline" size="sm" className="text-xs h-7" onClick={() => setEditMode(!editMode)}>
-              {editMode ? '🔒 Lock' : '✏ Override'}
-            </Button>
+          <div className="flex gap-2 items-center">
+            <label className="flex items-center gap-1.5 cursor-pointer text-xs">
+              <input type="checkbox" checked={editMode} onChange={() => setEditMode(!editMode)}
+                className="w-3.5 h-3.5 rounded border-border accent-primary" />
+              Override
+            </label>
             <Button variant="outline" size="sm" className="text-xs h-7 gap-1" onClick={() => window.print()}>
               <Printer className="w-3 h-3" /> Print
             </Button>
