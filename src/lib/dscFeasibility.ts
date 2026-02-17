@@ -1,7 +1,7 @@
 // ─── DSC Market Data (from Framework + Excel) ────────────────────────────────
 export const COMPS = [
   { name: "Golf Place", developer: "Prestige One", plotSqft: 93590, units: 198, bua: 219173, floors: "G+P+14", handover: "Q2 2026", priceFrom: 1050000, psf: 1387, studioP: 38, br1P: 44, br2P: 17, br3P: 1, payPlan: "20/40/40", svc: 15, density: 0.90 },
-  { name: "Antalya", developer: "Karma", plotSqft: 85023, units: 208, bua: 211266, floors: "G+3P+19", handover: "Q2 2027", priceFrom: 699999, psf: 1250, studioP: 50, br1P: 25, br2P: 25, br3P: 0, payPlan: "5/45/50", svc: 13.5, density: 0.98 },
+  
   { name: "Vega", developer: "Acube", plotSqft: 109501, units: 129, bua: 109500, floors: "G+3P+20", handover: "Q2 2027", priceFrom: 892476, psf: 1400, studioP: 25, br1P: 31, br2P: 40, br3P: 5, payPlan: "20/40/40", svc: 14.5, density: 1.18 },
   { name: "Azizi Grand", developer: "Azizi", plotSqft: 252193, units: 411, bua: 252190, floors: "14 Floors", handover: "Q4 2024", priceFrom: 1605000, psf: 1450, studioP: 56, br1P: 33, br2P: 11, br3P: 0, payPlan: "40/60", svc: 14, density: 1.63 },
   { name: "Hadley Heights 2", developer: "Leos", plotSqft: 227917, units: 230, bua: 227915, floors: "G+3P+21", handover: "Q2 2027", priceFrom: 1200640, psf: 1355, studioP: 25, br1P: 30, br2P: 40, br3P: 5, payPlan: "5/45/50", svc: 13.5, density: 1.01 },

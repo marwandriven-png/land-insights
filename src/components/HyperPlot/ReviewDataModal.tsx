@@ -232,14 +232,14 @@ export function ReviewDataModal({ isOpen, onClose, matches }: ReviewDataModalPro
                     onCheckedChange={toggleAll}
                   />
                 </TableHead>
-                <TableHead className="text-sm font-semibold">Land Number</TableHead>
-                <TableHead className="text-sm font-semibold">Location</TableHead>
-                <TableHead className="text-sm font-semibold">Area (sqft)</TableHead>
-                <TableHead className="text-sm font-semibold">GFA (sqft)</TableHead>
-                <TableHead className="text-sm font-semibold">Zoning</TableHead>
-                <TableHead className="text-sm font-semibold">Status</TableHead>
-                <TableHead className="text-sm font-semibold">Match %</TableHead>
-                <TableHead className="text-sm font-semibold">CRM</TableHead>
+                <TableHead className="text-base font-bold">Land Number</TableHead>
+                <TableHead className="text-base font-bold">Location</TableHead>
+                <TableHead className="text-base font-bold">Area (sqft)</TableHead>
+                <TableHead className="text-base font-bold">GFA (sqft)</TableHead>
+                <TableHead className="text-base font-bold">Zoning</TableHead>
+                <TableHead className="text-base font-bold">Status</TableHead>
+                <TableHead className="text-base font-bold">Match %</TableHead>
+                <TableHead className="text-base font-bold">CRM</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
@@ -258,25 +258,25 @@ export function ReviewDataModal({ isOpen, onClose, matches }: ReviewDataModalPro
                         onCheckedChange={() => toggleSelect(m.matchedPlotId)}
                       />
                     </TableCell>
-                    <TableCell className="font-semibold text-base">{m.matchedPlotId}</TableCell>
-                    <TableCell className="text-sm">{m.matchedLocation || '—'}</TableCell>
-                    <TableCell className="text-sm font-mono">
+                    <TableCell className="font-bold text-lg">{m.matchedPlotId}</TableCell>
+                    <TableCell className="text-base">{m.matchedLocation || '—'}</TableCell>
+                    <TableCell className="text-base font-mono">
                       {Math.round(m.matchedPlotArea * SQM_TO_SQFT).toLocaleString()}
                       {m.areaDeviation > 0 && (
-                        <span className="text-muted-foreground text-xs ml-1">Δ{m.areaDeviation}%</span>
+                        <span className="text-muted-foreground text-sm ml-1">Δ{m.areaDeviation}%</span>
                       )}
                     </TableCell>
-                    <TableCell className="text-sm font-mono">
+                    <TableCell className="text-base font-mono">
                       {Math.round(m.matchedGfa * SQM_TO_SQFT).toLocaleString()}
                       {m.gfaDeviation > 0 && (
-                        <span className="text-muted-foreground text-xs ml-1">Δ{m.gfaDeviation}%</span>
+                        <span className="text-muted-foreground text-sm ml-1">Δ{m.gfaDeviation}%</span>
                       )}
                     </TableCell>
-                    <TableCell className="text-sm">{m.matchedZoning}</TableCell>
-                    <TableCell className="text-sm">{m.matchedStatus}</TableCell>
+                    <TableCell className="text-base">{m.matchedZoning}</TableCell>
+                    <TableCell className="text-base">{m.matchedStatus}</TableCell>
                     <TableCell>
                       <span
-                        className="px-2.5 py-1 rounded-full text-sm font-bold"
+                        className="px-3 py-1.5 rounded-full text-base font-bold"
                         style={{
                           background: m.confidenceScore > 80
                             ? 'hsl(var(--success) / 0.2)'
