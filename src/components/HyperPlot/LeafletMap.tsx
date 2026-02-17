@@ -3,10 +3,9 @@ import L from 'leaflet';
 import 'leaflet/dist/leaflet.css';
 import proj4 from 'proj4';
 import { PlotData } from '@/services/DDAGISService';
-import { Loader2, Home, Search, Layers, Printer, Mail, Share2, Crosshair } from 'lucide-react';
+import { Loader2, Home, Search, Layers, Printer, Mail, Share2 } from 'lucide-react';
 import { CinematicPlotOverlay } from './CinematicPlotOverlay';
 
-// Define Dubai Local Transverse Mercator (EPSG:3997)
 proj4.defs('EPSG:3997', '+proj=tmerc +lat_0=0 +lon_0=55.33333333333334 +k=1 +x_0=500000 +y_0=0 +ellps=WGS84 +towgs84=0,0,0,0,0,0,0 +units=m +no_defs');
 
 interface LeafletMapProps {
@@ -15,10 +14,8 @@ interface LeafletMapProps {
   onPlotClick: (plot: PlotData) => void;
   highlightedPlots: string[];
   onMapReady?: (map: L.Map) => void;
-  onFocusPlot?: (plotId: string) => void;
 }
 
-// Dubai Bounds
 const DUBAI_BOUNDS = L.latLngBounds([24.7000, 54.8000], [25.4000, 55.6000]);
 
 function convertToLatLng(x: number, y: number): [number, number] {
@@ -33,17 +30,14 @@ function convertToLatLng(x: number, y: number): [number, number] {
 
 const DDA_BLUE = '#2b5a9e';
 
-export function LeafletMap({ plots, selectedPlot, onPlotClick, highlightedPlots, onMapReady, onFocusPlot }: LeafletMapProps) {
+export function LeafletMap({ plots, selectedPlot, onPlotClick, highlightedPlots, onMapReady }: LeafletMapProps) {
   const mapContainerRef = useRef<HTMLDivElement>(null);
   const mapRef = useRef<L.Map | null>(null);
   const plotLayersRef = useRef<Map<string, L.Layer>>(new Map());
   const glowLayersRef = useRef<Map<string, L.Layer>>(new Map());
   const [isLoading, setIsLoading] = useState(true);
   const [mapInstance, setMapInstance] = useState<L.Map | null>(null);
-  const [zoomLevel, setZoomLevel] = useState(1.0);
-  const [buildProgress, setBuildProgress] = useState(0);
 
-  // Initialize map
   useEffect(() => {
     if (!mapContainerRef.current || mapRef.current) return;
 
@@ -79,7 +73,6 @@ export function LeafletMap({ plots, selectedPlot, onPlotClick, highlightedPlots,
     };
   }, [onMapReady]);
 
-  // Add plots to map
   useEffect(() => {
     const map = mapRef.current;
     if (!map || plots.length === 0) return;
@@ -176,7 +169,6 @@ export function LeafletMap({ plots, selectedPlot, onPlotClick, highlightedPlots,
       plotLayersRef.current.set(plot.id, polygon);
     });
 
-    // Auto-zoom to selected plot
     if (selectedPlot && plotLayersRef.current.has(selectedPlot.id)) {
       const layer = plotLayersRef.current.get(selectedPlot.id);
       if (layer) {
@@ -192,7 +184,6 @@ export function LeafletMap({ plots, selectedPlot, onPlotClick, highlightedPlots,
   const resetView = useCallback(() => {
     if (mapRef.current) {
       mapRef.current.setView([25.075, 55.20], 13);
-      setZoomLevel(1.0);
     }
   }, []);
 
@@ -206,14 +197,14 @@ export function LeafletMap({ plots, selectedPlot, onPlotClick, highlightedPlots,
 
       <div ref={mapContainerRef} className="w-full h-full" style={{ minHeight: '400px' }} />
 
-      {/* DDA Style Home Control */}
+      {/* Home Control */}
       <div className="absolute top-20 left-2 z-[1000] flex flex-col gap-1">
         <button onClick={resetView} className="dda-map-btn" title="Reset View">
           <Home className="w-4 h-4" />
         </button>
       </div>
 
-      {/* DDA Style Toolbar top-right */}
+      {/* Toolbar top-right */}
       <div className="absolute top-2 right-2 z-[1000]">
         <div className="flex flex-col gap-1">
           <button className="dda-map-btn" title="Search"><Search className="w-4 h-4" /></button>
@@ -224,74 +215,7 @@ export function LeafletMap({ plots, selectedPlot, onPlotClick, highlightedPlots,
         </div>
       </div>
 
-      {/* ─── Cinematic UI Indicators ─── */}
-      {selectedPlot && (
-        <>
-          {/* Zoom Level Indicator */}
-          <div className="absolute top-2 left-2 z-[1000] cinematic-zoom-badge">
-            <span className="font-mono text-xs font-bold">{zoomLevel.toFixed(1)}×</span>
-          </div>
-
-          {/* Build Progress */}
-          {buildProgress > 0 && buildProgress < 100 && (
-            <div className="absolute bottom-16 left-1/2 -translate-x-1/2 z-[1000] cinematic-progress-bar">
-              <div className="flex items-center gap-2">
-                <div className="w-32 h-1.5 bg-muted/50 rounded-full overflow-hidden">
-                  <div
-                    className="h-full rounded-full transition-all duration-100"
-                    style={{
-                      width: `${buildProgress}%`,
-                      background: 'linear-gradient(90deg, #00ffaa, #00e5ff)'
-                    }}
-                  />
-                </div>
-                <span className="font-mono text-[10px] text-[#00ffaa] font-bold">{buildProgress}%</span>
-              </div>
-            </div>
-          )}
-
-          {/* Info overlay with land metrics */}
-          <div className="absolute bottom-3 right-3 z-[1000] cinematic-info-overlay">
-            <div className="text-[10px] font-mono space-y-0.5">
-              <div className="flex justify-between gap-3">
-                <span className="text-muted-foreground">ID</span>
-                <span className="text-foreground font-bold">{selectedPlot.id}</span>
-              </div>
-              <div className="flex justify-between gap-3">
-                <span className="text-muted-foreground">Area</span>
-                <span className="text-foreground">{selectedPlot.area.toLocaleString()} m²</span>
-              </div>
-              <div className="flex justify-between gap-3">
-                <span className="text-muted-foreground">GFA</span>
-                <span className="text-foreground">{selectedPlot.gfa.toLocaleString()} m²</span>
-              </div>
-              <div className="flex justify-between gap-3">
-                <span className="text-muted-foreground">Height</span>
-                <span className="text-foreground">{selectedPlot.floors}</span>
-              </div>
-              <div className="flex justify-between gap-3">
-                <span className="text-muted-foreground">Zone</span>
-                <span className="text-foreground">{selectedPlot.zoning}</span>
-              </div>
-            </div>
-          </div>
-        </>
-      )}
-
-      {/* Focus Button */}
-      <div className="absolute bottom-3 left-1/2 -translate-x-1/2 z-[1000]">
-        {!selectedPlot && (
-          <button
-            onClick={() => onFocusPlot?.('6820133')}
-            className="cinematic-focus-btn"
-          >
-            <Crosshair className="w-3.5 h-3.5" />
-            <span className="font-mono text-xs font-bold">🎯 FOCUS: LAND 6820133</span>
-          </button>
-        )}
-      </div>
-
-      {/* DDA Style Scale Bar */}
+      {/* Scale Bar */}
       <div className="absolute bottom-3 left-3 z-[1000]">
         <div className="flex items-end gap-1.5 text-[10px] font-mono text-white/80">
           <div className="flex flex-col items-start">
@@ -302,12 +226,7 @@ export function LeafletMap({ plots, selectedPlot, onPlotClick, highlightedPlots,
       </div>
 
       {/* Cinematic Plot Overlay */}
-      <CinematicPlotOverlay
-        map={mapInstance}
-        plot={selectedPlot}
-        onZoomLevel={setZoomLevel}
-        onBuildProgress={setBuildProgress}
-      />
+      <CinematicPlotOverlay map={mapInstance} plot={selectedPlot} />
 
       {/* Styles */}
       <style>{`
@@ -348,45 +267,6 @@ export function LeafletMap({ plots, selectedPlot, onPlotClick, highlightedPlots,
         .plot-tooltip::before { border-top-color: hsl(187 94% 43% / 0.3) !important; }
         .plot-glow-layer { filter: drop-shadow(0 0 6px rgba(0, 229, 255, 0.7)) drop-shadow(0 0 14px rgba(0, 229, 255, 0.35)); }
         .plot-glow-circle { filter: drop-shadow(0 0 6px rgba(0, 229, 255, 0.7)) drop-shadow(0 0 12px rgba(0, 229, 255, 0.4)); }
-        .cinematic-zoom-badge {
-          background: hsl(222 47% 8% / 0.9);
-          border: 1px solid hsl(160 100% 50% / 0.4);
-          color: #00ffaa;
-          padding: 3px 8px;
-          border-radius: 6px;
-        }
-        .cinematic-progress-bar {
-          background: hsl(222 47% 8% / 0.85);
-          border: 1px solid hsl(160 100% 50% / 0.3);
-          border-radius: 8px;
-          padding: 4px 10px;
-        }
-        .cinematic-info-overlay {
-          background: hsl(222 47% 8% / 0.9);
-          border: 1px solid hsl(217 33% 25%);
-          border-radius: 8px;
-          padding: 6px 10px;
-          min-width: 130px;
-        }
-        .cinematic-focus-btn {
-          display: flex; align-items: center; gap: 6px;
-          background: linear-gradient(135deg, hsl(160 100% 50% / 0.15), hsl(187 94% 43% / 0.15));
-          border: 1px solid hsl(160 100% 50% / 0.5);
-          color: #00ffaa;
-          padding: 6px 14px;
-          border-radius: 20px;
-          cursor: pointer;
-          transition: all 0.2s;
-          animation: cinematic-neon-btn-pulse 2s ease-in-out infinite;
-        }
-        .cinematic-focus-btn:hover {
-          background: linear-gradient(135deg, hsl(160 100% 50% / 0.25), hsl(187 94% 43% / 0.25));
-          box-shadow: 0 0 20px hsl(160 100% 50% / 0.3);
-        }
-        @keyframes cinematic-neon-btn-pulse {
-          0%, 100% { box-shadow: 0 0 8px hsl(160 100% 50% / 0.2); }
-          50% { box-shadow: 0 0 16px hsl(160 100% 50% / 0.4); }
-        }
       `}</style>
     </div>
   );
