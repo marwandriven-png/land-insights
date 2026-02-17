@@ -59,6 +59,7 @@ export interface DSCFeasibilityResult {
   mixKey: MixKey;
   mix: { studio: number; br1: number; br2: number; br3: number };
   gfa: number;
+  sellableArea: number;
   bua: number;
   landCost: number;
   units: { studio: number; br1: number; br2: number; br3: number; total: number };
@@ -89,13 +90,15 @@ export function calcDSCFeasibility(plot: DSCPlotInput, mixKey: MixKey, overrides
   const tmpl = MIX_TEMPLATES[mixKey];
   const mix = { ...tmpl.mix, ...overrides.mix };
   const gfa = overrides.gfa || (plot.area * plot.ratio);
+  const efficiency = overrides.efficiency || 0.95;
+  const sellableArea = gfa * efficiency;
   const buaMultiplier = overrides.buaMultiplier || 1.45;
   const bua = gfa * buaMultiplier;
   const landCostPsf = overrides.landCostPsf || 148.23;
   const landCost = overrides.landCost || (gfa * landCostPsf);
 
   const densityFactor = mixKey === "investor" ? 1.15 : mixKey === "balanced" ? 1.0 : 0.85;
-  const totalUnits = Math.round((bua / 1000) * densityFactor);
+  const totalUnits = Math.round((sellableArea / 1000) * densityFactor);
 
   const units = {
     studio: Math.round(totalUnits * mix.studio),
@@ -106,7 +109,19 @@ export function calcDSCFeasibility(plot: DSCPlotInput, mixKey: MixKey, overrides
   };
   units.total = units.studio + units.br1 + units.br2 + units.br3;
 
+  // Weighted average PSF from unit mix
+  const weightedPsf =
+    mix.studio * (UNIT_PRICES.studio / UNIT_SIZES.studio) +
+    mix.br1 * (UNIT_PRICES.br1 / UNIT_SIZES.br1) +
+    mix.br2 * (UNIT_PRICES.br2 / UNIT_SIZES.br2) +
+    mix.br3 * (UNIT_PRICES.br3 / UNIT_SIZES.br3);
+
   const psfAdj = mixKey === "investor" ? 0.97 : mixKey === "family" ? 1.04 : 1.0;
+  const avgPsf = weightedPsf * psfAdj;
+
+  // GDV = Sellable Area × Avg PSF
+  const grossSales = sellableArea * avgPsf;
+
   const prices = {
     studio: UNIT_PRICES.studio * psfAdj,
     br1: UNIT_PRICES.br1 * psfAdj,
@@ -120,8 +135,6 @@ export function calcDSCFeasibility(plot: DSCPlotInput, mixKey: MixKey, overrides
     br2: units.br2 * prices.br2,
     br3: units.br3 * prices.br3,
   };
-  const grossSales = revBreak.studio + revBreak.br1 + revBreak.br2 + revBreak.br3;
-  const avgPsf = grossSales / bua;
 
   const constructionPsf = overrides.constructionPsf || 420;
   const constructionCost = bua * constructionPsf;
@@ -135,7 +148,7 @@ export function calcDSCFeasibility(plot: DSCPlotInput, mixKey: MixKey, overrides
   const grossProfit = grossSales - totalCost;
   const grossMargin = grossProfit / grossSales;
   const roi = grossProfit / totalCost;
-  const breakEvenPsf = totalCost / bua;
+  const breakEvenPsf = totalCost / sellableArea;
 
   const annualRent =
     units.studio * (UNIT_SIZES.studio * RENT_PSF_YR.studio) +
@@ -144,7 +157,6 @@ export function calcDSCFeasibility(plot: DSCPlotInput, mixKey: MixKey, overrides
     units.br3 * (UNIT_SIZES.br3 * RENT_PSF_YR.br3);
   const grossYield = annualRent / grossSales;
 
-  const efficiency = overrides.efficiency || 0.95;
   const floorPlate = plot.area * efficiency;
   const residentialFloors = Math.ceil(gfa / floorPlate);
 
@@ -155,7 +167,7 @@ export function calcDSCFeasibility(plot: DSCPlotInput, mixKey: MixKey, overrides
   });
 
   return {
-    plot, mixKey, mix, gfa, bua, landCost, units,
+    plot, mixKey, mix, gfa, sellableArea, bua, landCost, units,
     prices, revBreak, grossSales, avgPsf,
     constructionCost, authorityFees, consultantFees, marketing, contingency, financing, totalCost,
     grossProfit, grossMargin, roi, breakEvenPsf,
