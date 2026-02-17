@@ -1,5 +1,5 @@
 import { useState, useMemo, useEffect } from 'react';
-import { Loader2, TrendingUp, DollarSign, Building2, BarChart3, Target, Shield, Printer } from 'lucide-react';
+import { Loader2, TrendingUp, DollarSign, Building2, BarChart3, Target, Shield, Printer, Maximize2, Minimize2 } from 'lucide-react';
 import { PlotData, AffectionPlanData, gisService } from '@/services/DDAGISService';
 import { calcDSCFeasibility, DSCPlotInput, DSCFeasibilityResult, MixKey, MIX_TEMPLATES, COMPS, UNIT_SIZES, RENT_PSF_YR, fmt, fmtM, fmtA, pct } from '@/lib/dscFeasibility';
 import { ScrollArea } from '@/components/ui/scroll-area';
@@ -10,6 +10,8 @@ import { Input } from '@/components/ui/input';
 
 interface DecisionConfidenceProps {
   plot: PlotData;
+  isFullscreen?: boolean;
+  onToggleFullscreen?: () => void;
 }
 
 // Convert PlotData + AffectionPlan into DSCPlotInput (sqft)
@@ -64,7 +66,7 @@ function Viability({ pass, label }: { pass: boolean; label: string }) {
   );
 }
 
-export function DecisionConfidence({ plot }: DecisionConfidenceProps) {
+export function DecisionConfidence({ plot, isFullscreen, onToggleFullscreen }: DecisionConfidenceProps) {
   const [activeMix, setActiveMix] = useState<MixKey>('balanced');
   const [plan, setPlan] = useState<AffectionPlanData | null>(null);
   const [loading, setLoading] = useState(true);
@@ -528,22 +530,46 @@ export function DecisionConfidence({ plot }: DecisionConfidenceProps) {
         </div>
       </ScrollArea>
 
-      {/* ─── Bottom Unit Mix Selector ─── */}
-      <div className="shrink-0 border-t border-border/50 bg-card/80 backdrop-blur-xl p-2">
-        <div className="flex items-center gap-2">
-          <span className="text-[10px] text-muted-foreground font-bold uppercase tracking-wider whitespace-nowrap">UNIT MIX:</span>
-          {(Object.entries(MIX_TEMPLATES) as [MixKey, typeof MIX_TEMPLATES.investor][]).map(([k, v]) => (
-            <button key={k} onClick={() => setActiveMix(k)}
-              className={`flex-1 flex flex-col items-center gap-0.5 py-2 px-2 rounded-lg border transition-all ${
-                activeMix === k
-                  ? 'bg-primary/20 border-primary/50 text-foreground'
-                  : 'bg-muted/20 border-border/30 text-muted-foreground hover:bg-muted/40'
-              }`}>
-              <span className="text-sm">{v.icon}</span>
-              <span className="text-[10px] font-bold uppercase tracking-wider">{v.label}</span>
-              <span className="text-[8px] text-muted-foreground">{v.tag}</span>
-            </button>
-          ))}
+      {/* ─── Bottom Dock Bar (macOS style) ─── */}
+      <div className="shrink-0 border-t border-border/50 bg-card/90 backdrop-blur-xl">
+        {/* Unit Mix Selector */}
+        <div className="px-2 pt-2 pb-1">
+          <div className="flex items-center gap-2">
+            <span className="text-[10px] text-muted-foreground font-bold uppercase tracking-wider whitespace-nowrap">UNIT MIX:</span>
+            {(Object.entries(MIX_TEMPLATES) as [MixKey, typeof MIX_TEMPLATES.investor][]).map(([k, v]) => (
+              <button key={k} onClick={() => setActiveMix(k)}
+                className={`flex-1 flex flex-col items-center gap-0.5 py-2 px-2 rounded-lg border transition-all ${
+                  activeMix === k
+                    ? 'bg-primary/20 border-primary/50 text-foreground'
+                    : 'bg-muted/20 border-border/30 text-muted-foreground hover:bg-muted/40'
+                }`}>
+                <span className="text-sm">{v.icon}</span>
+                <span className="text-[10px] font-bold uppercase tracking-wider">{v.label}</span>
+                <span className="text-[8px] text-muted-foreground">{v.tag}</span>
+              </button>
+            ))}
+          </div>
+        </div>
+
+        {/* Window Control Bar */}
+        <div className="flex items-center justify-between px-3 py-1.5 border-t border-border/30">
+          <div className="flex items-center gap-1.5">
+            <div className="w-3 h-3 rounded-full bg-destructive/70 hover:bg-destructive cursor-pointer transition-colors" title="Close" onClick={onToggleFullscreen && isFullscreen ? onToggleFullscreen : undefined} />
+            <div className="w-3 h-3 rounded-full bg-warning/70 hover:bg-warning cursor-pointer transition-colors" title="Minimize" />
+            <div className="w-3 h-3 rounded-full bg-success/70 hover:bg-success cursor-pointer transition-colors" title={isFullscreen ? 'Exit Fullscreen' : 'Maximize'} onClick={onToggleFullscreen} />
+          </div>
+          <div className="flex items-center gap-2">
+            <span className="text-[9px] text-muted-foreground font-medium">Decision Confidence · {plot.id}</span>
+            {onToggleFullscreen && (
+              <button
+                onClick={onToggleFullscreen}
+                className="flex items-center gap-1 text-[10px] text-muted-foreground hover:text-foreground transition-colors px-2 py-0.5 rounded hover:bg-muted/40"
+              >
+                {isFullscreen ? <Minimize2 className="w-3 h-3" /> : <Maximize2 className="w-3 h-3" />}
+                {isFullscreen ? 'Exit' : 'Maximize'}
+              </button>
+            )}
+          </div>
         </div>
       </div>
     </div>
