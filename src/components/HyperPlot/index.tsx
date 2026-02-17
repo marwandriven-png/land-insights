@@ -1,5 +1,6 @@
 import { useState, useEffect, useCallback, useMemo } from 'react';
-import { Map, Home, BarChart3, Brain, AlertCircle, X, RefreshCw, Wifi, WifiOff, Target, Clock, Settings, Shield, Search } from 'lucide-react';
+import { Map, Home, BarChart3, Brain, AlertCircle, X, RefreshCw, Wifi, WifiOff, Target, Clock, Settings, Shield } from 'lucide-react';
+import xEstateLogo from '@/assets/X-Estate_Logo.svg';
 import { addLastSeen, getLastSeen, LastSeenEntry } from '@/services/LastSeenService';
 import { gisService, PlotData, generateDemoPlots } from '@/services/DDAGISService';
 import { Header } from './Header';
@@ -185,12 +186,10 @@ export function HyperPlotAI() {
     <div className="h-screen bg-background text-foreground flex flex-col overflow-hidden">
       {/* Header */}
       <header className="border-b border-border/50 bg-card/50 backdrop-blur-xl shrink-0 z-50">
-        <div className="container mx-auto px-4 py-3">
+          <div className="px-4 py-2">
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-3">
-              <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-primary to-secondary flex items-center justify-center">
-                <Map className="w-5 h-5 text-primary-foreground" />
-              </div>
+              <img src={xEstateLogo} alt="X-Estate Logo" className="w-10 h-10" />
               <div>
                 <h1 className="text-lg font-bold gradient-text">HyperPlot AI</h1>
                 <p className="text-xs text-muted-foreground">DDA GIS Dashboard</p>
@@ -294,7 +293,7 @@ export function HyperPlotAI() {
           <DecisionConfidence plot={selectedPlot} isFullscreen onToggleFullscreen={() => setDecisionFullscreen(false)} />
         </div>
       ) : (
-      <div className="container mx-auto px-4 py-4 flex-1 min-h-0 overflow-hidden">
+      <div className="px-4 py-4 flex-1 min-h-0 overflow-hidden">
         <div className="grid grid-cols-12 gap-4 h-full overflow-hidden">
           {/* Sidebar Navigation */}
           <div className="col-span-1 space-y-2">
