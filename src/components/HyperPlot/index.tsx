@@ -186,20 +186,20 @@ export function HyperPlotAI() {
     <div className="h-screen bg-background text-foreground flex flex-col overflow-hidden">
       {/* Header */}
       <header className="border-b border-border/50 bg-card/50 backdrop-blur-xl shrink-0 z-50">
-          <div className="px-4 py-2">
+          <div className="px-6 py-3">
           <div className="flex items-center justify-between">
-            <div className="flex items-center gap-3">
-              <img src={xEstateLogo} alt="X-Estate Logo" className="w-10 h-10" />
+            <div className="flex items-center gap-4">
+              <img src={xEstateLogo} alt="X-Estate Logo" className="w-12 h-12" />
               <div>
-                <h1 className="text-lg font-bold gradient-text">HyperPlot AI</h1>
-                <p className="text-xs text-muted-foreground">DDA GIS Dashboard</p>
+                <h1 className="text-xl font-bold gradient-text">HyperPlot AI</h1>
+                <p className="text-sm text-muted-foreground">DDA GIS Dashboard</p>
               </div>
             </div>
 
             <div className="flex items-center gap-3">
 
               {/* Connection Status */}
-              <div className={`flex items-center gap-2 px-3 py-1.5 rounded-full text-xs font-medium ${
+              <div className={`flex items-center gap-2 px-4 py-2 rounded-full text-sm font-medium ${
                 gisConnected 
                   ? 'bg-success/20 text-success border border-success/30' 
                   : 'bg-warning/20 text-warning border border-warning/30'
@@ -310,8 +310,8 @@ export function HyperPlotAI() {
                   background: 'linear-gradient(135deg, hsl(var(--primary)), hsl(var(--secondary)))'
                 } : undefined}
               >
-                <tab.icon className="w-5 h-5" />
-                <span className="text-[10px] font-semibold">{tab.label}</span>
+                <tab.icon className="w-6 h-6" />
+                <span className="text-xs font-semibold">{tab.label}</span>
               </button>
             ))}
           </div>
