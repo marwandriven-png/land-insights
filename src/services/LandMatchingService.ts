@@ -96,7 +96,6 @@ export function parseTextFile(content: string): ParcelInput[] {
 /**
  * Smart free-form text parser. Handles input like:
  * "dubai sport city. plot area 4,838 sqm gfa 21,771 sqm floors 9"
- * or "ubai sport city plot area 4838 sqm gfa 21771 sqm"
  */
 export function parseFreeFormText(content: string): ParcelInput[] {
   const blocks = content.split(/---|\n\n+/).map(b => b.trim()).filter(Boolean);
@@ -105,16 +104,11 @@ export function parseFreeFormText(content: string): ParcelInput[] {
   for (const block of blocks) {
     const text = block.replace(/\./g, ' ').replace(/,/g, '');
 
-    // Extract plot area: "plot area 4838 sqm" or "land area 52080 sqft"
     const plotAreaMatch = text.match(/(?:plot|land)\s*area\s*([\d.]+)\s*(sqm|sqft|sq\s*m|sq\s*ft|m²|ft²)?/i);
-    // Extract GFA: "gfa 21771 sqm"
     const gfaMatch = text.match(/gfa\s*([\d.]+)\s*(sqm|sqft|sq\s*m|sq\s*ft|m²|ft²)?/i);
-    // Extract floors: "floors 9" or "height 9"
     const floorsMatch = text.match(/(?:floors?|height\s*floors?|stories?)\s*(\d+)/i);
-    // Extract zoning
     const zoningMatch = text.match(/(?:zoning|zone|use)\s*[:\s]*([a-zA-Z\s]+?)(?=\s+(?:plot|land|gfa|floors?|height|$))/i);
 
-    // Area name: everything before the first numeric field keyword
     let areaName = text
       .replace(/(?:plot|land)\s*area\s*[\d.]+\s*(?:sqm|sqft|sq\s*m|sq\s*ft|m²|ft²)?/gi, '')
       .replace(/gfa\s*[\d.]+\s*(?:sqm|sqft|sq\s*m|sq\s*ft|m²|ft²)?/gi, '')
@@ -123,7 +117,6 @@ export function parseFreeFormText(content: string): ParcelInput[] {
       .replace(/\s+/g, ' ')
       .trim();
 
-    // If no structured area name found, use first few words
     if (!areaName && text.length > 0) {
       const words = text.split(/\s+/);
       const firstNumIdx = words.findIndex(w => /^\d/.test(w));
@@ -157,7 +150,6 @@ export function parseFreeFormText(content: string): ParcelInput[] {
 
 /**
  * Build a ParcelInput from quick-search form fields.
- * Area name is mandatory. At least one of plotArea or GFA must be provided.
  */
 export function buildParcelFromForm(params: {
   areaName: string;
@@ -190,10 +182,66 @@ function normalizeZoning(z: string): string {
 }
 
 /**
+ * Normalize a location/area name for fuzzy comparison.
+ * Strips non-alphanumeric, lowercases, removes common filler words.
+ */
+function normalizeLocationName(name: string): string {
+  return name.toLowerCase().replace(/[^a-z0-9\s]/g, '').trim();
+}
+
+/**
+ * Check if two area/location names match using fuzzy logic.
+ * Supports: project name, community name, normalized names,
+ * minor spelling variations, case-insensitive.
+ */
+function locationMatches(inputArea: string, plotLocation: string): boolean {
+  const normInput = normalizeLocationName(inputArea);
+  const normPlot = normalizeLocationName(plotLocation);
+
+  if (!normInput || !normPlot) return false;
+
+  // Direct substring match
+  if (normPlot.includes(normInput) || normInput.includes(normPlot)) return true;
+
+  // Tokenized word matching with fuzzy (handles "sport" vs "sports", "city" vs "cities")
+  const inputWords = normInput.split(/\s+/).filter(w => w.length > 2);
+  if (inputWords.length === 0) return false;
+
+  const matchedWords = inputWords.filter(word => {
+    // Exact word match
+    if (normPlot.includes(word)) return true;
+    // Plural/singular variations
+    if (normPlot.includes(word + 's')) return true;
+    if (word.endsWith('s') && normPlot.includes(word.slice(0, -1))) return true;
+    // Check if any plot word starts with the same prefix (min 4 chars for safety)
+    if (word.length >= 4) {
+      const prefix = word.slice(0, Math.max(4, Math.floor(word.length * 0.7)));
+      const plotWords = normPlot.split(/\s+/);
+      if (plotWords.some(pw => pw.startsWith(prefix))) return true;
+    }
+    return false;
+  });
+
+  // At least 60% of input words must match
+  return matchedWords.length >= Math.ceil(inputWords.length * 0.6);
+}
+
+/**
+ * Check if a value is within ±tolerance of the target.
+ * Handles exact matches (deviation = 0) explicitly.
+ */
+function isWithinTolerance(actual: number, target: number, tolerance: number): { match: boolean; deviation: number } {
+  if (target === 0) return { match: true, deviation: 0 };
+  const deviation = Math.abs(actual - target) / target;
+  return { match: deviation <= tolerance, deviation };
+}
+
+/**
  * Relaxed matching:
- * - Area name (mandatory) must match location
- * - Plot Area OR GFA must be within ±6% (only one is required)
- * - Zoning, floors, FAR are optional enhancers (boost confidence but don't block)
+ * - If area name provided, must match location (project OR community)
+ * - Plot Area AND/OR GFA must be within ±6% tolerance
+ * - Exact values always match (deviation = 0%)
+ * - Zoning, floors, FAR are optional enhancers
  */
 export function matchParcels(
   inputs: ParcelInput[],
@@ -205,71 +253,64 @@ export function matchParcels(
     floors: string;
     status: string;
     location: string;
+    entity?: string;
+    project?: string;
   }>
 ): MatchResult[] {
   const results: MatchResult[] = [];
   
   for (const input of inputs) {
-    // Must have area name
-    if (!input.area || input.area.trim().length === 0) continue;
-
-    // Must have at least one of plotArea or GFA with known/assumed unit
+    const hasAreaName = input.area && input.area.trim().length > 0;
     const hasPlotArea = input.plotAreaSqm > 0;
     const hasGfa = input.gfaSqm > 0;
     if (!hasPlotArea && !hasGfa) continue;
     
     for (const plot of plots) {
-      // 1. Area name filter (mandatory) — fuzzy match location
-      const inputArea = input.area.toLowerCase().trim().replace(/[^a-z0-9\s]/g, '');
-      const plotLocation = (plot.location || '').toLowerCase().replace(/[^a-z0-9\s]/g, '');
-      
-      // Tokenize and check if most input words appear in plot location (handles "sport" vs "sports")
-      const inputWords = inputArea.split(/\s+/).filter(w => w.length > 2);
-      const locationMatches = inputWords.length > 0 && inputWords.filter(word => 
-        plotLocation.includes(word) || plotLocation.includes(word + 's') || plotLocation.includes(word.replace(/s$/, ''))
-      ).length >= Math.ceil(inputWords.length * 0.6);
-      
-      if (!plotLocation.includes(inputArea) && !inputArea.includes(plotLocation) && !locationMatches) {
-        if (inputArea.length > 3) continue;
+      // 1. Area/location filter — if area name specified, must match
+      if (hasAreaName) {
+        const plotLocationStr = plot.location || '';
+        const plotEntityStr = (plot as Record<string, unknown>).entity as string || '';
+        const plotProjectStr = (plot as Record<string, unknown>).project as string || '';
+        
+        // Match against location, entity, OR project name
+        const locMatch = locationMatches(input.area, plotLocationStr) ||
+                         locationMatches(input.area, plotEntityStr) ||
+                         locationMatches(input.area, plotProjectStr);
+        
+        if (!locMatch) continue;
       }
       
       // 2. Tolerance matching: ±6% for Plot Area AND/OR GFA
-      let areaDev = 0;
-      let gfaDev = 0;
-      let areaMatch = true;
-      let gfaMatch = true;
+      let areaCheck = { match: true, deviation: 0 };
+      let gfaCheck = { match: true, deviation: 0 };
 
       if (hasPlotArea) {
-        areaDev = Math.abs(plot.area - input.plotAreaSqm) / input.plotAreaSqm;
-        areaMatch = areaDev <= TOLERANCE;
+        areaCheck = isWithinTolerance(plot.area, input.plotAreaSqm, TOLERANCE);
       }
       if (hasGfa) {
-        gfaDev = Math.abs(plot.gfa - input.gfaSqm) / input.gfaSqm;
-        gfaMatch = gfaDev <= TOLERANCE;
+        gfaCheck = isWithinTolerance(plot.gfa, input.gfaSqm, TOLERANCE);
       }
 
-      // At least one metric must match within tolerance
+      // Both provided → both must match. One provided → that one must match.
       if (hasPlotArea && hasGfa) {
-        // If both provided, both must match
-        if (!areaMatch || !gfaMatch) continue;
+        if (!areaCheck.match || !gfaCheck.match) continue;
       } else if (hasPlotArea) {
-        if (!areaMatch) continue;
+        if (!areaCheck.match) continue;
       } else if (hasGfa) {
-        if (!gfaMatch) continue;
+        if (!gfaCheck.match) continue;
       }
       
-      // 3. Calculate confidence score — base from area/GFA match
+      // 3. Calculate confidence score
       let confidenceScore = 0;
 
       if (hasPlotArea) {
-        confidenceScore += Math.max(0, 1 - areaDev / TOLERANCE) * (hasGfa ? 35 : 60);
+        confidenceScore += Math.max(0, 1 - areaCheck.deviation / TOLERANCE) * (hasGfa ? 35 : 60);
       }
       if (hasGfa) {
-        confidenceScore += Math.max(0, 1 - gfaDev / TOLERANCE) * (hasPlotArea ? 35 : 60);
+        confidenceScore += Math.max(0, 1 - gfaCheck.deviation / TOLERANCE) * (hasPlotArea ? 35 : 60);
       }
 
-      // 4. Optional enhancers — boost confidence, never block
-      // Zoning match bonus (+20)
+      // 4. Optional enhancers
       if (input.zoning) {
         const inputZoning = normalizeZoning(input.zoning);
         const plotZoning = normalizeZoning(plot.zoning);
@@ -278,7 +319,6 @@ export function matchParcels(
         }
       }
 
-      // Floors match bonus (+10)
       if (input.heightFloors > 0) {
         const plotFloors = parseInt(plot.floors.replace(/[^0-9]/g, ''), 10) || 0;
         if (Math.abs(plotFloors - input.heightFloors) <= 1) {
@@ -286,8 +326,8 @@ export function matchParcels(
         }
       }
 
-  // Area name exact/fuzzy match bonus (+10)
-      if (locationMatches || plotLocation === inputArea) {
+      // Area name match bonus
+      if (hasAreaName) {
         confidenceScore += 10;
       }
 
@@ -301,13 +341,55 @@ export function matchParcels(
         matchedZoning: plot.zoning,
         matchedStatus: plot.status,
         matchedLocation: plot.location,
-        areaDeviation: hasPlotArea ? parseFloat((areaDev * 100).toFixed(2)) : 0,
-        gfaDeviation: hasGfa ? parseFloat((gfaDev * 100).toFixed(2)) : 0,
+        areaDeviation: hasPlotArea ? parseFloat((areaCheck.deviation * 100).toFixed(2)) : 0,
+        gfaDeviation: hasGfa ? parseFloat((gfaCheck.deviation * 100).toFixed(2)) : 0,
         confidenceScore
       });
     }
   }
   
-  // Sort by confidence score descending
-  return results.sort((a, b) => b.confidenceScore - a.confidenceScore);
+  // Deduplicate by plot ID (keep highest confidence)
+  const seen = new Map<string, MatchResult>();
+  for (const r of results) {
+    const existing = seen.get(r.matchedPlotId);
+    if (!existing || r.confidenceScore > existing.confidenceScore) {
+      seen.set(r.matchedPlotId, r);
+    }
+  }
+  
+  return Array.from(seen.values()).sort((a, b) => b.confidenceScore - a.confidenceScore);
+}
+
+// CRM Export tracking
+const CRM_EXPORT_KEY = 'hyperplot_crm_exports';
+const CRM_LISTED_KEY = 'hyperplot_crm_listed';
+
+export function getExportedPlotIds(): Set<string> {
+  try {
+    const stored = localStorage.getItem(CRM_EXPORT_KEY);
+    return stored ? new Set(JSON.parse(stored)) : new Set();
+  } catch { return new Set(); }
+}
+
+export function markPlotsExported(plotIds: string[]) {
+  const existing = getExportedPlotIds();
+  plotIds.forEach(id => existing.add(id));
+  localStorage.setItem(CRM_EXPORT_KEY, JSON.stringify([...existing]));
+}
+
+export function getListedPlotIds(): Set<string> {
+  try {
+    const stored = localStorage.getItem(CRM_LISTED_KEY);
+    return stored ? new Set(JSON.parse(stored)) : new Set();
+  } catch { return new Set(); }
+}
+
+export function markPlotListed(plotId: string) {
+  const existing = getListedPlotIds();
+  existing.add(plotId);
+  localStorage.setItem(CRM_LISTED_KEY, JSON.stringify([...existing]));
+}
+
+export function isPlotListed(plotId: string): boolean {
+  return getListedPlotIds().has(plotId);
 }

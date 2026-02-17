@@ -250,7 +250,7 @@ class DDAGISService {
       if (minArea !== undefined) params.set('minArea', String(minArea));
       if (maxArea !== undefined) params.set('maxArea', String(maxArea));
       if (projectName) params.set('project', projectName);
-      params.set('limit', '50');
+      params.set('limit', '100');
 
       const response = await fetch(
         `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/dda-gis-proxy?${params.toString()}`,

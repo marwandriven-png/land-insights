@@ -16,7 +16,9 @@ import {
   matchParcels,
   buildParcelFromForm,
   ParcelInput,
-  MatchResult
+  MatchResult,
+  isPlotListed,
+  getExportedPlotIds
 } from '@/services/LandMatchingService';
 import {
   Select,
@@ -887,7 +889,15 @@ export function LandMatchingWizard({
                       <Building2 className="w-4 h-4 text-primary" />
                       <div>
                         <span className="font-bold text-sm">Plot {result.matchedPlotId}</span>
-                        <div className="text-[10px] text-muted-foreground">{result.matchedLocation}</div>
+                        <div className="flex items-center gap-1.5">
+                          <span className="text-[10px] text-muted-foreground">{result.matchedLocation}</span>
+                          {isPlotListed(result.matchedPlotId) && (
+                            <span className="px-1.5 py-0.5 rounded text-[9px] font-bold bg-success/20 text-success">Listed</span>
+                          )}
+                          {!isPlotListed(result.matchedPlotId) && getExportedPlotIds().has(result.matchedPlotId) && (
+                            <span className="px-1.5 py-0.5 rounded text-[9px] font-bold bg-muted text-muted-foreground">Exported</span>
+                          )}
+                        </div>
                       </div>
                     </div>
                     <div className="flex items-center gap-1.5">

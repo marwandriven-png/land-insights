@@ -1,7 +1,6 @@
 import { useState, useEffect } from 'react';
 import { Settings, Save, RotateCcw, FileText } from 'lucide-react';
 import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
 import { toast } from 'sonner';
 
@@ -37,7 +36,13 @@ Analyze the following land plot for real estate development feasibility in Dubai
 4. Include authority and consultant fees
 5. Project revenue based on sale price PSF
 6. Determine ROI, profit margin, and payback period
-7. Assess risk level based on location, zoning, and market conditions`,
+7. Assess risk level based on location, zoning, and market conditions
+
+## Area Data Integration
+- Use transaction sales summary for the matched area
+- Include rental transaction trends
+- Factor in upcoming developments and supply pipeline
+- Apply area-specific market assumptions to valuation`,
   constructionPSF: 420,
   landCostPSF: 725,
   authorityFeePct: 4,
@@ -78,24 +83,13 @@ export function FeasibilitySettings({ open, onClose, onSettingsChange }: Feasibi
   const handleSave = () => {
     saveFeasibilitySettings(settings);
     onSettingsChange?.(settings);
-    toast.success('Feasibility settings saved');
+    toast.success('Feasibility prompt saved');
     onClose();
   };
 
   const handleReset = () => {
     setSettings(DEFAULT_SETTINGS);
     toast.info('Reset to defaults (not saved yet)');
-  };
-
-  const updateParam = (key: keyof FeasibilitySettingsData, value: string) => {
-    if (key === 'prompt') {
-      setSettings(prev => ({ ...prev, prompt: value }));
-    } else {
-      const num = parseFloat(value);
-      if (!isNaN(num) && num >= 0) {
-        setSettings(prev => ({ ...prev, [key]: num }));
-      }
-    }
   };
 
   return (
@@ -105,55 +99,25 @@ export function FeasibilitySettings({ open, onClose, onSettingsChange }: Feasibi
         <div className="flex items-center justify-between p-5 border-b border-border/50">
           <div className="flex items-center gap-2">
             <Settings className="w-5 h-5 text-primary" />
-            <h2 className="text-lg font-bold text-foreground">Feasibility Settings</h2>
+            <h2 className="text-lg font-bold text-foreground">Feasibility Prompt</h2>
           </div>
           <button onClick={onClose} className="text-muted-foreground hover:text-foreground text-xl">&times;</button>
         </div>
 
         {/* Content */}
-        <div className="flex-1 overflow-y-auto p-5 space-y-5">
-          {/* Parameters Grid */}
-          <div>
-            <h3 className="text-sm font-semibold text-foreground mb-3 flex items-center gap-1.5">
-              <FileText className="w-4 h-4 text-primary" />
-              Study Parameters
-            </h3>
-            <div className="grid grid-cols-3 gap-3">
-              {([
-                { key: 'constructionPSF', label: 'Construction (PSF)' },
-                { key: 'landCostPSF', label: 'Land Cost (PSF)' },
-                { key: 'authorityFeePct', label: 'Authority Fees (%)' },
-                { key: 'consultantFeePct', label: 'Consultant Fees (%)' },
-                { key: 'buaMultiplier', label: 'BUA Multiplier' },
-                { key: 'salePricePSF', label: 'Sale Price (PSF)' },
-              ] as { key: keyof FeasibilitySettingsData; label: string }[]).map(({ key, label }) => (
-                <div key={key}>
-                  <label className="text-[11px] text-muted-foreground mb-1 block">{label}</label>
-                  <Input
-                    type="number"
-                    value={settings[key] as number}
-                    onChange={(e) => updateParam(key, e.target.value)}
-                    className="h-8 text-xs"
-                    step={key === 'buaMultiplier' ? '0.05' : key.includes('Pct') ? '0.5' : '10'}
-                  />
-                </div>
-              ))}
-            </div>
-          </div>
-
-          {/* Prompt Textarea */}
+        <div className="flex-1 overflow-y-auto p-5 space-y-4">
           <div>
             <h3 className="text-sm font-semibold text-foreground mb-2 flex items-center gap-1.5">
               <FileText className="w-4 h-4 text-primary" />
-              Feasibility Analysis Prompt (Markdown)
+              Analysis Prompt (Markdown)
             </h3>
             <p className="text-[11px] text-muted-foreground mb-2">
-              Use {"{{paramName}}"} placeholders. They auto-resolve from parameters above.
+              Use {"{{paramName}}"} placeholders. Parameters are configured per land in the detail panel.
             </p>
             <Textarea
               value={settings.prompt}
-              onChange={(e) => updateParam('prompt', e.target.value)}
-              className="min-h-[260px] font-mono text-xs leading-relaxed"
+              onChange={(e) => setSettings(prev => ({ ...prev, prompt: e.target.value }))}
+              className="min-h-[360px] font-mono text-xs leading-relaxed"
               placeholder="Enter your feasibility analysis prompt in Markdown..."
             />
           </div>
@@ -169,7 +133,7 @@ export function FeasibilitySettings({ open, onClose, onSettingsChange }: Feasibi
             <Button variant="outline" size="sm" onClick={onClose}>Cancel</Button>
             <Button size="sm" onClick={handleSave} className="gap-1.5">
               <Save className="w-3.5 h-3.5" />
-              Save Settings
+              Save Prompt
             </Button>
           </div>
         </div>
