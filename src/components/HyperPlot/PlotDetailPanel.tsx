@@ -37,7 +37,7 @@ function getVerificationBadge(source: VerificationSource) {
 function SetbackRow({ label, value }: { label: string; value: string | null }) {
   if (!value) return null;
   return (
-    <div className="flex justify-between text-xs">
+    <div className="flex justify-between text-sm">
       <span className="text-muted-foreground">{label}</span>
       <span className="text-foreground font-medium">{value}</span>
     </div>
@@ -111,65 +111,65 @@ function AffectionPlanSection({ plotId }: { plotId: string }) {
       <div className="space-y-3">
         {(plan.mainLanduse || plan.landuseCategory) && (
           <div className="space-y-1">
-            <span className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wide">Land Use</span>
+            <span className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">Land Use</span>
             {plan.mainLanduse && (
-              <div className="flex justify-between text-xs">
+              <div className="flex justify-between text-sm">
                 <span className="text-muted-foreground">Main</span>
                 <span className="text-foreground font-medium">{plan.mainLanduse}</span>
               </div>
             )}
             {plan.subLanduse && (
-              <div className="flex justify-between text-xs">
+              <div className="flex justify-between text-sm">
                 <span className="text-muted-foreground">Sub</span>
                 <span className="text-foreground font-medium">{plan.subLanduse}</span>
               </div>
             )}
             {plan.landuseCategory && (
-              <div className="flex justify-between text-xs">
+              <div className="flex justify-between text-sm">
                 <span className="text-muted-foreground">Category</span>
                 <span className="text-foreground font-medium">{plan.landuseCategory}</span>
               </div>
             )}
             {plan.landuseDetails && (
-              <div className="text-xs text-muted-foreground mt-1">{plan.landuseDetails}</div>
+              <div className="text-sm text-muted-foreground mt-1">{plan.landuseDetails}</div>
             )}
           </div>
         )}
 
         <div className="space-y-1">
-          <span className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wide">Height & Coverage</span>
+          <span className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">Height & Coverage</span>
           {plan.maxHeight && (
-            <div className="flex justify-between text-xs">
+            <div className="flex justify-between text-sm">
               <span className="text-muted-foreground">Max Height</span>
               <span className="text-foreground font-medium">{plan.maxHeight}</span>
             </div>
           )}
           {plan.heightCategory && (
-            <div className="flex justify-between text-xs">
+            <div className="flex justify-between text-sm">
               <span className="text-muted-foreground">Height Category</span>
               <span className="text-foreground font-medium">{plan.heightCategory}</span>
             </div>
           )}
           {plan.maxPlotCoverage != null && (
-            <div className="flex justify-between text-xs">
+            <div className="flex justify-between text-sm">
               <span className="text-muted-foreground">Max Coverage</span>
               <span className="text-foreground font-medium">{plan.maxPlotCoverage}%</span>
             </div>
           )}
           {plan.minPlotCoverage != null && (
-            <div className="flex justify-between text-xs">
+            <div className="flex justify-between text-sm">
               <span className="text-muted-foreground">Min Coverage</span>
               <span className="text-foreground font-medium">{plan.minPlotCoverage}%</span>
             </div>
           )}
           {plan.plotCoverage && (
-            <div className="flex justify-between text-xs">
+            <div className="flex justify-between text-sm">
               <span className="text-muted-foreground">Plot Coverage</span>
               <span className="text-foreground font-medium">{plan.plotCoverage}</span>
             </div>
           )}
           {plan.gfaType && (
-            <div className="flex justify-between text-xs">
+            <div className="flex justify-between text-sm">
               <span className="text-muted-foreground">GFA Type</span>
               <span className="text-foreground font-medium">{plan.gfaType}</span>
             </div>
@@ -178,7 +178,7 @@ function AffectionPlanSection({ plotId }: { plotId: string }) {
 
         {hasSetbacks && (
           <div className="space-y-1">
-            <span className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wide">Building Setbacks</span>
+            <span className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">Building Setbacks</span>
             <SetbackRow label="Side 1" value={plan.buildingSetbacks.side1} />
             <SetbackRow label="Side 2" value={plan.buildingSetbacks.side2} />
             <SetbackRow label="Side 3" value={plan.buildingSetbacks.side3} />
@@ -188,7 +188,7 @@ function AffectionPlanSection({ plotId }: { plotId: string }) {
 
         {hasPodiumSetbacks && (
           <div className="space-y-1">
-            <span className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wide">Podium Setbacks</span>
+            <span className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">Podium Setbacks</span>
             <SetbackRow label="Side 1" value={plan.podiumSetbacks.side1} />
             <SetbackRow label="Side 2" value={plan.podiumSetbacks.side2} />
             <SetbackRow label="Side 3" value={plan.podiumSetbacks.side3} />
@@ -198,15 +198,15 @@ function AffectionPlanSection({ plotId }: { plotId: string }) {
 
         {(plan.siteplanIssueDate || plan.siteplanExpiryDate) && (
           <div className="space-y-1">
-            <span className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wide">Site Plan</span>
+            <span className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">Site Plan</span>
             {plan.siteplanIssueDate && (
-              <div className="flex justify-between text-xs">
+              <div className="flex justify-between text-sm">
                 <span className="text-muted-foreground">Issue Date</span>
                 <span className="text-foreground font-medium">{new Date(plan.siteplanIssueDate).toLocaleDateString()}</span>
               </div>
             )}
             {plan.siteplanExpiryDate && (
-              <div className="flex justify-between text-xs">
+              <div className="flex justify-between text-sm">
                 <span className="text-muted-foreground">Expiry Date</span>
                 <span className="text-foreground font-medium">{new Date(plan.siteplanExpiryDate).toLocaleDateString()}</span>
               </div>
@@ -216,8 +216,8 @@ function AffectionPlanSection({ plotId }: { plotId: string }) {
 
         {plan.generalNotes && (
           <div className="space-y-1">
-            <span className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wide">Notes</span>
-            <p className="text-xs text-muted-foreground leading-relaxed">{plan.generalNotes}</p>
+            <span className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">Notes</span>
+            <p className="text-sm text-muted-foreground leading-relaxed">{plan.generalNotes}</p>
           </div>
         )}
       </div>
@@ -291,8 +291,8 @@ export function PlotDetailPanel({ plot, onClose, onSelectPlot, onGoToLocation }:
           {/* Plot Details Grid */}
           <div className="grid grid-cols-2 gap-3 mb-4">
             <div className="data-card">
-              <div className="flex items-center gap-2 text-muted-foreground text-xs mb-1">
-                <Layers className="w-3.5 h-3.5" />
+              <div className="flex items-center gap-2 text-muted-foreground text-sm mb-1">
+                <Layers className="w-4 h-4" />
                 Plot Size
               </div>
               <div className="text-lg font-bold text-foreground">
@@ -301,8 +301,8 @@ export function PlotDetailPanel({ plot, onClose, onSelectPlot, onGoToLocation }:
             </div>
 
             <div className="data-card">
-              <div className="flex items-center gap-2 text-muted-foreground text-xs mb-1">
-                <Building2 className="w-3.5 h-3.5" />
+              <div className="flex items-center gap-2 text-muted-foreground text-sm mb-1">
+                <Building2 className="w-4 h-4" />
                 GFA
               </div>
               <div className="text-lg font-bold text-foreground">
@@ -311,16 +311,16 @@ export function PlotDetailPanel({ plot, onClose, onSelectPlot, onGoToLocation }:
             </div>
 
             <div className="data-card">
-              <div className="flex items-center gap-2 text-muted-foreground text-xs mb-1">
-                <TrendingUp className="w-3.5 h-3.5" />
+              <div className="flex items-center gap-2 text-muted-foreground text-sm mb-1">
+                <TrendingUp className="w-4 h-4" />
                 Floors
               </div>
               <div className="text-lg font-bold text-foreground">{plot.floors}</div>
             </div>
 
             <div className="data-card">
-              <div className="flex items-center gap-2 text-muted-foreground text-xs mb-1">
-                <FileText className="w-3.5 h-3.5" />
+              <div className="flex items-center gap-2 text-muted-foreground text-sm mb-1">
+                <FileText className="w-4 h-4" />
                 Zoning
               </div>
               <div className="text-sm font-bold text-foreground">{plot.zoning}</div>
@@ -364,11 +364,11 @@ export function PlotDetailPanel({ plot, onClose, onSelectPlot, onGoToLocation }:
               <Shield className="w-4 h-4 text-primary" />
               <h3 className="text-sm font-bold text-foreground">Data Verification</h3>
             </div>
-            <div className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-medium ${getVerificationBadge(plot.verificationSource).bg} ${getVerificationBadge(plot.verificationSource).text} border border-border/30`}>
+            <div className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-sm font-medium ${getVerificationBadge(plot.verificationSource).bg} ${getVerificationBadge(plot.verificationSource).text} border border-border/30`}>
               <CheckCircle className="w-3.5 h-3.5" />
               {getVerificationBadge(plot.verificationSource).label}
             </div>
-            <div className="mt-2 space-y-1 text-xs text-muted-foreground">
+            <div className="mt-2 space-y-1 text-sm text-muted-foreground">
               {plot.verificationDate && (
                 <div className="flex items-center gap-2">
                   <Clock className="w-3 h-3" />
