@@ -161,10 +161,13 @@ export function HyperPlotAI() {
     setLastSeen(getLastSeen());
   }, []);
 
-  const handlePlotClick = useCallback((plot: PlotData) => {
+  const handlePlotClick = useCallback((plot: PlotData, goToMap = false) => {
     setSelectedPlot(plot);
     setShowDetailPanel(true);
     saveLastSeen(plot);
+    if (goToMap) {
+      setActiveTab('map');
+    }
   }, [saveLastSeen]);
 
   const handlePlotFound = useCallback((plot: PlotData) => {
@@ -360,9 +363,9 @@ export function HyperPlotAI() {
                         return (
                           <button
                             key={entry.plotId}
-                            onClick={async () => {
+                          onClick={async () => {
                               if (matchedPlot) {
-                                handlePlotClick(matchedPlot);
+                                handlePlotClick(matchedPlot, true);
                               } else {
                                 const fetched = await gisService.fetchPlotById(entry.plotId);
                                 if (fetched) handlePlotFound(fetched);
@@ -476,14 +479,18 @@ export function HyperPlotAI() {
                           key={entry.plotId}
                           onClick={async () => {
                             if (matchedPlot) {
-                              handlePlotClick(matchedPlot);
+                              handlePlotClick(matchedPlot, true);
                             } else {
                               // Fetch from API if not in local plots
                               const fetched = await gisService.fetchPlotById(entry.plotId);
                               if (fetched) handlePlotFound(fetched);
                             }
                           }}
-                          className="w-full text-left mb-1.5 px-3 py-2.5 rounded-lg border transition-all text-sm border-border/50 bg-muted/20 hover:bg-muted/40 cursor-pointer"
+                          className={`w-full text-left mb-1.5 px-3 py-2.5 rounded-lg border transition-all text-sm cursor-pointer ${
+                            selectedPlot?.id === entry.plotId
+                              ? 'ring-2 ring-primary border-primary/50 bg-primary/10'
+                              : 'border-border/50 bg-muted/20 hover:bg-muted/40'
+                          }`}
                         >
                           <div className="flex items-center justify-between">
                             <span className="font-semibold text-foreground">{entry.plotId}</span>
