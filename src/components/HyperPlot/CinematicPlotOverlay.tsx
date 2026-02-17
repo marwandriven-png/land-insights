@@ -76,9 +76,10 @@ export function CinematicPlotOverlay({ map, plot }: CinematicPlotOverlayProps) {
     const bounds = L.latLngBounds(latLngs);
     const center = bounds.getCenter();
 
-    // ─── Smooth 30-frame easeInOutQuad pan (keep current zoom) ───
+    // ─── Smooth 30-frame easeInOutQuad pan + 3× zoom centered on plot ───
     setPhase('boundary');
-    const currentZoom = map.getZoom();
+    const startZoom = map.getZoom();
+    const targetZoom = Math.min(startZoom + 3, map.getMaxZoom());
     const startCenter = map.getCenter();
     const totalFrames = 30;
     let frame = 0;
@@ -92,7 +93,8 @@ export function CinematicPlotOverlay({ map, plot }: CinematicPlotOverlayProps) {
       const t = easeInOutQuad(frame / totalFrames);
       const lat = startCenter.lat + (center.lat - startCenter.lat) * t;
       const lng = startCenter.lng + (center.lng - startCenter.lng) * t;
-      map.setView([lat, lng], currentZoom, { animate: false });
+      const zoom = startZoom + (targetZoom - startZoom) * t;
+      map.setView([lat, lng], zoom, { animate: false });
       if (frame < totalFrames) {
         requestAnimationFrame(animateZoom);
       }
