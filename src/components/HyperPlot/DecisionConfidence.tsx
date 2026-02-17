@@ -1,5 +1,6 @@
 import { useState, useMemo, useEffect } from 'react';
-import { Loader2, TrendingUp, DollarSign, Building2, BarChart3, Target, Shield, Printer, Maximize2, Minimize2 } from 'lucide-react';
+import { Loader2, TrendingUp, DollarSign, Building2, BarChart3, Target, Shield, Printer, Maximize2, Minimize2, Settings2 } from 'lucide-react';
+import { Checkbox } from '@/components/ui/checkbox';
 import { PlotData, AffectionPlanData, gisService } from '@/services/DDAGISService';
 import { calcDSCFeasibility, DSCPlotInput, DSCFeasibilityResult, MixKey, MIX_TEMPLATES, COMPS, UNIT_SIZES, RENT_PSF_YR, BENCHMARK_AVG_PSF, TXN_AVG_PSF, TXN_AVG_SIZE, TXN_AVG_PRICE, TXN_MEDIAN_PSF, TXN_COUNT, TXN_WEIGHTED_AVG_PSF, fmt, fmtM, fmtA, pct } from '@/lib/dscFeasibility';
 import { ScrollArea } from '@/components/ui/scroll-area';
@@ -66,6 +67,14 @@ function Viability({ pass, label }: { pass: boolean; label: string }) {
   );
 }
 
+// Check if plot is in Dubai Sports City
+function isDSCPlot(plot: PlotData): boolean {
+  const loc = (plot.location || '').toLowerCase();
+  const proj = (plot.project || '').toLowerCase();
+  const zone = (plot.zoning || '').toLowerCase();
+  return loc.includes('sport') || proj.includes('sport') || loc.includes('dsc') || proj.includes('dsc') || zone.includes('sport');
+}
+
 export function DecisionConfidence({ plot, isFullscreen, onToggleFullscreen }: DecisionConfidenceProps) {
   const [activeMix, setActiveMix] = useState<MixKey>('balanced');
   const [plan, setPlan] = useState<AffectionPlanData | null>(null);
@@ -73,6 +82,8 @@ export function DecisionConfidence({ plot, isFullscreen, onToggleFullscreen }: D
   const [editMode, setEditMode] = useState(false);
   const [overrides, setOverrides] = useState<{ area?: number; ratio?: number; height?: string; efficiency?: number; landCostPsf?: number; constructionPsf?: number; buaMultiplier?: number; avgPsfOverride?: number; contingencyPct?: number; financePct?: number }>({});
   const [activeTab, setActiveTab] = useState<'feasibility' | 'comparison' | 'sensitivity'>('feasibility');
+  const [includeContingency, setIncludeContingency] = useState(true);
+  const [includeFinance, setIncludeFinance] = useState(true);
 
   // Fetch affection plan on plot change
   useEffect(() => {
@@ -94,15 +105,18 @@ export function DecisionConfidence({ plot, isFullscreen, onToggleFullscreen }: D
     return base;
   }, [plot, plan, overrides]);
 
-  const fs = useMemo(() => calcDSCFeasibility(dscInput, activeMix, {
-    efficiency: overrides.efficiency,
-    landCostPsf: overrides.landCostPsf,
-    constructionPsf: overrides.constructionPsf,
-    buaMultiplier: overrides.buaMultiplier,
-    avgPsfOverride: overrides.avgPsfOverride,
-    contingencyPct: overrides.contingencyPct,
-    financePct: overrides.financePct,
-  }), [dscInput, activeMix, overrides]);
+  const fs = useMemo(() => {
+    const result = calcDSCFeasibility(dscInput, activeMix, {
+      efficiency: overrides.efficiency,
+      landCostPsf: overrides.landCostPsf,
+      constructionPsf: overrides.constructionPsf,
+      buaMultiplier: overrides.buaMultiplier,
+      avgPsfOverride: overrides.avgPsfOverride,
+      contingencyPct: includeContingency ? overrides.contingencyPct : 0,
+      financePct: includeFinance ? overrides.financePct : 0,
+    });
+    return result;
+  }, [dscInput, activeMix, overrides, includeContingency, includeFinance]);
 
   if (loading) {
     return (
@@ -111,6 +125,24 @@ export function DecisionConfidence({ plot, isFullscreen, onToggleFullscreen }: D
           <Loader2 className="w-10 h-10 text-primary animate-spin mx-auto mb-3" />
           <div className="text-foreground font-bold">Loading Affection Plan...</div>
           <div className="text-xs text-muted-foreground mt-1">Extracting plot constraints from DDA</div>
+        </div>
+      </div>
+    );
+  }
+
+  // DSC-only gate
+  if (!isDSCPlot(plot)) {
+    return (
+      <div className="h-full flex items-center justify-center glass-card glow-border">
+        <div className="text-center max-w-sm">
+          <Shield className="w-12 h-12 text-muted-foreground/30 mx-auto mb-3" />
+          <h3 className="text-lg font-bold mb-2">Dubai Sports City Only</h3>
+          <p className="text-sm text-muted-foreground">
+            Decision Confidence is currently calibrated for <strong>Dubai Sports City</strong> plots only, using 809 real transactions and 6 active benchmarks.
+          </p>
+          <p className="text-xs text-muted-foreground mt-2">
+            Plot "{plot.location || plot.id}" is not in DSC.
+          </p>
         </div>
       </div>
     );
@@ -131,11 +163,15 @@ export function DecisionConfidence({ plot, isFullscreen, onToggleFullscreen }: D
             </p>
           </div>
           <div className="flex gap-2 items-center">
-            <label className="flex items-center gap-1.5 cursor-pointer text-xs">
-              <input type="checkbox" checked={editMode} onChange={() => setEditMode(!editMode)}
-                className="w-3.5 h-3.5 rounded border-border accent-primary" />
-              Override
-            </label>
+            <Button
+              variant={editMode ? "default" : "outline"}
+              size="sm"
+              className={`text-xs h-8 gap-1.5 font-bold transition-all ${editMode ? 'bg-primary text-primary-foreground shadow-lg shadow-primary/30' : 'border-primary/50 text-primary hover:bg-primary/10'}`}
+              onClick={() => setEditMode(!editMode)}
+            >
+              <Settings2 className="w-3.5 h-3.5" />
+              {editMode ? '✓ Override ON' : 'Override'}
+            </Button>
             <Button variant="outline" size="sm" className="text-xs h-7 gap-1" onClick={() => window.print()}>
               <Printer className="w-3 h-3" /> Print
             </Button>
@@ -391,6 +427,18 @@ export function DecisionConfidence({ plot, isFullscreen, onToggleFullscreen }: D
 
               {/* 4. Cost Breakdown */}
               <Section title="4 · Cost Breakdown">
+                {/* Toggle controls for optional cost items */}
+                <div className="flex items-center gap-4 mb-3 p-2 rounded-lg bg-muted/30 border border-border/30">
+                  <span className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wide">Include:</span>
+                  <label className="flex items-center gap-1.5 cursor-pointer">
+                    <Checkbox checked={includeContingency} onCheckedChange={(v) => setIncludeContingency(!!v)} className="h-3.5 w-3.5" />
+                    <span className="text-xs font-medium text-foreground">Contingency</span>
+                  </label>
+                  <label className="flex items-center gap-1.5 cursor-pointer">
+                    <Checkbox checked={includeFinance} onCheckedChange={(v) => setIncludeFinance(!!v)} className="h-3.5 w-3.5" />
+                    <span className="text-xs font-medium text-foreground">Finance</span>
+                  </label>
+                </div>
                 <div className="overflow-x-auto">
                   <Table>
                     <TableHeader>
@@ -407,8 +455,8 @@ export function DecisionConfidence({ plot, isFullscreen, onToggleFullscreen }: D
                         ['Authority Fees', 'DLD + NOC + RERA', '4% of land', fs.authorityFees, fs.authorityFees / fs.grossSales],
                         ['Consultant Fees', 'Architecture, PM', '3% of construction', fs.consultantFees, fs.consultantFees / fs.grossSales],
                         ['Marketing & Sales', 'Broker + campaign', '10% of GDV', fs.marketing, fs.marketing / fs.grossSales],
-                        ['Contingency', 'Risk buffer', `${((overrides.contingencyPct ?? 0.05) * 100).toFixed(1)}% of construction`, fs.contingency, fs.contingency / fs.grossSales],
-                        ['Financing', 'Construction carry', `${((overrides.financePct ?? 0.04) * 100).toFixed(1)}% of construction`, fs.financing, fs.financing / fs.grossSales],
+                        ...(includeContingency ? [['Contingency', 'Risk buffer', `${((overrides.contingencyPct ?? 0.05) * 100).toFixed(1)}% of construction`, fs.contingency, fs.contingency / fs.grossSales]] : []),
+                        ...(includeFinance ? [['Financing', 'Construction carry', `${((overrides.financePct ?? 0.04) * 100).toFixed(1)}% of construction`, fs.financing, fs.financing / fs.grossSales]] : []),
                       ].map(([item, basis, rate, amount, gdvPct]) => (
                         <TableRow key={item as string}>
                           <TableCell className="text-xs font-medium py-1.5">{item}</TableCell>
