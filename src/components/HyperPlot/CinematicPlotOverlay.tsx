@@ -136,7 +136,7 @@ export function CinematicPlotOverlay({ map, plot }: CinematicPlotOverlayProps) {
       const glowPoly = L.polygon(latLngs, {
         color: 'transparent',
         weight: 0,
-        fillColor: '#00e5ff',
+        fillColor: '#00ffaa',
         fillOpacity: 0,
         interactive: false,
         className: 'cinematic-glow-fill'
@@ -144,29 +144,57 @@ export function CinematicPlotOverlay({ map, plot }: CinematicPlotOverlayProps) {
       glowPoly.addTo(map);
       layersRef.current.push(glowPoly);
 
-      const boundaryPoly = L.polygon(latLngs, {
-        color: '#00e5ff',
-        weight: 3,
+      // Layer 1: Base stroke (4px solid)
+      const baseStroke = L.polygon(latLngs, {
+        color: '#00ffaa',
+        weight: 4,
         opacity: 1,
-        fillColor: '#00e5ff',
+        fillColor: '#00ffaa',
         fillOpacity: 0,
         interactive: false,
-        className: 'cinematic-boundary-trace'
+        className: 'cinematic-boundary-trace cinematic-neon-pulse'
       });
-      boundaryPoly.addTo(map);
-      layersRef.current.push(boundaryPoly);
+      baseStroke.addTo(map);
+      layersRef.current.push(baseStroke);
 
-      const innerGlow = L.polygon(latLngs, {
-        color: '#00e5ff',
-        weight: 10,
-        opacity: 0.15,
+      // Layer 2: 8px blur, 60% opacity
+      const glow1 = L.polygon(latLngs, {
+        color: '#00ffaa',
+        weight: 8,
+        opacity: 0.6,
         fillColor: 'transparent',
         fillOpacity: 0,
         interactive: false,
-        className: 'cinematic-inner-glow'
+        className: 'cinematic-neon-glow-1 cinematic-neon-pulse'
       });
-      innerGlow.addTo(map);
-      layersRef.current.push(innerGlow);
+      glow1.addTo(map);
+      layersRef.current.push(glow1);
+
+      // Layer 3: 12px blur, 40% opacity
+      const glow2 = L.polygon(latLngs, {
+        color: '#00ffaa',
+        weight: 12,
+        opacity: 0.4,
+        fillColor: 'transparent',
+        fillOpacity: 0,
+        interactive: false,
+        className: 'cinematic-neon-glow-2 cinematic-neon-pulse'
+      });
+      glow2.addTo(map);
+      layersRef.current.push(glow2);
+
+      // Layer 4: 16px blur, 20% opacity
+      const glow3 = L.polygon(latLngs, {
+        color: '#00ffaa',
+        weight: 16,
+        opacity: 0.2,
+        fillColor: 'transparent',
+        fillOpacity: 0,
+        interactive: false,
+        className: 'cinematic-neon-glow-3 cinematic-neon-pulse'
+      });
+      glow3.addTo(map);
+      layersRef.current.push(glow3);
 
       const textTimer = setTimeout(() => {
         if (glowPoly.getElement()) {
