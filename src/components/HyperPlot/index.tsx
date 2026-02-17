@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback, useMemo } from 'react';
-import { Map, Home, BarChart3, Brain, AlertCircle, X, RefreshCw, Wifi, WifiOff, Target, Clock, Settings, Shield } from 'lucide-react';
+import { Map, Home, BarChart3, Brain, AlertCircle, X, RefreshCw, Wifi, WifiOff, Target, Clock, Settings, Shield, Search } from 'lucide-react';
 import { addLastSeen, getLastSeen, LastSeenEntry } from '@/services/LastSeenService';
 import { gisService, PlotData, generateDemoPlots } from '@/services/DDAGISService';
 import { Header } from './Header';
@@ -198,6 +198,18 @@ export function HyperPlotAI() {
             </div>
 
             <div className="flex items-center gap-3">
+              {/* Search Bar - moved up to header */}
+              <div className="relative">
+                <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+                <input
+                  type="text"
+                  placeholder="Search plot number, area..."
+                  value={searchQuery}
+                  onChange={(e) => setSearchQuery(e.target.value)}
+                  className="pl-10 pr-4 py-2 bg-muted/50 border border-border/50 rounded-xl text-sm text-foreground placeholder:text-muted-foreground w-56 focus:outline-none focus:ring-2 focus:ring-primary/50"
+                />
+              </div>
+
               {/* Connection Status */}
               <div className={`flex items-center gap-2 px-3 py-1.5 rounded-full text-xs font-medium ${
                 gisConnected 
