@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback, useMemo } from 'react';
-import { Map, Home, BarChart3, Brain, AlertCircle, X, RefreshCw, Wifi, WifiOff, Target, Clock, Settings, Shield } from 'lucide-react';
+import { Map, Home, BarChart3, Brain, AlertCircle, X, RefreshCw, Wifi, WifiOff, Target, Clock, Settings, Shield, GitCompareArrows } from 'lucide-react';
 import xEstateLogo from '@/assets/X-Estate_Logo.svg';
 import { addLastSeen, getLastSeen, LastSeenEntry } from '@/services/LastSeenService';
 import { gisService, PlotData, generateDemoPlots } from '@/services/DDAGISService';
@@ -37,6 +37,7 @@ export function HyperPlotAI() {
   const [showFeasibilitySettings, setShowFeasibilitySettings] = useState(false);
   const [decisionFullscreen, setDecisionFullscreen] = useState(false);
   const [lastSeen, setLastSeen] = useState<LastSeenEntry[]>(getLastSeen());
+  const [comparisonPlots, setComparisonPlots] = useState<PlotData[]>([]);
   const [filters, setFilters] = useState<FilterState>({
     status: [],
     zoning: [],
@@ -290,7 +291,7 @@ export function HyperPlotAI() {
       {/* Main Content */}
       {decisionFullscreen && activeTab === 'feasibility' && selectedPlot ? (
         <div className="flex-1 min-h-0 overflow-hidden">
-          <DecisionConfidence plot={selectedPlot} isFullscreen onToggleFullscreen={() => setDecisionFullscreen(false)} />
+          <DecisionConfidence plot={selectedPlot} comparisonPlots={comparisonPlots} isFullscreen onToggleFullscreen={() => setDecisionFullscreen(false)} />
         </div>
       ) : (
       <div className="px-4 py-4 flex-1 min-h-0 overflow-hidden">
@@ -329,7 +330,7 @@ export function HyperPlotAI() {
               </div>
             )}
             {activeTab === 'feasibility' && selectedPlot ? (
-              <DecisionConfidence plot={selectedPlot} isFullscreen={false} onToggleFullscreen={() => setDecisionFullscreen(true)} />
+              <DecisionConfidence plot={selectedPlot} comparisonPlots={comparisonPlots} isFullscreen={false} onToggleFullscreen={() => setDecisionFullscreen(true)} />
             ) : activeTab === 'feasibility' ? (
               <div className="h-full flex items-center justify-center glass-card glow-border">
                 <div className="text-center">
@@ -341,20 +342,56 @@ export function HyperPlotAI() {
             ) : null}
             {activeTab === 'properties' && (
               <div className="h-full glass-card glow-border p-4">
-                <h2 className="text-lg font-bold mb-4">All Properties ({filteredPlots.length})</h2>
-                <ScrollArea className="h-[calc(100%-3rem)]">
-                  <div className="space-y-2 pr-2">
-                    {filteredPlots.map(plot => (
-                      <PlotListItem
-                        key={plot.id}
-                        plot={plot}
-                        isSelected={selectedPlot?.id === plot.id}
-                        isHighlighted={highlightedPlots.includes(plot.id)}
-                        onClick={() => handlePlotClick(plot)}
-                      />
-                    ))}
+                <div className="flex items-center gap-2 mb-4">
+                  <Clock className="w-5 h-5 text-primary" />
+                  <h2 className="text-lg font-bold">Recently Viewed ({lastSeen.length})</h2>
+                </div>
+                {lastSeen.length === 0 ? (
+                  <div className="text-center py-12 text-muted-foreground">
+                    <Clock className="w-10 h-10 mx-auto mb-3 opacity-30" />
+                    <p className="text-sm font-medium">No plots viewed yet</p>
+                    <p className="text-xs mt-1">Search and select plots to build your history</p>
                   </div>
-                </ScrollArea>
+                ) : (
+                  <ScrollArea className="h-[calc(100%-3rem)]">
+                    <div className="space-y-2 pr-2">
+                      {lastSeen.map(entry => {
+                        const matchedPlot = plots.find(p => p.id === entry.plotId);
+                        return (
+                          <button
+                            key={entry.plotId}
+                            onClick={async () => {
+                              if (matchedPlot) {
+                                handlePlotClick(matchedPlot);
+                              } else {
+                                const fetched = await gisService.fetchPlotById(entry.plotId);
+                                if (fetched) handlePlotFound(fetched);
+                              }
+                            }}
+                            className={`w-full text-left px-4 py-3 rounded-xl border transition-all cursor-pointer ${
+                              selectedPlot?.id === entry.plotId
+                                ? 'ring-2 ring-primary border-primary/50 bg-primary/10'
+                                : 'border-border/50 bg-muted/20 hover:bg-muted/40'
+                            }`}
+                          >
+                            <div className="flex items-center justify-between mb-1">
+                              <span className="font-bold text-base text-foreground">{entry.plotId}</span>
+                              <span className="text-xs text-muted-foreground">
+                                {new Date(entry.timestamp).toLocaleDateString()}
+                              </span>
+                            </div>
+                            <div className="text-sm text-muted-foreground">{entry.location}</div>
+                            <div className="flex gap-4 mt-1.5 text-sm">
+                              <span className="text-muted-foreground">Area: <span className="text-foreground font-medium">{entry.area.toLocaleString()} m²</span></span>
+                              <span className="text-muted-foreground">GFA: <span className="text-foreground font-medium">{entry.gfa.toLocaleString()} m²</span></span>
+                              <span className={`font-medium ${entry.status === 'Available' ? 'text-success' : entry.status === 'Frozen' ? 'text-destructive' : 'text-warning'}`}>{entry.status}</span>
+                            </div>
+                          </button>
+                        );
+                      })}
+                    </div>
+                  </ScrollArea>
+                )}
               </div>
             )}
             {activeTab === 'ai' && (
@@ -392,6 +429,27 @@ export function HyperPlotAI() {
                 {filteredPlots.length}
               </div>
             </div>
+
+            {/* Comparison Chips */}
+            {comparisonPlots.length > 0 && (
+              <div className="mb-3 p-2 rounded-lg bg-primary/10 border border-primary/30">
+                <div className="flex items-center gap-1.5 mb-1.5">
+                  <GitCompareArrows className="w-3.5 h-3.5 text-primary" />
+                  <span className="text-xs font-bold text-primary uppercase">Compare ({comparisonPlots.length}/3)</span>
+                  <button onClick={() => setComparisonPlots([])} className="ml-auto text-xs text-muted-foreground hover:text-foreground">Clear</button>
+                </div>
+                <div className="flex flex-wrap gap-1">
+                  {comparisonPlots.map(p => (
+                    <span key={p.id} className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-primary/20 text-xs font-medium text-primary">
+                      {p.id}
+                      <button onClick={() => setComparisonPlots(prev => prev.filter(cp => cp.id !== p.id))} className="hover:text-destructive">
+                        <X className="w-3 h-3" />
+                      </button>
+                    </span>
+                  ))}
+                </div>
+              </div>
+            )}
 
             {/* Search & Filters */}
             <SearchFilters
@@ -444,13 +502,33 @@ export function HyperPlotAI() {
                 )}
 
                 {filteredPlots.slice(0, 50).map(plot => (
-                  <PlotListItem
-                    key={plot.id}
-                    plot={plot}
-                    isSelected={selectedPlot?.id === plot.id}
-                    isHighlighted={highlightedPlots.includes(plot.id)}
-                    onClick={() => handlePlotClick(plot)}
-                  />
+                  <div key={plot.id} className="relative group">
+                    <PlotListItem
+                      plot={plot}
+                      isSelected={selectedPlot?.id === plot.id}
+                      isHighlighted={highlightedPlots.includes(plot.id)}
+                      onClick={() => handlePlotClick(plot)}
+                    />
+                    {/* Compare toggle button */}
+                    <button
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        setComparisonPlots(prev => {
+                          if (prev.find(p => p.id === plot.id)) return prev.filter(p => p.id !== plot.id);
+                          if (prev.length >= 3) return prev;
+                          return [...prev, plot];
+                        });
+                      }}
+                      className={`absolute top-2 right-2 p-1 rounded-md transition-all ${
+                        comparisonPlots.find(p => p.id === plot.id)
+                          ? 'bg-primary text-primary-foreground'
+                          : 'bg-muted/80 text-muted-foreground opacity-0 group-hover:opacity-100'
+                      }`}
+                      title={comparisonPlots.find(p => p.id === plot.id) ? 'Remove from comparison' : 'Add to comparison'}
+                    >
+                      <GitCompareArrows className="w-3.5 h-3.5" />
+                    </button>
+                  </div>
                 ))}
                 {filteredPlots.length > 50 && (
                   <div className="text-center py-4 text-sm text-muted-foreground">

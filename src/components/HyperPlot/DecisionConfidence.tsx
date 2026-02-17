@@ -1,5 +1,5 @@
 import { useState, useMemo, useEffect } from 'react';
-import { Loader2, TrendingUp, DollarSign, Building2, BarChart3, Target, Shield, Printer, Maximize2, Minimize2, Settings2 } from 'lucide-react';
+import { Loader2, TrendingUp, DollarSign, Building2, BarChart3, Target, Shield, Printer, Maximize2, Minimize2, Settings2, GitCompareArrows } from 'lucide-react';
 import { Checkbox } from '@/components/ui/checkbox';
 import { PlotData, AffectionPlanData, gisService } from '@/services/DDAGISService';
 import { calcDSCFeasibility, DSCPlotInput, DSCFeasibilityResult, MixKey, MIX_TEMPLATES, COMPS, UNIT_SIZES, RENT_PSF_YR, BENCHMARK_AVG_PSF, TXN_AVG_PSF, TXN_AVG_SIZE, TXN_AVG_PRICE, TXN_MEDIAN_PSF, TXN_COUNT, TXN_WEIGHTED_AVG_PSF, fmt, fmtM, fmtA, pct } from '@/lib/dscFeasibility';
@@ -11,6 +11,7 @@ import { Input } from '@/components/ui/input';
 
 interface DecisionConfidenceProps {
   plot: PlotData;
+  comparisonPlots?: PlotData[];
   isFullscreen?: boolean;
   onToggleFullscreen?: () => void;
 }
@@ -75,13 +76,13 @@ function isDSCPlot(plot: PlotData): boolean {
   return loc.includes('sport') || proj.includes('sport') || loc.includes('dsc') || proj.includes('dsc') || zone.includes('sport');
 }
 
-export function DecisionConfidence({ plot, isFullscreen, onToggleFullscreen }: DecisionConfidenceProps) {
+export function DecisionConfidence({ plot, comparisonPlots = [], isFullscreen, onToggleFullscreen }: DecisionConfidenceProps) {
   const [activeMix, setActiveMix] = useState<MixKey>('balanced');
   const [plan, setPlan] = useState<AffectionPlanData | null>(null);
   const [loading, setLoading] = useState(true);
   const [editMode, setEditMode] = useState(false);
   const [overrides, setOverrides] = useState<{ area?: number; ratio?: number; height?: string; efficiency?: number; landCostPsf?: number; constructionPsf?: number; buaMultiplier?: number; avgPsfOverride?: number; contingencyPct?: number; financePct?: number }>({});
-  const [activeTab, setActiveTab] = useState<'feasibility' | 'comparison' | 'sensitivity'>('feasibility');
+  const [activeTab, setActiveTab] = useState<'feasibility' | 'comparison' | 'sensitivity' | 'plotCompare'>('feasibility');
   const [includeContingency, setIncludeContingency] = useState(true);
   const [includeFinance, setIncludeFinance] = useState(true);
 
@@ -117,6 +118,15 @@ export function DecisionConfidence({ plot, isFullscreen, onToggleFullscreen }: D
     });
     return result;
   }, [dscInput, activeMix, overrides, includeContingency, includeFinance]);
+
+  // Compute feasibility for comparison plots
+  const compResults = useMemo(() => {
+    return comparisonPlots.filter(p => isDSCPlot(p)).map(p => {
+      const input = toDSCInput(p, null);
+      const result = calcDSCFeasibility(input, activeMix);
+      return { plot: p, input, result };
+    });
+  }, [comparisonPlots, activeMix]);
 
   if (loading) {
     return (
@@ -248,7 +258,7 @@ export function DecisionConfidence({ plot, isFullscreen, onToggleFullscreen }: D
 
         {/* Tab bar */}
         <div className="flex gap-1 mt-3 bg-muted/40 p-0.5 rounded-lg">
-          {([['feasibility', '📊 Feasibility'], ['comparison', '📐 Benchmarks'], ['sensitivity', '🎯 Sensitivity']] as const).map(([k, l]) => (
+          {([['feasibility', '📊 Feasibility'], ['comparison', '📐 Benchmarks'], ['sensitivity', '🎯 Sensitivity'], ...(compResults.length > 0 ? [['plotCompare', `⚔️ Compare (${compResults.length})`]] : [])] as const).map(([k, l]) => (
             <button key={k} onClick={() => setActiveTab(k as typeof activeTab)}
               className={`flex-1 text-[11px] font-bold py-1.5 rounded-md transition-all ${activeTab === k ? 'bg-primary text-primary-foreground' : 'text-muted-foreground hover:text-foreground'}`}>
               {l}
@@ -706,6 +716,74 @@ export function DecisionConfidence({ plot, isFullscreen, onToggleFullscreen }: D
                 <KpiCard label="Buffer" value={`+AED ${fmt(Math.round(1565 - fs.breakEvenPsf))}`} sub="vs break-even" positive={fs.breakEvenPsf < 1565} negative={fs.breakEvenPsf > 1565} />
               </div>
             </Section>
+          )}
+
+          {/* ─── PLOT COMPARE TAB ─── */}
+          {activeTab === 'plotCompare' && compResults.length > 0 && (
+            <Section title="Side-by-Side Plot Comparison" badge={`${compResults.length + 1} plots`}>
+              <div className="overflow-x-auto">
+                <Table>
+                  <TableHeader>
+                    <TableRow>
+                      {['Metric', `📍 ${plot.id} (Primary)`, ...compResults.map(c => `📍 ${c.plot.id}`)].map(h => (
+                        <TableHead key={h} className="text-xs text-right first:text-left whitespace-nowrap">{h}</TableHead>
+                      ))}
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {[
+                      { label: 'Location', vals: [plot.location || '-', ...compResults.map(c => c.plot.location || '-')] },
+                      { label: 'Plot Area (sqft)', vals: [fmt(Math.round(dscInput.area)), ...compResults.map(c => fmt(Math.round(c.input.area)))] },
+                      { label: 'GFA (sqft)', vals: [fmt(Math.round(fs.gfa)), ...compResults.map(c => fmt(Math.round(c.result.gfa)))] },
+                      { label: 'Sellable Area', vals: [fmt(Math.round(fs.sellableArea)), ...compResults.map(c => fmt(Math.round(c.result.sellableArea)))] },
+                      { label: 'Total Units', vals: [fmt(fs.units.total), ...compResults.map(c => fmt(c.result.units.total))] },
+                      { label: 'GDV', vals: [fmtM(fs.grossSales), ...compResults.map(c => fmtM(c.result.grossSales))] },
+                      { label: 'Total Cost', vals: [fmtM(fs.totalCost), ...compResults.map(c => fmtM(c.result.totalCost))] },
+                      { label: 'Net Profit', vals: [fmtM(fs.grossProfit), ...compResults.map(c => fmtM(c.result.grossProfit))] },
+                      { label: 'Gross Margin', vals: [pct(fs.grossMargin), ...compResults.map(c => pct(c.result.grossMargin))] },
+                      { label: 'ROI', vals: [pct(fs.roi), ...compResults.map(c => pct(c.result.roi))] },
+                      { label: 'Avg PSF', vals: [`AED ${fmt(Math.round(fs.avgPsf))}`, ...compResults.map(c => `AED ${fmt(Math.round(c.result.avgPsf))}`)] },
+                      { label: 'Break-Even PSF', vals: [`AED ${fmt(Math.round(fs.breakEvenPsf))}`, ...compResults.map(c => `AED ${fmt(Math.round(c.result.breakEvenPsf))}`)] },
+                      { label: 'Rental Yield', vals: [pct(fs.grossYield), ...compResults.map(c => pct(c.result.grossYield))] },
+                      { label: 'Status', vals: [plot.status, ...compResults.map(c => c.plot.status)] },
+                    ].map(row => (
+                      <TableRow key={row.label}>
+                        <TableCell className="text-sm font-medium py-2">{row.label}</TableCell>
+                        {row.vals.map((v, i) => (
+                          <TableCell key={i} className={`text-sm text-right font-mono py-2 ${i === 0 ? 'text-primary font-bold' : ''}`}>{v}</TableCell>
+                        ))}
+                      </TableRow>
+                    ))}
+                  </TableBody>
+                </Table>
+              </div>
+
+              {/* Winner summary */}
+              <div className="mt-4 p-3 rounded-lg bg-muted/30 border border-border/30">
+                <div className="text-xs font-bold text-muted-foreground uppercase tracking-wider mb-2">Quick Verdict</div>
+                {(() => {
+                  const allPlots = [{ id: plot.id, roi: fs.roi, margin: fs.grossMargin, profit: fs.grossProfit }, ...compResults.map(c => ({ id: c.plot.id, roi: c.result.roi, margin: c.result.grossMargin, profit: c.result.grossProfit }))];
+                  const bestRoi = allPlots.reduce((a, b) => a.roi > b.roi ? a : b);
+                  const bestMargin = allPlots.reduce((a, b) => a.margin > b.margin ? a : b);
+                  const bestProfit = allPlots.reduce((a, b) => a.profit > b.profit ? a : b);
+                  return (
+                    <div className="space-y-1 text-sm">
+                      <div><span className="text-muted-foreground">Highest ROI:</span> <span className="font-bold text-success">{bestRoi.id}</span> ({pct(bestRoi.roi)})</div>
+                      <div><span className="text-muted-foreground">Best Margin:</span> <span className="font-bold text-success">{bestMargin.id}</span> ({pct(bestMargin.margin)})</div>
+                      <div><span className="text-muted-foreground">Highest Profit:</span> <span className="font-bold text-success">{bestProfit.id}</span> ({fmtM(bestProfit.profit)})</div>
+                    </div>
+                  );
+                })()}
+              </div>
+            </Section>
+          )}
+
+          {activeTab === 'plotCompare' && compResults.length === 0 && (
+            <div className="text-center py-12 text-muted-foreground">
+              <GitCompareArrows className="w-10 h-10 mx-auto mb-3 opacity-30" />
+              <p className="text-sm font-medium">No comparison plots selected</p>
+              <p className="text-xs mt-1">Hover over plots in the right sidebar and click the compare icon to add up to 3 plots.</p>
+            </div>
           )}
 
           {/* Bottom spacer for mix nav */}
