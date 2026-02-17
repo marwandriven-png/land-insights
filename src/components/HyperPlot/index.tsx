@@ -383,12 +383,12 @@ export function HyperPlotAI() {
           <div className="col-span-4 glass-card glow-border p-4 flex flex-col h-full overflow-hidden">
             <div className="flex items-center justify-between mb-4">
               <div>
-                <h3 className="font-bold text-sm">Available Plots</h3>
-                <p className="text-xs text-muted-foreground">
+                <h3 className="font-bold text-base">Available Plots</h3>
+                <p className="text-sm text-muted-foreground">
                   {gisConnected ? 'Live DDA GIS Data' : 'Demo Mode'} • {filteredPlots.length} plots
                 </p>
               </div>
-              <div className="px-2 py-1 bg-primary/20 rounded text-xs font-bold text-primary">
+              <div className="px-2.5 py-1 bg-primary/20 rounded text-sm font-bold text-primary">
                 {filteredPlots.length}
               </div>
             </div>
@@ -409,7 +409,7 @@ export function HyperPlotAI() {
                   <div className="mb-3">
                     <div className="flex items-center gap-1.5 mb-2">
                       <Clock className="w-3.5 h-3.5 text-muted-foreground" />
-                      <span className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wide">Last Seen</span>
+                      <span className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">Last Seen</span>
                     </div>
                     {lastSeen.slice(0, 5).map(entry => {
                       const matchedPlot = plots.find(p => p.id === entry.plotId);
@@ -425,15 +425,15 @@ export function HyperPlotAI() {
                               if (fetched) handlePlotFound(fetched);
                             }
                           }}
-                          className="w-full text-left mb-1.5 px-3 py-2 rounded-lg border transition-all text-xs border-border/50 bg-muted/20 hover:bg-muted/40 cursor-pointer"
+                          className="w-full text-left mb-1.5 px-3 py-2.5 rounded-lg border transition-all text-sm border-border/50 bg-muted/20 hover:bg-muted/40 cursor-pointer"
                         >
                           <div className="flex items-center justify-between">
                             <span className="font-semibold text-foreground">{entry.plotId}</span>
-                            <span className="text-[10px] text-muted-foreground">
+                            <span className="text-xs text-muted-foreground">
                               {new Date(entry.timestamp).toLocaleDateString()}
                             </span>
                           </div>
-                          <div className="text-muted-foreground mt-0.5">
+                          <div className="text-muted-foreground text-xs mt-0.5">
                             {entry.location} • {entry.area.toLocaleString()} m²
                           </div>
                         </button>
