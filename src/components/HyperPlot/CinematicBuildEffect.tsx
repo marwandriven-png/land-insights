@@ -109,7 +109,7 @@ export function CinematicBuildEffect({ map, plot, boundaryReady }: CinematicBuil
       if (progress < 1) {
         animFrameRef.current = requestAnimationFrame(animateBuild);
       } else {
-        // Phase 4: show building
+        // Phase 4: show building with parallax
         setTimeout(() => {
           setShowBuilding(true);
 
@@ -124,6 +124,16 @@ export function CinematicBuildEffect({ map, plot, boundaryReady }: CinematicBuil
             overlayRef.current.style.transition = 'opacity 0.6s ease-out';
             overlayRef.current.style.opacity = '0';
           }
+
+          // Parallax: shift building render subtly on map pan
+          const parallaxHandler = () => {
+            if (!buildingOverlayRef.current) return;
+            const mapCenter = map.getCenter();
+            const dx = (mapCenter.lng - center.lng) * 800;
+            const dy = (mapCenter.lat - center.lat) * -800;
+            buildingOverlayRef.current.style.transform = `translate(${dx * 0.15}px, ${dy * 0.15}px)`;
+          };
+          map.on('move', parallaxHandler);
         }, 200);
       }
     }

@@ -360,6 +360,7 @@
   pointer-events: none;
   animation: cinematic-building-fadein 0.8s ease-out forwards;
   opacity: 0;
+  transition: transform 0.3s ease-out;
 }
 
 .cinematic-building-image {
@@ -370,11 +371,12 @@
   box-shadow:
     0 0 20px rgba(0, 255, 170, 0.2),
     0 8px 32px rgba(0, 0, 0, 0.6);
+  opacity: 0.7;
 }
 
 @keyframes cinematic-building-fadein {
   0% { opacity: 0; transform: translateY(10px) scale(0.95); }
-  100% { opacity: 1; transform: translateY(0) scale(1); }
+  100% { opacity: 0.85; transform: translateY(0) scale(1); }
 }
 
 /* Desaturate surrounding map tiles when cinematic is active */
