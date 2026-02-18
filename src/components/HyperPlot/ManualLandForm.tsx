@@ -4,7 +4,6 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
 import { Badge } from '@/components/ui/badge';
-import { ScrollArea } from '@/components/ui/scroll-area';
 import { toast } from 'sonner';
 import L from 'leaflet';
 import {
@@ -276,7 +275,7 @@ export function ManualLandForm({ open, onClose, onLandSaved, editEntry }: Manual
         </div>
 
         {/* Body */}
-        <ScrollArea className="flex-1 min-h-0">
+        <div className="flex-1 min-h-0 overflow-y-auto">
           <div className="p-5 space-y-3">
             {/* Section A: Identification */}
             <SectionHeader id="id" label="Identification" icon={<MapPin className="w-4 h-4 text-primary" />} />
@@ -460,7 +459,7 @@ export function ManualLandForm({ open, onClose, onLandSaved, editEntry }: Manual
               </div>
             )}
           </div>
-        </ScrollArea>
+        </div>
 
         {/* Footer */}
         <div className="flex items-center justify-between p-5 border-t border-border/50 shrink-0">
