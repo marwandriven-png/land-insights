@@ -30,6 +30,7 @@ function getVerificationBadge(source: VerificationSource) {
     'DDA': { bg: 'bg-primary/20', text: 'text-primary', label: 'Verified via DDA' },
     'DLD': { bg: 'bg-secondary/20', text: 'text-secondary', label: 'Verified via Dubai Land Department' },
     'Demo': { bg: 'bg-muted', text: 'text-muted-foreground', label: 'Demo Data' },
+    'Manual': { bg: 'bg-warning/20', text: 'text-warning', label: 'Manual Entry' },
   };
   return styles[source] || styles['Demo'];
 }
@@ -228,6 +229,7 @@ function AffectionPlanSection({ plotId }: { plotId: string }) {
 export function PlotDetailPanel({ plot, onClose, onSelectPlot, onGoToLocation }: PlotDetailPanelProps) {
   const listed = isPlotListed(plot.id);
   const exported = getExportedPlotIds().has(plot.id);
+  const isManual = plot.verificationSource === 'Manual';
 
   return (
     <div className="fixed right-4 top-4 bottom-4 w-96 z-[1001] animate-in slide-in-from-right duration-300">
@@ -270,6 +272,9 @@ export function PlotDetailPanel({ plot, onClose, onSelectPlot, onGoToLocation }:
               )}
               {!listed && exported && (
                 <Badge variant="secondary">Exported</Badge>
+              )}
+              {isManual && (
+                <Badge className="bg-warning/20 text-warning border-warning/30">Manual Entry</Badge>
               )}
             </div>
             {onGoToLocation && (

@@ -92,14 +92,23 @@ export function LeafletMap({ plots, selectedPlot, onPlotClick, highlightedPlots,
       let glowLayer: L.Polygon | L.CircleMarker | null = null;
       const active = isSelectedOrHighlighted(plot.id);
       const isSelected = selectedPlot?.id === plot.id;
+      const isManualLatLng = rawAttrs && (rawAttrs as Record<string, unknown>)._isManualLatLng === true;
 
       if (rawAttrs && (rawAttrs as Record<string, unknown>).geometry) {
-        const geom = (rawAttrs as Record<string, unknown>).geometry as { rings?: number[][][] };
+        const geom = (rawAttrs as Record<string, unknown>).geometry as { rings?: number[][][]; x?: number; y?: number };
         if (geom.rings && geom.rings.length > 0) {
-          const latLngs = geom.rings[0].map(coord => {
-            const [lat, lng] = convertToLatLng(coord[0], coord[1]);
-            return L.latLng(lat, lng);
-          });
+          let latLngs: L.LatLng[];
+
+          if (isManualLatLng) {
+            // Manual land: rings store [lng, lat] pairs — convert to L.LatLng
+            latLngs = geom.rings[0].map(coord => L.latLng(coord[1], coord[0]));
+          } else {
+            // DDA land: rings store EPSG:3997 coords
+            latLngs = geom.rings[0].map(coord => {
+              const [lat, lng] = convertToLatLng(coord[0], coord[1]);
+              return L.latLng(lat, lng);
+            });
+          }
 
           if (active) {
             glowLayer = L.polygon(latLngs, {
@@ -121,7 +130,13 @@ export function LeafletMap({ plots, selectedPlot, onPlotClick, highlightedPlots,
             fillOpacity: active ? 0.65 : 0.35
           });
         } else {
-          const [lat, lng] = convertToLatLng(plot.x * 10 + 495000, plot.y * 10 + 2766000);
+          // Fallback to point
+          let lat: number, lng: number;
+          if (isManualLatLng) {
+            lat = plot.y; lng = plot.x;
+          } else {
+            [lat, lng] = convertToLatLng(plot.x * 10 + 495000, plot.y * 10 + 2766000);
+          }
           polygon = L.circleMarker([lat, lng], {
             radius: 8,
             color: isSelected ? '#ffffff' : active ? '#00e5ff' : DDA_BLUE,
@@ -132,7 +147,13 @@ export function LeafletMap({ plots, selectedPlot, onPlotClick, highlightedPlots,
           });
         }
       } else {
-        const [lat, lng] = convertToLatLng(plot.x * 10 + 495000, plot.y * 10 + 2766000);
+        // No geometry — render as point
+        let lat: number, lng: number;
+        if (isManualLatLng) {
+          lat = plot.y; lng = plot.x;
+        } else {
+          [lat, lng] = convertToLatLng(plot.x * 10 + 495000, plot.y * 10 + 2766000);
+        }
         polygon = L.circleMarker([lat, lng], {
           radius: 8,
           color: isSelected ? '#ffffff' : active ? '#00e5ff' : DDA_BLUE,

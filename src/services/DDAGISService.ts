@@ -1,6 +1,6 @@
 import { supabase } from "@/integrations/supabase/client";
 
-export type VerificationSource = 'DDA' | 'DLD' | 'Demo';
+export type VerificationSource = 'DDA' | 'DLD' | 'Demo' | 'Manual';
 
 export interface PlotData {
   id: string;
