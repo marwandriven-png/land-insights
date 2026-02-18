@@ -169,9 +169,6 @@ export function ManualLandForm({ open, onClose, onLandSaved, editEntry }: Manual
 
   const validate = (): boolean => {
     const errs: Record<string, string> = {};
-    if (!entry.areaName.trim()) errs.areaName = 'Area name is required';
-    if (entry.plotAreaSqm <= 0) errs.plotAreaSqm = 'Plot area must be > 0';
-    if (entry.gfaSqm <= 0) errs.gfaSqm = 'GFA must be > 0';
     if (!entry.latitude || !entry.longitude) errs.latitude = 'Coordinates are required';
     setErrors(errs);
     return Object.keys(errs).length === 0;
