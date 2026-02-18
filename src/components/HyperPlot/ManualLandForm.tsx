@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
-import { X, MapPin, Save, Plus, Trash2, ChevronDown, ChevronUp, Eye } from 'lucide-react';
+import { X, MapPin, Save, Plus, Trash2, ChevronDown, ChevronUp, Eye, Search, Loader2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
@@ -36,7 +36,8 @@ export function ManualLandForm({ open, onClose, onLandSaved, editEntry }: Manual
   const polygonRef = useRef<L.Polygon | null>(null);
   const [drawingPolygon, setDrawingPolygon] = useState(false);
   const [polygonPoints, setPolygonPoints] = useState<[number, number][]>([]);
-
+  const [locationSearch, setLocationSearch] = useState('');
+  const [isGeocoding, setIsGeocoding] = useState(false);
   useEffect(() => {
     if (open) {
       setEntry(editEntry || createDefaultManualLand());
@@ -211,11 +212,38 @@ export function ManualLandForm({ open, onClose, onLandSaved, editEntry }: Manual
       toast.error('Need at least 3 points for a polygon');
       return;
     }
-    // Calculate centroid
     const avgLat = polygonPoints.reduce((s, p) => s + p[0], 0) / polygonPoints.length;
     const avgLng = polygonPoints.reduce((s, p) => s + p[1], 0) / polygonPoints.length;
     setEntry(prev => ({ ...prev, latitude: parseFloat(avgLat.toFixed(6)), longitude: parseFloat(avgLng.toFixed(6)) }));
     toast.success(`Polygon drawn with ${polygonPoints.length} points`);
+  };
+
+  const handleGeocode = async () => {
+    const query = locationSearch.trim() || entry.areaName.trim();
+    if (!query) {
+      toast.error('Enter a location or area name first');
+      return;
+    }
+    setIsGeocoding(true);
+    try {
+      const searchQuery = query.toLowerCase().includes('dubai') ? query : `${query}, Dubai, UAE`;
+      const res = await fetch(`https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(searchQuery)}&limit=1&countrycodes=ae`);
+      const data = await res.json();
+      if (data.length > 0) {
+        const lat = parseFloat(parseFloat(data[0].lat).toFixed(6));
+        const lng = parseFloat(parseFloat(data[0].lon).toFixed(6));
+        setEntry(prev => ({ ...prev, latitude: lat, longitude: lng }));
+        miniMapInstanceRef.current?.setView([lat, lng], 16);
+        markerRef.current?.setLatLng([lat, lng]);
+        toast.success(`Found: ${data[0].display_name.split(',').slice(0, 3).join(',')}`);
+      } else {
+        toast.error('Location not found. Try a different name or enter coordinates manually.');
+      }
+    } catch {
+      toast.error('Geocoding failed. Check your connection.');
+    } finally {
+      setIsGeocoding(false);
+    }
   };
 
   if (!open) return null;
@@ -294,6 +322,24 @@ export function ManualLandForm({ open, onClose, onLandSaved, editEntry }: Manual
             <SectionHeader id="location" label="Location & Coordinates" icon={<MapPin className="w-4 h-4 text-secondary" />} />
             {expandedSections.has('location') && (
               <div className="space-y-3 px-1">
+                {/* Location Search */}
+                <div>
+                  <label className="text-xs text-muted-foreground font-medium">Search Location</label>
+                  <div className="flex gap-2 mt-0.5">
+                    <Input
+                      value={locationSearch}
+                      onChange={e => setLocationSearch(e.target.value)}
+                      placeholder="e.g. Jumeirah Garden City, Business Bay..."
+                      className="h-9 text-sm flex-1"
+                      onKeyDown={e => e.key === 'Enter' && (e.preventDefault(), handleGeocode())}
+                    />
+                    <Button variant="outline" size="sm" onClick={handleGeocode} disabled={isGeocoding} className="gap-1.5 h-9 shrink-0">
+                      {isGeocoding ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Search className="w-3.5 h-3.5" />}
+                      {isGeocoding ? 'Searching...' : 'Find'}
+                    </Button>
+                  </div>
+                  <p className="text-[10px] text-muted-foreground mt-0.5">Type a location name and click Find to auto-fill coordinates</p>
+                </div>
                 <div className="grid grid-cols-2 gap-3">
                   <div>
                     <label className="text-xs text-muted-foreground font-medium">Latitude *</label>
