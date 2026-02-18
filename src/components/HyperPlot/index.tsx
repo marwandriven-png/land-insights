@@ -1,8 +1,9 @@
 import { useState, useEffect, useCallback, useMemo, useRef } from 'react';
-import { Map, Home, BarChart3, Brain, AlertCircle, X, RefreshCw, Wifi, WifiOff, Target, Clock, Settings, Shield, GitCompareArrows } from 'lucide-react';
+import { Map, Home, BarChart3, Brain, AlertCircle, X, RefreshCw, Wifi, WifiOff, Target, Clock, Settings, Shield, GitCompareArrows, Plus } from 'lucide-react';
 import xEstateLogo from '@/assets/X-Estate_Logo.svg';
 import { addLastSeen, getLastSeen, LastSeenEntry } from '@/services/LastSeenService';
 import { gisService, PlotData, generateDemoPlots } from '@/services/DDAGISService';
+import { loadManualLands, manualLandToPlotData } from '@/services/ManualLandService';
 import { Header } from './Header';
 import { LeafletMap } from './LeafletMap';
 import { DecisionConfidence } from './DecisionConfidence';
@@ -12,6 +13,7 @@ import { SearchFilters, FilterState } from './SearchFilters';
 import { PlotListItem } from './PlotListItem';
 import { LandMatchingWizard } from './LandMatchingWizard';
 import { FeasibilitySettings } from './FeasibilitySettings';
+import { ManualLandForm } from './ManualLandForm';
 import { Button } from '@/components/ui/button';
 import { ScrollArea } from '@/components/ui/scroll-area';
 
@@ -35,6 +37,7 @@ export function HyperPlotAI() {
   const [showDetailPanel, setShowDetailPanel] = useState(false);
   const [showWizard, setShowWizard] = useState(false);
   const [showFeasibilitySettings, setShowFeasibilitySettings] = useState(false);
+  const [showManualLandForm, setShowManualLandForm] = useState(false);
   const [decisionFullscreen, setDecisionFullscreen] = useState(false);
   const [lastSeen, setLastSeen] = useState<LastSeenEntry[]>(getLastSeen());
   const [comparisonPlots, setComparisonPlots] = useState<PlotData[]>([]);
@@ -61,6 +64,15 @@ export function HyperPlotAI() {
     loadGISData();
   }, []);
 
+  // Load manual lands from localStorage
+  const mergeManualLands = useCallback((basePlots: PlotData[]) => {
+    const manualLands = loadManualLands().map(manualLandToPlotData);
+    // Merge: manual lands added alongside GIS plots (avoid duplicates by id)
+    const gisIds = new Set(basePlots.map(p => p.id));
+    const newManual = manualLands.filter(m => !gisIds.has(m.id));
+    return [...basePlots, ...newManual];
+  }, []);
+
   async function loadGISData() {
     setIsLoadingGIS(true);
     setGisError(null);
@@ -85,7 +97,7 @@ export function HyperPlotAI() {
       setLoadProgress(100);
 
       if (gisPlots && gisPlots.length > 0) {
-        setPlots(gisPlots);
+        setPlots(mergeManualLands(gisPlots));
       } else {
         throw new Error('No plot data received from GIS service');
       }
@@ -97,11 +109,19 @@ export function HyperPlotAI() {
       setGisConnected(false);
 
       const demoPlots = generateDemoPlots();
-      setPlots(demoPlots);
+      setPlots(mergeManualLands(demoPlots));
     } finally {
       setIsLoadingGIS(false);
     }
   }
+
+  const handleManualLandSaved = useCallback((manualPlots: PlotData[]) => {
+    setPlots(prev => {
+      // Remove old manual entries, add new ones
+      const nonManual = prev.filter(p => p.verificationSource !== 'Manual');
+      return [...nonManual, ...manualPlots];
+    });
+  }, []);
 
   // Filter plots based on search and filters
   const filteredPlots = useMemo(() => {
@@ -232,6 +252,16 @@ export function HyperPlotAI() {
                   </>
                 )}
               </div>
+
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => setShowManualLandForm(true)}
+                className="gap-2"
+              >
+                <Plus className="w-4 h-4" />
+                Add Land
+              </Button>
 
               <Button
                 variant="outline"
@@ -590,6 +620,13 @@ export function HyperPlotAI() {
       <FeasibilitySettings
         open={showFeasibilitySettings}
         onClose={() => setShowFeasibilitySettings(false)}
+      />
+
+      {/* Manual Land Entry Form */}
+      <ManualLandForm
+        open={showManualLandForm}
+        onClose={() => setShowManualLandForm(false)}
+        onLandSaved={handleManualLandSaved}
       />
     </div>
   );

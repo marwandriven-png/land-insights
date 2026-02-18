@@ -51,19 +51,29 @@ export function CinematicPlotOverlay({ map, plot }: CinematicPlotOverlayProps) {
 
     const rawAttrs = plot.rawAttributes;
     let latLngs: L.LatLng[] = [];
+    const isManualLatLng = rawAttrs && (rawAttrs as Record<string, unknown>)._isManualLatLng === true;
 
     if (rawAttrs && (rawAttrs as Record<string, unknown>).geometry) {
       const geom = (rawAttrs as Record<string, unknown>).geometry as { rings?: number[][][] };
       if (geom.rings && geom.rings.length > 0) {
-        latLngs = geom.rings[0].map(coord => {
-          const [lat, lng] = convertToLatLng(coord[0], coord[1]);
-          return L.latLng(lat, lng);
-        });
+        if (isManualLatLng) {
+          latLngs = geom.rings[0].map(coord => L.latLng(coord[1], coord[0]));
+        } else {
+          latLngs = geom.rings[0].map(coord => {
+            const [lat, lng] = convertToLatLng(coord[0], coord[1]);
+            return L.latLng(lat, lng);
+          });
+        }
       }
     }
 
     if (latLngs.length === 0) {
-      const [lat, lng] = convertToLatLng(plot.x * 10 + 495000, plot.y * 10 + 2766000);
+      let lat: number, lng: number;
+      if (isManualLatLng) {
+        lat = plot.y; lng = plot.x;
+      } else {
+        [lat, lng] = convertToLatLng(plot.x * 10 + 495000, plot.y * 10 + 2766000);
+      }
       const offset = 0.0005;
       latLngs = [
         L.latLng(lat - offset, lng - offset),
