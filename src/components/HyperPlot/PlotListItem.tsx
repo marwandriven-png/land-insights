@@ -1,11 +1,14 @@
-import { MapPin, Building2, Layers } from 'lucide-react';
+import { MapPin, Building2, Layers, Pencil, Trash2 } from 'lucide-react';
 import { PlotData, calculateFeasibility } from '@/services/DDAGISService';
+import { Badge } from '@/components/ui/badge';
 
 interface PlotListItemProps {
   plot: PlotData;
   isSelected: boolean;
   isHighlighted: boolean;
   onClick: () => void;
+  onEdit?: (plot: PlotData) => void;
+  onDelete?: (plot: PlotData) => void;
 }
 
 function getStatusColor(status: string): string {
@@ -40,7 +43,8 @@ function getZoningColor(zoning: string): string {
   return '#8b5cf6';
 }
 
-export function PlotListItem({ plot, isSelected, isHighlighted, onClick }: PlotListItemProps) {
+export function PlotListItem({ plot, isSelected, isHighlighted, onClick, onEdit, onDelete }: PlotListItemProps) {
+  const isManual = plot.verificationSource === 'Manual';
   const feasibility = calculateFeasibility(plot);
 
   return (
@@ -87,8 +91,31 @@ export function PlotListItem({ plot, isSelected, isHighlighted, onClick }: PlotL
         </div>
       </div>
 
-      <div className="mt-2 text-sm">
-        <span className="text-muted-foreground">{plot.zoning}</span>
+      <div className="mt-2 flex items-center justify-between">
+        <span className="text-sm text-muted-foreground">{plot.zoning}</span>
+        {isManual && (
+          <div className="flex items-center gap-1">
+            <Badge variant="outline" className="text-[10px] border-purple-500/40 text-purple-400">Manual</Badge>
+            {onEdit && (
+              <button
+                onClick={(e) => { e.stopPropagation(); onEdit(plot); }}
+                className="p-1 rounded hover:bg-muted/50 text-muted-foreground hover:text-primary transition-colors"
+                title="Edit"
+              >
+                <Pencil className="w-3.5 h-3.5" />
+              </button>
+            )}
+            {onDelete && (
+              <button
+                onClick={(e) => { e.stopPropagation(); onDelete(plot); }}
+                className="p-1 rounded hover:bg-destructive/20 text-muted-foreground hover:text-destructive transition-colors"
+                title="Delete"
+              >
+                <Trash2 className="w-3.5 h-3.5" />
+              </button>
+            )}
+          </div>
+        )}
       </div>
     </div>
   );

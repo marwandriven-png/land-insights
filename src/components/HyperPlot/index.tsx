@@ -3,7 +3,7 @@ import { Map, Home, BarChart3, Brain, AlertCircle, X, RefreshCw, Wifi, WifiOff, 
 import xEstateLogo from '@/assets/X-Estate_Logo.svg';
 import { addLastSeen, getLastSeen, LastSeenEntry } from '@/services/LastSeenService';
 import { gisService, PlotData, generateDemoPlots } from '@/services/DDAGISService';
-import { loadManualLands, manualLandToPlotData } from '@/services/ManualLandService';
+import { loadManualLands, manualLandToPlotData, deleteManualLand, ManualLandEntry } from '@/services/ManualLandService';
 import { Header } from './Header';
 import { LeafletMap } from './LeafletMap';
 import { DecisionConfidence } from './DecisionConfidence';
@@ -38,6 +38,7 @@ export function HyperPlotAI() {
   const [showWizard, setShowWizard] = useState(false);
   const [showFeasibilitySettings, setShowFeasibilitySettings] = useState(false);
   const [showManualLandForm, setShowManualLandForm] = useState(false);
+  const [editingManualLand, setEditingManualLand] = useState<ManualLandEntry | null>(null);
   const [decisionFullscreen, setDecisionFullscreen] = useState(false);
   const [lastSeen, setLastSeen] = useState<LastSeenEntry[]>(getLastSeen());
   const [comparisonPlots, setComparisonPlots] = useState<PlotData[]>([]);
@@ -122,6 +123,32 @@ export function HyperPlotAI() {
       return [...nonManual, ...manualPlots];
     });
   }, []);
+
+  const handleEditManualLand = useCallback((plot: PlotData) => {
+    const manualId = plot.rawAttributes?._manualId || plot.id;
+    const allManual = loadManualLands();
+    const entry = allManual.find(l => l.id === manualId || l.plotNumber === plot.id);
+    if (entry) {
+      setEditingManualLand(entry);
+      setShowManualLandForm(true);
+    }
+  }, []);
+
+  const handleDeleteManualLand = useCallback((plot: PlotData) => {
+    const manualId = plot.rawAttributes?._manualId || plot.id;
+    const allManual = loadManualLands();
+    const entry = allManual.find(l => l.id === manualId || l.plotNumber === plot.id);
+    if (entry) {
+      if (window.confirm(`Delete manual land "${entry.plotNumber || entry.id}"?`)) {
+        deleteManualLand(entry.id);
+        setPlots(prev => prev.filter(p => p.id !== plot.id));
+        if (selectedPlot?.id === plot.id) {
+          setSelectedPlot(null);
+          setShowDetailPanel(false);
+        }
+      }
+    }
+  }, [selectedPlot]);
 
   // Filter plots based on search and filters
   const filteredPlots = useMemo(() => {
@@ -557,6 +584,8 @@ export function HyperPlotAI() {
                       isSelected={selectedPlot?.id === plot.id}
                       isHighlighted={highlightedPlots.includes(plot.id)}
                       onClick={() => handlePlotClick(plot, true)}
+                      onEdit={plot.verificationSource === 'Manual' ? handleEditManualLand : undefined}
+                      onDelete={plot.verificationSource === 'Manual' ? handleDeleteManualLand : undefined}
                     />
                     {/* Compare toggle button */}
                     <button
@@ -625,8 +654,9 @@ export function HyperPlotAI() {
       {/* Manual Land Entry Form */}
       <ManualLandForm
         open={showManualLandForm}
-        onClose={() => setShowManualLandForm(false)}
+        onClose={() => { setShowManualLandForm(false); setEditingManualLand(null); }}
         onLandSaved={handleManualLandSaved}
+        editEntry={editingManualLand}
       />
     </div>
   );
