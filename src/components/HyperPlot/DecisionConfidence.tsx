@@ -49,15 +49,33 @@ function KpiCard({ label, value, sub, accent, positive, negative }: {
   );
 }
 
-// Section wrapper
-function Section({ title, badge, children }: { title: string; badge?: string; children: React.ReactNode }) {
+// Section wrapper with numbered header matching HTML template
+function Section({ num, title, badge, children }: { num?: number; title: string; badge?: string; children: React.ReactNode }) {
   return (
-    <div className="mb-6">
-      <div className="flex items-center gap-2 mb-3 pb-2 border-b border-border/50">
+    <div className="mb-6 animate-fade-in">
+      <div className="flex items-center gap-2.5 mb-4 pb-3 border-b border-border/50">
+        {num != null && (
+          <span className="w-8 h-8 flex items-center justify-center rounded-md bg-gradient-to-br from-primary to-cyan-500 text-primary-foreground font-extrabold text-xs shrink-0">{num}</span>
+        )}
         <h3 className="text-sm font-bold text-muted-foreground uppercase tracking-widest">{title}</h3>
-        {badge && <Badge variant="outline" className="text-xs border-primary/40 text-primary">{badge}</Badge>}
+        {badge && <Badge variant="outline" className="text-xs border-primary/40 text-primary ml-auto">{badge}</Badge>}
       </div>
       {children}
+    </div>
+  );
+}
+
+// Progress bar component
+function ProgressBar({ label, value, suffix, percent }: { label: string; value: string; suffix?: string; percent: number }) {
+  return (
+    <div className="mb-3">
+      <div className="flex justify-between mb-1.5 text-sm">
+        <span className="text-muted-foreground">{label}</span>
+        <span className="font-semibold text-foreground">{value}{suffix ? ` ${suffix}` : ''}</span>
+      </div>
+      <div className="h-1.5 bg-muted/50 rounded-full overflow-hidden">
+        <div className="h-full rounded-full bg-gradient-to-r from-primary to-cyan-500 transition-all duration-700" style={{ width: `${Math.min(percent, 100)}%` }} />
+      </div>
     </div>
   );
 }
@@ -439,39 +457,46 @@ export function DecisionConfidence({ plot, comparisonPlots = [], isFullscreen, o
           {activeTab === 'feasibility' && (
             <>
               {/* 1. Dev Config */}
-              <Section title="1 · Development Configuration">
-                <div className="overflow-x-auto">
-                  <Table>
-                    <TableHeader>
-                      <TableRow><TableHead className="text-xs">Parameter</TableHead><TableHead className="text-xs text-right">Value</TableHead><TableHead className="text-xs text-right">Notes</TableHead></TableRow>
-                    </TableHeader>
-                    <TableBody>
+              <Section num={1} title="Development Configuration">
+                <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+                  {/* Plot Details Card */}
+                  <div className="data-card">
+                    <h4 className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-3">Plot Details</h4>
+                    <div className="space-y-2">
                       {[
-                        ['Plot Area', `${fmt(dscInput.area)} sqft`, `${(dscInput.area / 43560).toFixed(2)} acres`],
-                        ['Plot Ratio', `× ${dscInput.ratio.toFixed(2)}`, 'Authority-approved FAR'],
-                        ['GFA', `${fmt(Math.round(fs.gfa))} sqft`, 'Plot Area × Ratio'],
-                        ['Sellable Area', `${fmt(Math.round(fs.sellableArea))} sqft`, `GFA × ${((overrides.efficiency || 0.95) * 100).toFixed(0)}% Efficiency`],
-                        ['BUA', `${fmt(Math.round(fs.bua))} sqft`, `GFA × ${overrides.buaMultiplier || 1.45}`],
-                        ['Approved Height', dscInput.height, 'From affection plan'],
-                        ['Est. Floors', `${fs.residentialFloors}`, `GFA ÷ (Plot × ${((overrides.efficiency || 0.95) * 100).toFixed(0)}%)`],
-                        ['Floor Plate Efficiency', `${((overrides.efficiency || 0.95) * 100).toFixed(0)}%`, 'Overridable'],
-                        ['Avg Selling PSF', `AED ${fmt(Math.round(fs.avgPsf))}`, `Weighted avg from 809 transactions (AED ${TXN_WEIGHTED_AVG_PSF})`],
-                        ['Total GDV', fmtA(fs.grossSales), 'Σ(Units × Avg Selling Price per Type)'],
-                        ['Units/1,000 sqft', `${(fs.units.total / (fs.sellableArea / 1000)).toFixed(2)}`, MIX_TEMPLATES[activeMix].tag],
-                      ].map(([param, val, note]) => (
-                        <TableRow key={param}>
-                          <TableCell className="text-sm font-medium py-2">{param}</TableCell>
-                          <TableCell className="text-sm text-right font-mono py-2">{val}</TableCell>
-                          <TableCell className="text-xs text-right text-muted-foreground py-2">{note}</TableCell>
-                        </TableRow>
+                        ['Plot Area', `${fmt(dscInput.area)} sqft`],
+                        ['Plot Ratio', `× ${dscInput.ratio.toFixed(2)}`],
+                        ['GFA', `${fmt(Math.round(fs.gfa))} sqft`],
+                        ['BUA', `${fmt(Math.round(fs.bua))} sqft`],
+                        ['Approved Height', dscInput.height],
+                        ['Est. Floors', `${fs.residentialFloors}`],
+                      ].map(([param, val]) => (
+                        <div key={param} className="flex justify-between py-1.5 border-b border-border/30 last:border-0">
+                          <span className="text-sm text-muted-foreground">{param}</span>
+                          <span className="text-sm font-semibold font-mono text-foreground">{val}</span>
+                        </div>
                       ))}
-                    </TableBody>
-                  </Table>
+                    </div>
+                  </div>
+
+                  {/* Efficiency Metrics Card */}
+                  <div className="data-card">
+                    <h4 className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-3">Efficiency Metrics</h4>
+                    <div className="space-y-1">
+                      <ProgressBar label="Sellable Area" value={`${fmt(Math.round(fs.sellableArea))} sqft`} suffix={`(${((overrides.efficiency || 0.95) * 100).toFixed(0)}%)`} percent={(overrides.efficiency || 0.95) * 100} />
+                      <ProgressBar label="GFA Utilization" value="100%" percent={100} />
+                      <ProgressBar label="Avg Selling PSF" value={`AED ${fmt(Math.round(fs.avgPsf))}`} percent={Math.min((fs.avgPsf / 2000) * 100, 100)} />
+                      <ProgressBar label="Units / 1,000 sqft" value={(fs.units.total / (fs.sellableArea / 1000)).toFixed(2)} percent={Math.min((fs.units.total / (fs.sellableArea / 1000)) * 30, 100)} />
+                    </div>
+                    <div className="mt-3 text-[10px] text-muted-foreground p-2 rounded bg-muted/30 border border-border/30">
+                      💡 GDV = {fmtA(fs.grossSales)} · {fmt(fs.units.total)} units · {MIX_TEMPLATES[activeMix].tag}
+                    </div>
+                  </div>
                 </div>
               </Section>
 
               {/* 2. Cost Breakdown */}
-              <Section title="2 · Cost Breakdown">
+              <Section num={2} title="Cost Breakdown">
                 <div className="overflow-x-auto">
                   <Table>
                     <TableHeader>
@@ -521,7 +546,7 @@ export function DecisionConfidence({ plot, comparisonPlots = [], isFullscreen, o
               </Section>
 
               {/* 3. Unit Breakdown (100% from Sellable Area) */}
-              <Section title="3 · Unit Breakdown" badge="100% of Sellable Area">
+              <Section num={3} title="Unit Breakdown" badge="100% of Sellable Area">
                 <div className="overflow-x-auto">
                   <Table>
                     <TableHeader>
@@ -605,7 +630,7 @@ export function DecisionConfidence({ plot, comparisonPlots = [], isFullscreen, o
                 </div>
               </Section>
 
-              <Section title="4 · Unit Breakdown — Value View">
+              <Section num={4} title="Unit Breakdown — Value View">
                 <div className="overflow-x-auto">
                   <Table>
                     <TableHeader>
@@ -649,7 +674,7 @@ export function DecisionConfidence({ plot, comparisonPlots = [], isFullscreen, o
               </Section>
 
               {/* 5. Financial Feasibility */}
-              <Section title="5 · Financial Feasibility">
+              <Section num={5} title="Financial Feasibility">
                 {/* 5.1 Revenue */}
                 <div className="text-[10px] text-muted-foreground font-bold uppercase tracking-widest mb-2">5.1 Revenue Projection</div>
                 <div className="flex gap-2 flex-wrap mb-4">
@@ -693,7 +718,7 @@ export function DecisionConfidence({ plot, comparisonPlots = [], isFullscreen, o
               </Section>
 
               {/* 6. Payment Plan */}
-              <Section title="6 · Payment Plan Structure">
+              <Section num={6} title="Payment Plan Structure">
                 <div className="grid grid-cols-3 gap-2 mb-3">
                   {Object.entries(fs.payPlan).map(([stage, val]) => (
                     <div key={stage} className="data-card text-center">
@@ -836,50 +861,108 @@ export function DecisionConfidence({ plot, comparisonPlots = [], isFullscreen, o
 
           {/* ─── SENSITIVITY TAB ─── */}
           {activeTab === 'sensitivity' && (
-            <Section title="7 · Price Sensitivity Analysis" badge="±10% range">
-              <div className="overflow-x-auto">
-                <Table>
-                  <TableHeader>
-                    <TableRow>
-                      {['Scenario', 'PSF', 'Revenue', 'Profit', 'Margin', 'ROI', 'Land %GDV', 'Viability'].map(h => (
-                        <TableHead key={h} className="text-[10px] text-right first:text-left">{h}</TableHead>
-                      ))}
-                    </TableRow>
-                  </TableHeader>
-                  <TableBody>
-                    {fs.sens.map((s, i) => {
-                      const psf = Math.round(fs.avgPsf * (1 + s.delta));
-                      const landPct = fs.landCost / s.revenue;
-                      const isBase = s.delta === 0;
-                      return (
-                        <TableRow key={i} className={isBase ? 'bg-primary/5' : ''}>
-                          <TableCell className={`text-xs font-bold py-1.5 ${isBase ? 'text-primary' : s.delta > 0 ? 'text-success' : 'text-warning'}`}>
-                            {isBase ? '► BASE' : s.delta > 0 ? `▲ +${Math.abs(s.delta * 100)}%` : `▼ -${Math.abs(s.delta * 100)}%`}
-                          </TableCell>
-                          <TableCell className="text-xs text-right font-mono py-1.5">AED {fmt(psf)}</TableCell>
-                          <TableCell className="text-xs text-right font-mono py-1.5">{fmtA(s.revenue)}</TableCell>
-                          <TableCell className={`text-xs text-right font-mono py-1.5 ${s.profit > 0 ? 'text-success' : 'text-destructive'}`}>{fmtA(s.profit)}</TableCell>
-                          <TableCell className={`text-xs text-right py-1.5 ${s.margin > 0.2 ? 'text-success' : 'text-warning'}`}>{pct(s.margin)}</TableCell>
-                          <TableCell className={`text-xs text-right py-1.5 ${s.roi > 0.15 ? 'text-success' : 'text-warning'}`}>{pct(s.roi)}</TableCell>
-                          <TableCell className={`text-xs text-right py-1.5 ${landPct <= 0.40 ? 'text-success' : 'text-destructive'}`}>{pct(landPct)}</TableCell>
-                          <TableCell className="text-right py-1.5">
-                            <Viability pass={s.margin >= 0.25} label={s.margin >= 0.25 ? 'VIABLE' : s.margin >= 0.15 ? 'MARGINAL' : 'LOSS'} />
-                          </TableCell>
-                        </TableRow>
-                      );
-                    })}
-                  </TableBody>
-                </Table>
-              </div>
+            <>
+              <Section num={7} title="Price Sensitivity Analysis" badge="±10% range">
+                <div className="overflow-x-auto">
+                  <Table>
+                    <TableHeader>
+                      <TableRow>
+                        {['Scenario', 'PSF', 'Revenue', 'Profit', 'Margin', 'ROI', 'Land %GDV', 'Viability'].map(h => (
+                          <TableHead key={h} className="text-[10px] text-right first:text-left">{h}</TableHead>
+                        ))}
+                      </TableRow>
+                    </TableHeader>
+                    <TableBody>
+                      {fs.sens.map((s, i) => {
+                        const psf = Math.round(fs.avgPsf * (1 + s.delta));
+                        const landPct = fs.landCost / s.revenue;
+                        const isBase = s.delta === 0;
+                        return (
+                          <TableRow key={i} className={isBase ? 'bg-primary/5' : ''}>
+                            <TableCell className={`text-xs font-bold py-1.5 ${isBase ? 'text-primary' : s.delta > 0 ? 'text-success' : 'text-warning'}`}>
+                              {isBase ? '► BASE' : s.delta > 0 ? `▲ +${Math.abs(s.delta * 100)}%` : `▼ -${Math.abs(s.delta * 100)}%`}
+                            </TableCell>
+                            <TableCell className="text-xs text-right font-mono py-1.5">AED {fmt(psf)}</TableCell>
+                            <TableCell className="text-xs text-right font-mono py-1.5">{fmtA(s.revenue)}</TableCell>
+                            <TableCell className={`text-xs text-right font-mono py-1.5 ${s.profit > 0 ? 'text-success' : 'text-destructive'}`}>{fmtA(s.profit)}</TableCell>
+                            <TableCell className={`text-xs text-right py-1.5 ${s.margin > 0.2 ? 'text-success' : 'text-warning'}`}>{pct(s.margin)}</TableCell>
+                            <TableCell className={`text-xs text-right py-1.5 ${s.roi > 0.15 ? 'text-success' : 'text-warning'}`}>{pct(s.roi)}</TableCell>
+                            <TableCell className={`text-xs text-right py-1.5 ${landPct <= 0.40 ? 'text-success' : 'text-destructive'}`}>{pct(landPct)}</TableCell>
+                            <TableCell className="text-right py-1.5">
+                              <Viability pass={s.margin >= 0.25} label={s.margin >= 0.25 ? 'VIABLE' : s.margin >= 0.15 ? 'MARGINAL' : 'LOSS'} />
+                            </TableCell>
+                          </TableRow>
+                        );
+                      })}
+                    </TableBody>
+                  </Table>
+                </div>
 
-              <div className="flex gap-2 flex-wrap mt-4">
-                <KpiCard label="Break-Even PSF" value={`AED ${fmt(Math.round(fs.breakEvenPsf))}`} sub="Min to cover costs" />
-                <KpiCard label="Market Floor" value="AED 1,452" sub="DSC historical" />
-                <KpiCard label="Market Avg" value="AED 1,565" sub="809-txn avg" accent />
-                <KpiCard label="Market Ceiling" value="AED 1,800" sub="Premium" />
-                <KpiCard label="Buffer" value={`+AED ${fmt(Math.round(1565 - fs.breakEvenPsf))}`} sub="vs break-even" positive={fs.breakEvenPsf < 1565} negative={fs.breakEvenPsf > 1565} />
-              </div>
-            </Section>
+                <div className="flex gap-2 flex-wrap mt-4">
+                  <KpiCard label="Break-Even PSF" value={`AED ${fmt(Math.round(fs.breakEvenPsf))}`} sub="Min to cover costs" />
+                  <KpiCard label="Market Floor" value="AED 1,452" sub="DSC historical" />
+                  <KpiCard label="Market Avg" value="AED 1,565" sub="809-txn avg" accent />
+                  <KpiCard label="Market Ceiling" value="AED 1,800" sub="Premium" />
+                  <KpiCard label="Buffer" value={`+AED ${fmt(Math.round(1565 - fs.breakEvenPsf))}`} sub="vs break-even" positive={fs.breakEvenPsf < 1565} negative={fs.breakEvenPsf > 1565} />
+                </div>
+              </Section>
+
+              {/* Developer-Level Sensitivity — What if you sold at each benchmark's PSF? */}
+              <Section num={8} title="Developer Benchmark Sensitivity" badge={`${COMPS.length} projects`}>
+                <p className="text-xs text-muted-foreground mb-3">
+                  Impact on your plot's feasibility if sold at each DSC developer's average PSF
+                </p>
+                <div className="overflow-x-auto">
+                  <Table>
+                    <TableHeader>
+                      <TableRow>
+                        {['Developer', 'Project', 'Benchmark PSF', 'Your Revenue', 'Your Profit', 'Margin', 'ROI', 'vs Base'].map(h => (
+                          <TableHead key={h} className="text-[10px] text-right first:text-left whitespace-nowrap">{h}</TableHead>
+                        ))}
+                      </TableRow>
+                    </TableHeader>
+                    <TableBody>
+                      {COMPS.map(c => {
+                        const devRevenue = fs.sellableArea * c.psf;
+                        const devProfit = devRevenue - fs.totalCost;
+                        const devMargin = devProfit / devRevenue;
+                        const devRoi = devProfit / fs.totalCost;
+                        const deltaVsBase = devRevenue - fs.grossSales;
+                        return (
+                          <TableRow key={c.name} className={c.psf === Math.max(...COMPS.map(x => x.psf)) ? 'bg-success/5' : c.psf === Math.min(...COMPS.map(x => x.psf)) ? 'bg-warning/5' : ''}>
+                            <TableCell className="text-xs font-bold py-1.5">{c.developer}</TableCell>
+                            <TableCell className="text-xs text-right text-muted-foreground py-1.5">{c.name}</TableCell>
+                            <TableCell className="text-xs text-right font-mono py-1.5">AED {fmt(c.psf)}</TableCell>
+                            <TableCell className="text-xs text-right font-mono py-1.5">{fmtM(devRevenue)}</TableCell>
+                            <TableCell className={`text-xs text-right font-mono py-1.5 ${devProfit > 0 ? 'text-success' : 'text-destructive'}`}>{fmtM(devProfit)}</TableCell>
+                            <TableCell className={`text-xs text-right py-1.5 ${devMargin > 0.2 ? 'text-success' : devMargin > 0 ? 'text-warning' : 'text-destructive'}`}>{pct(devMargin)}</TableCell>
+                            <TableCell className={`text-xs text-right py-1.5 ${devRoi > 0.15 ? 'text-success' : devRoi > 0 ? 'text-warning' : 'text-destructive'}`}>{pct(devRoi)}</TableCell>
+                            <TableCell className={`text-xs text-right font-mono py-1.5 ${deltaVsBase >= 0 ? 'text-success' : 'text-warning'}`}>
+                              {deltaVsBase >= 0 ? '+' : ''}{fmtM(deltaVsBase)}
+                            </TableCell>
+                          </TableRow>
+                        );
+                      })}
+                      {/* Your plot baseline row */}
+                      <TableRow className="bg-primary/5 border-t-2 border-primary/30">
+                        <TableCell className="text-xs font-bold py-1.5 text-primary">Your Plot</TableCell>
+                        <TableCell className="text-xs text-right text-primary py-1.5">{activePlot.id}</TableCell>
+                        <TableCell className="text-xs text-right font-mono font-bold py-1.5 text-primary">AED {fmt(Math.round(fs.avgPsf))}</TableCell>
+                        <TableCell className="text-xs text-right font-mono font-bold py-1.5">{fmtM(fs.grossSales)}</TableCell>
+                        <TableCell className="text-xs text-right font-mono font-bold py-1.5 text-success">{fmtM(fs.grossProfit)}</TableCell>
+                        <TableCell className="text-xs text-right font-bold py-1.5">{pct(fs.grossMargin)}</TableCell>
+                        <TableCell className="text-xs text-right font-bold py-1.5">{pct(fs.roi)}</TableCell>
+                        <TableCell className="text-xs text-right py-1.5 text-primary font-bold">BASE</TableCell>
+                      </TableRow>
+                    </TableBody>
+                  </Table>
+                </div>
+
+                <div className="mt-3 p-2 rounded-lg bg-muted/30 border border-border/30 text-[10px] text-muted-foreground">
+                  <strong className="text-foreground">Reading:</strong> Each row shows what your plot's financials would look like if units sold at that developer's benchmark PSF. Higher PSF = higher revenue & ROI. Your weighted avg PSF ({fmt(Math.round(fs.avgPsf))}) is derived from 809 real DSC transactions.
+                </div>
+              </Section>
+            </>
           )}
 
           {/* ─── PLOT COMPARE TAB ─── */}
