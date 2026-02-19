@@ -1,5 +1,6 @@
 import { useState, useMemo, useEffect } from 'react';
-import { Loader2, TrendingUp, DollarSign, Building2, BarChart3, Target, Shield, Printer, Maximize2, Minimize2, Settings2, GitCompareArrows, X, Lightbulb, StickyNote, ChevronRight } from 'lucide-react';
+import { Loader2, TrendingUp, DollarSign, Building2, BarChart3, Target, Shield, Printer, Maximize2, Minimize2, Settings2, GitCompareArrows, X, Lightbulb, StickyNote, ChevronRight, Share2 } from 'lucide-react';
+import { DCShareModal } from './DCShareModal';
 import { Checkbox } from '@/components/ui/checkbox';
 import { PlotData, AffectionPlanData, gisService } from '@/services/DDAGISService';
 import { calcDSCFeasibility, DSCPlotInput, DSCFeasibilityResult, MixKey, MIX_TEMPLATES, COMPS, UNIT_SIZES, RENT_PSF_YR, BENCHMARK_AVG_PSF, TXN_AVG_PSF, TXN_AVG_SIZE, TXN_AVG_PRICE, TXN_MEDIAN_PSF, TXN_COUNT, TXN_WEIGHTED_AVG_PSF, fmt, fmtM, fmtA, pct } from '@/lib/dscFeasibility';
@@ -143,6 +144,7 @@ export function DecisionConfidence({ plot, comparisonPlots = [], isFullscreen, o
   const [includeContingency, setIncludeContingency] = useState(true);
   const [includeFinance, setIncludeFinance] = useState(true);
   const [userNotes, setUserNotes] = useState('');
+  const [showShareModal, setShowShareModal] = useState(false);
 
   // All plots for tabbed navigation (primary + comparison)
   const allPlots = useMemo(() => {
@@ -335,6 +337,9 @@ export function DecisionConfidence({ plot, comparisonPlots = [], isFullscreen, o
             >
               <Settings2 className="w-3.5 h-3.5" />
               {editMode ? '✓ Override ON' : 'Override'}
+            </Button>
+            <Button variant="outline" size="sm" className="text-xs h-7 gap-1" onClick={() => setShowShareModal(true)}>
+              <Share2 className="w-3 h-3" /> Share
             </Button>
             <Button variant="outline" size="sm" className="text-xs h-7 gap-1" onClick={() => window.print()}>
               <Printer className="w-3 h-3" /> Print
@@ -1025,6 +1030,15 @@ export function DecisionConfidence({ plot, comparisonPlots = [], isFullscreen, o
           ))}
         </div>
       </div>
+
+      {/* Share Modal */}
+      <DCShareModal
+        open={showShareModal}
+        onClose={() => setShowShareModal(false)}
+        plotId={activePlot.id}
+        activeMix={activeMix}
+        fs={fs}
+      />
     </div>
   );
 }

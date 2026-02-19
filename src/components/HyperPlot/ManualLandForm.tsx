@@ -39,9 +39,11 @@ export function ManualLandForm({ open, onClose, onLandSaved, editEntry }: Manual
   const [isGeocoding, setIsGeocoding] = useState(false);
   useEffect(() => {
     if (open) {
-      setEntry(editEntry || createDefaultManualLand());
+      const initial = editEntry || createDefaultManualLand();
+      setEntry(initial);
       setErrors({});
       setPolygonPoints(editEntry?.polygonCoords || []);
+      setLocationSearch('');
     }
   }, [open, editEntry]);
 
@@ -58,8 +60,11 @@ export function ManualLandForm({ open, onClose, onLandSaved, editEntry }: Manual
 
       if (!miniMapRef.current) return;
 
+      const lat = entry.latitude || 25.2048;
+      const lng = entry.longitude || 55.2708;
+
       const map = L.map(miniMapRef.current, {
-        center: [entry.latitude || 25.2048, entry.longitude || 55.2708],
+        center: [lat, lng],
         zoom: 15,
         zoomControl: true,
         attributionControl: false,
@@ -70,13 +75,15 @@ export function ManualLandForm({ open, onClose, onLandSaved, editEntry }: Manual
       }).addTo(map);
 
       // Marker for point location
-      const marker = L.marker([entry.latitude || 25.2048, entry.longitude || 55.2708], {
+      const marker = L.marker([lat, lng], {
         draggable: true,
       }).addTo(map);
 
       marker.on('dragend', () => {
         const pos = marker.getLatLng();
-        setEntry(prev => ({ ...prev, latitude: parseFloat(pos.lat.toFixed(6)), longitude: parseFloat(pos.lng.toFixed(6)) }));
+        const newLat = parseFloat(pos.lat.toFixed(6));
+        const newLng = parseFloat(pos.lng.toFixed(6));
+        setEntry(prev => ({ ...prev, latitude: newLat, longitude: newLng }));
       });
 
       markerRef.current = marker;
@@ -123,7 +130,7 @@ export function ManualLandForm({ open, onClose, onLandSaved, editEntry }: Manual
 
       // Invalidate size after render
       setTimeout(() => map.invalidateSize(), 100);
-    }, 200);
+    }, 300);
 
     return () => {
       clearTimeout(timer);
@@ -132,6 +139,7 @@ export function ManualLandForm({ open, onClose, onLandSaved, editEntry }: Manual
         miniMapInstanceRef.current = null;
       }
     };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [open]);
 
   // Update marker when lat/lng changes
