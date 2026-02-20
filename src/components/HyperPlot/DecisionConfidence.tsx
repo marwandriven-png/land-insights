@@ -3,6 +3,7 @@ import { Loader2, TrendingUp, DollarSign, Building2, BarChart3, Target, Shield, 
 import { DCShareModal } from './DCShareModal';
 import { Checkbox } from '@/components/ui/checkbox';
 import { PlotData, AffectionPlanData, gisService } from '@/services/DDAGISService';
+import { FeasibilityParams, DEFAULT_FEASIBILITY_PARAMS } from './FeasibilityCalculator';
 import { calcDSCFeasibility, DSCPlotInput, DSCFeasibilityResult, MixKey, MIX_TEMPLATES, COMPS, UNIT_SIZES, RENT_PSF_YR, BENCHMARK_AVG_PSF, TXN_AVG_PSF, TXN_AVG_SIZE, TXN_AVG_PRICE, TXN_MEDIAN_PSF, TXN_COUNT, TXN_WEIGHTED_AVG_PSF, fmt, fmtM, fmtA, pct } from '@/lib/dscFeasibility';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Table, TableHeader, TableBody, TableRow, TableHead, TableCell, TableFooter } from '@/components/ui/table';
@@ -17,6 +18,8 @@ interface DecisionConfidenceProps {
   isFullscreen?: boolean;
   onToggleFullscreen?: () => void;
   onExitComparison?: () => void;
+  sharedFeasibilityParams?: FeasibilityParams;
+  onFeasibilityParamsChange?: (params: FeasibilityParams) => void;
 }
 
 // Convert PlotData + AffectionPlan into DSCPlotInput (sqft)
@@ -152,7 +155,7 @@ function generateComparisonNotes(
   return notes;
 }
 
-export function DecisionConfidence({ plot, comparisonPlots = [], isFullscreen, onToggleFullscreen, onExitComparison }: DecisionConfidenceProps) {
+export function DecisionConfidence({ plot, comparisonPlots = [], isFullscreen, onToggleFullscreen, onExitComparison, sharedFeasibilityParams, onFeasibilityParamsChange }: DecisionConfidenceProps) {
   const [activeMix, setActiveMix] = useState<MixKey>('balanced');
   const [plan, setPlan] = useState<AffectionPlanData | null>(null);
   const [loading, setLoading] = useState(true);
@@ -167,7 +170,6 @@ export function DecisionConfidence({ plot, comparisonPlots = [], isFullscreen, o
   // All plots for tabbed navigation (primary + comparison)
   const allPlots = useMemo(() => {
     const dscPlots = [plot, ...comparisonPlots].filter(p => isDSCPlot(p));
-    // Deduplicate by id
     const seen = new Set<string>();
     return dscPlots.filter(p => {
       if (seen.has(p.id)) return false;
@@ -176,10 +178,8 @@ export function DecisionConfidence({ plot, comparisonPlots = [], isFullscreen, o
     });
   }, [plot, comparisonPlots]);
 
-  // Active plot tab (which plot's feasibility is shown)
   const [activeTabPlotId, setActiveTabPlotId] = useState(plot.id);
 
-  // Keep activeTabPlotId in sync when primary plot changes
   useEffect(() => {
     if (!allPlots.find(p => p.id === activeTabPlotId)) {
       setActiveTabPlotId(plot.id);
@@ -193,12 +193,26 @@ export function DecisionConfidence({ plot, comparisonPlots = [], isFullscreen, o
   useEffect(() => {
     setLoading(true);
     setPlan(null);
-    // Do NOT reset overrides, editMode, or activeMix — persist until user explicitly changes them
     gisService.fetchAffectionPlan(activePlot.id).then(data => {
       setPlan(data);
       setLoading(false);
     }).catch(() => setLoading(false));
   }, [activePlot.id]);
+
+  // Merge shared feasibility params into overrides for calculation
+  const effectiveOverrides = useMemo(() => {
+    const sp = sharedFeasibilityParams || DEFAULT_FEASIBILITY_PARAMS;
+    return {
+      ...overrides,
+      // Shared params are defaults; explicit overrides take priority
+      efficiency: overrides.efficiency ?? sp.efficiency,
+      landCostPsf: overrides.landCostPsf ?? sp.landCostPsf,
+      constructionPsf: overrides.constructionPsf ?? sp.constructionPsf,
+      buaMultiplier: overrides.buaMultiplier ?? sp.buaMultiplier,
+      contingencyPct: overrides.contingencyPct ?? (sp.contingencyPct / 100),
+      financePct: overrides.financePct ?? (sp.financePct / 100),
+    };
+  }, [overrides, sharedFeasibilityParams]);
 
   const dscInput = useMemo(() => {
     const base = toDSCInput(activePlot, plan);
@@ -210,16 +224,16 @@ export function DecisionConfidence({ plot, comparisonPlots = [], isFullscreen, o
 
   const fs = useMemo(() => {
     const result = calcDSCFeasibility(dscInput, activeMix, {
-      efficiency: overrides.efficiency,
-      landCostPsf: overrides.landCostPsf,
-      constructionPsf: overrides.constructionPsf,
-      buaMultiplier: overrides.buaMultiplier,
-      avgPsfOverride: overrides.avgPsfOverride,
-      contingencyPct: includeContingency ? overrides.contingencyPct : 0,
-      financePct: includeFinance ? overrides.financePct : 0,
+      efficiency: effectiveOverrides.efficiency,
+      landCostPsf: effectiveOverrides.landCostPsf,
+      constructionPsf: effectiveOverrides.constructionPsf,
+      buaMultiplier: effectiveOverrides.buaMultiplier,
+      avgPsfOverride: effectiveOverrides.avgPsfOverride,
+      contingencyPct: includeContingency ? effectiveOverrides.contingencyPct : 0,
+      financePct: includeFinance ? effectiveOverrides.financePct : 0,
     });
     return result;
-  }, [dscInput, activeMix, overrides, includeContingency, includeFinance]);
+  }, [dscInput, activeMix, effectiveOverrides, includeContingency, includeFinance]);
 
   // Compute feasibility for ALL comparison plots (for compare tab + notes)
   const allResults = useMemo(() => {
@@ -390,33 +404,33 @@ export function DecisionConfidence({ plot, comparisonPlots = [], isFullscreen, o
             </div>
             <div>
               <label className="text-[10px] text-muted-foreground">Floor Plate Eff. (%)</label>
-              <Input type="number" step="1" className="h-7 text-xs mt-0.5" defaultValue={overrides.efficiency ? overrides.efficiency * 100 : 95}
-                onChange={e => { const v = parseFloat(e.target.value); setOverrides(p => ({ ...p, efficiency: v > 0 ? v / 100 : undefined })); }} />
+              <Input type="number" step="1" className="h-7 text-xs mt-0.5" defaultValue={effectiveOverrides.efficiency ? effectiveOverrides.efficiency * 100 : 95}
+                onChange={e => { const v = parseFloat(e.target.value); const eff = v > 0 ? v / 100 : undefined; setOverrides(p => ({ ...p, efficiency: eff })); if (eff && onFeasibilityParamsChange && sharedFeasibilityParams) onFeasibilityParamsChange({ ...sharedFeasibilityParams, efficiency: eff }); }} />
             </div>
             <div>
               <label className="text-[10px] text-muted-foreground">Land Cost (PSF)</label>
-              <Input type="number" className="h-7 text-xs mt-0.5" defaultValue={overrides.landCostPsf || 148}
-                onChange={e => setOverrides(p => ({ ...p, landCostPsf: parseFloat(e.target.value) || undefined }))} />
+              <Input type="number" className="h-7 text-xs mt-0.5" defaultValue={effectiveOverrides.landCostPsf || 148}
+                onChange={e => { const v = parseFloat(e.target.value) || undefined; setOverrides(p => ({ ...p, landCostPsf: v })); if (v && onFeasibilityParamsChange && sharedFeasibilityParams) onFeasibilityParamsChange({ ...sharedFeasibilityParams, landCostPsf: v }); }} />
             </div>
             <div>
               <label className="text-[10px] text-muted-foreground">Construction (PSF)</label>
-              <Input type="number" className="h-7 text-xs mt-0.5" defaultValue={overrides.constructionPsf || 420}
-                onChange={e => setOverrides(p => ({ ...p, constructionPsf: parseFloat(e.target.value) || undefined }))} />
+              <Input type="number" className="h-7 text-xs mt-0.5" defaultValue={effectiveOverrides.constructionPsf || 420}
+                onChange={e => { const v = parseFloat(e.target.value) || undefined; setOverrides(p => ({ ...p, constructionPsf: v })); if (v && onFeasibilityParamsChange && sharedFeasibilityParams) onFeasibilityParamsChange({ ...sharedFeasibilityParams, constructionPsf: v }); }} />
             </div>
             <div>
               <label className="text-[10px] text-muted-foreground">BUA Multiplier (×)</label>
-              <Input type="number" step="0.05" className="h-7 text-xs mt-0.5" defaultValue={overrides.buaMultiplier || 1.45}
-                onChange={e => setOverrides(p => ({ ...p, buaMultiplier: parseFloat(e.target.value) || undefined }))} />
+              <Input type="number" step="0.05" className="h-7 text-xs mt-0.5" defaultValue={effectiveOverrides.buaMultiplier || 1.45}
+                onChange={e => { const v = parseFloat(e.target.value) || undefined; setOverrides(p => ({ ...p, buaMultiplier: v })); if (v && onFeasibilityParamsChange && sharedFeasibilityParams) onFeasibilityParamsChange({ ...sharedFeasibilityParams, buaMultiplier: v }); }} />
             </div>
             <div>
               <label className="text-[10px] text-muted-foreground">Contingency (%)</label>
-              <Input type="number" step="0.5" className="h-7 text-xs mt-0.5" defaultValue={overrides.contingencyPct != null ? overrides.contingencyPct * 100 : 5}
-                onChange={e => { const v = parseFloat(e.target.value); setOverrides(p => ({ ...p, contingencyPct: !isNaN(v) ? v / 100 : undefined })); }} />
+              <Input type="number" step="0.5" className="h-7 text-xs mt-0.5" defaultValue={effectiveOverrides.contingencyPct != null ? effectiveOverrides.contingencyPct * 100 : 5}
+                onChange={e => { const v = parseFloat(e.target.value); const pctVal = !isNaN(v) ? v / 100 : undefined; setOverrides(p => ({ ...p, contingencyPct: pctVal })); if (pctVal != null && onFeasibilityParamsChange && sharedFeasibilityParams) onFeasibilityParamsChange({ ...sharedFeasibilityParams, contingencyPct: v }); }} />
             </div>
             <div>
               <label className="text-[10px] text-muted-foreground">Finance (%)</label>
-              <Input type="number" step="0.5" className="h-7 text-xs mt-0.5" defaultValue={overrides.financePct != null ? overrides.financePct * 100 : 4}
-                onChange={e => { const v = parseFloat(e.target.value); setOverrides(p => ({ ...p, financePct: !isNaN(v) ? v / 100 : undefined })); }} />
+              <Input type="number" step="0.5" className="h-7 text-xs mt-0.5" defaultValue={effectiveOverrides.financePct != null ? effectiveOverrides.financePct * 100 : 4}
+                onChange={e => { const v = parseFloat(e.target.value); const pctVal = !isNaN(v) ? v / 100 : undefined; setOverrides(p => ({ ...p, financePct: pctVal })); if (pctVal != null && onFeasibilityParamsChange && sharedFeasibilityParams) onFeasibilityParamsChange({ ...sharedFeasibilityParams, financePct: v }); }} />
             </div>
           </div>
         )}

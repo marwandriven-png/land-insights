@@ -5,13 +5,15 @@ import { Badge } from '@/components/ui/badge';
 import { isPlotListed, getExportedPlotIds } from '@/services/LandMatchingService';
 import { useState, useEffect } from 'react';
 import { SimilarLandPanel } from './SimilarLandPanel';
-import { FeasibilityCalculator } from './FeasibilityCalculator';
+import { FeasibilityCalculator, FeasibilityParams } from './FeasibilityCalculator';
 
 interface PlotDetailPanelProps {
   plot: PlotData;
   onClose: () => void;
   onSelectPlot?: (plot: PlotData) => void;
   onGoToLocation?: (plot: PlotData) => void;
+  sharedFeasibilityParams?: FeasibilityParams;
+  onFeasibilityParamsChange?: (params: FeasibilityParams) => void;
 }
 
 function getStatusBadge(status: string) {
@@ -226,7 +228,7 @@ function AffectionPlanSection({ plotId }: { plotId: string }) {
   );
 }
 
-export function PlotDetailPanel({ plot, onClose, onSelectPlot, onGoToLocation }: PlotDetailPanelProps) {
+export function PlotDetailPanel({ plot, onClose, onSelectPlot, onGoToLocation, sharedFeasibilityParams, onFeasibilityParamsChange }: PlotDetailPanelProps) {
   const listed = isPlotListed(plot.id);
   const exported = getExportedPlotIds().has(plot.id);
   const isManual = plot.verificationSource === 'Manual';
@@ -396,7 +398,7 @@ export function PlotDetailPanel({ plot, onClose, onSelectPlot, onGoToLocation }:
           </div>
 
           {/* Feasibility Calculator - Editable */}
-          <FeasibilityCalculator plot={plot} />
+          <FeasibilityCalculator plot={plot} sharedParams={sharedFeasibilityParams} onParamsChange={onFeasibilityParamsChange} />
 
           {/* Similar Land */}
           {onSelectPlot && (
