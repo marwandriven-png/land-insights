@@ -143,7 +143,8 @@ export function DCShareModal({ open, onClose, plotId, activeMix, fs, plotInput, 
         createdAt: new Date().toISOString(),
         expiresAt,
       };
-      const encoded = btoa(encodeURIComponent(JSON.stringify(payload)));
+      const encoded = btoa(encodeURIComponent(JSON.stringify(payload)))
+        .replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
       const url = `${window.location.origin}/dc/${id}?d=${encoded}`;
 
       const newLink: DCShareLink = {
