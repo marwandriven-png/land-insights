@@ -189,12 +189,11 @@ export function DecisionConfidence({ plot, comparisonPlots = [], isFullscreen, o
   const comparisonMode = allPlots.length >= 2;
   const activePlot = allPlots.find(p => p.id === activeTabPlotId) || plot;
 
-  // Fetch affection plan on active plot change
+  // Fetch affection plan on active plot change — keep overrides & mix static
   useEffect(() => {
     setLoading(true);
     setPlan(null);
-    setEditMode(false);
-    setOverrides({});
+    // Do NOT reset overrides, editMode, or activeMix — persist until user explicitly changes them
     gisService.fetchAffectionPlan(activePlot.id).then(data => {
       setPlan(data);
       setLoading(false);
