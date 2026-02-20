@@ -32,10 +32,10 @@ function KpiCard({ label, value, sub, accent, delay = 0 }: { label: string; valu
   const [show, setShow] = useState(false);
   useEffect(() => { const t = setTimeout(() => setShow(true), delay); return () => clearTimeout(t); }, [delay]);
   return (
-    <div className={`rounded-xl border p-5 transition-all duration-700 ${show ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-6'} ${accent ? 'border-primary/40 bg-primary/5' : 'border-border/50 bg-card'}`}>
-      <div className="text-[11px] text-muted-foreground font-semibold uppercase tracking-wider mb-1">{label}</div>
-      <div className={`text-2xl font-extrabold font-mono tracking-tight ${accent ? 'text-primary' : 'text-foreground'}`}>{value}</div>
-      {sub && <div className="text-xs text-muted-foreground mt-1">{sub}</div>}
+    <div className={`rounded-xl border p-5 transition-all duration-700 shadow-sm ${show ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-6'} ${accent ? 'border-teal-200 bg-gradient-to-br from-teal-50 to-white' : 'border-slate-200 bg-white'}`}>
+      <div className="text-[11px] text-slate-500 font-semibold uppercase tracking-wider mb-1">{label}</div>
+      <div className={`text-2xl font-extrabold font-mono tracking-tight ${accent ? 'text-teal-600' : 'text-slate-800'}`}>{value}</div>
+      {sub && <div className="text-xs text-slate-400 mt-1">{sub}</div>}
     </div>
   );
 }
@@ -46,12 +46,12 @@ function Section({ num, title, badge, children, delay = 0 }: { num?: number; tit
   useEffect(() => { const t = setTimeout(() => setShow(true), delay); return () => clearTimeout(t); }, [delay]);
   return (
     <div className={`mb-8 transition-all duration-700 ${show ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-8'}`}>
-      <div className="flex items-center gap-2.5 mb-4 pb-3 border-b border-border/50">
+      <div className="flex items-center gap-2.5 mb-4 pb-3 border-b border-slate-200">
         {num != null && (
-          <span className="w-8 h-8 flex items-center justify-center rounded-md bg-gradient-to-br from-primary to-cyan-500 text-primary-foreground font-extrabold text-xs shrink-0">{num}</span>
+          <span className="w-8 h-8 flex items-center justify-center rounded-md bg-gradient-to-br from-teal-500 to-cyan-500 text-white font-extrabold text-xs shrink-0">{num}</span>
         )}
-        <h3 className="text-sm font-bold text-muted-foreground uppercase tracking-widest">{title}</h3>
-        {badge && <Badge variant="outline" className="text-xs border-primary/40 text-primary ml-auto">{badge}</Badge>}
+        <h3 className="text-sm font-bold text-slate-600 uppercase tracking-widest">{title}</h3>
+        {badge && <Badge variant="outline" className="text-xs border-teal-300 text-teal-600 ml-auto">{badge}</Badge>}
       </div>
       {children}
     </div>
@@ -63,11 +63,11 @@ function MetricBar({ label, value, percent }: { label: string; value: string; pe
   return (
     <div className="mb-3">
       <div className="flex justify-between mb-1.5 text-sm">
-        <span className="text-muted-foreground">{label}</span>
-        <span className="font-semibold text-foreground">{value}</span>
+        <span className="text-slate-500">{label}</span>
+        <span className="font-semibold text-slate-800">{value}</span>
       </div>
-      <div className="h-1.5 bg-muted/50 rounded-full overflow-hidden">
-        <div className="h-full rounded-full bg-gradient-to-r from-primary to-cyan-500 transition-all duration-1000" style={{ width: `${Math.min(percent, 100)}%` }} />
+      <div className="h-1.5 bg-slate-100 rounded-full overflow-hidden">
+        <div className="h-full rounded-full bg-gradient-to-r from-teal-500 to-cyan-400 transition-all duration-1000" style={{ width: `${Math.min(percent, 100)}%` }} />
       </div>
     </div>
   );
@@ -133,16 +133,14 @@ function TeaserPage({ link, fs, onRequestAccess }: { link: DCShareLink; fs: DSCF
   const units = useCountUp(fs.units.total, 1000);
 
   return (
-    <div className="min-h-screen bg-gradient-to-b from-[#0a1628] to-[#0d1f3c] text-white flex flex-col">
+    <div className="min-h-screen bg-gradient-to-b from-slate-900 to-slate-800 text-white flex flex-col">
       {/* Hero */}
       <div className="flex-1 flex flex-col items-center justify-center px-6 py-16 relative overflow-hidden">
-        {/* Decorative glow */}
-        <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[600px] h-[600px] bg-primary/10 rounded-full blur-[120px] pointer-events-none" />
+        <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[600px] h-[600px] bg-teal-500/8 rounded-full blur-[120px] pointer-events-none" />
 
         <div className="relative z-10 text-center max-w-xl">
-          {/* Lock icon */}
           <div className="w-20 h-20 rounded-full bg-amber-500/20 border-2 border-amber-500/40 flex items-center justify-center mx-auto mb-8 animate-scale-in">
-            <Lock className="w-8 h-8 text-amber-500" />
+            <Lock className="w-8 h-8 text-amber-400" />
           </div>
 
           <h1 className="text-4xl md:text-5xl font-extrabold mb-2 tracking-tight animate-fade-in">
@@ -157,7 +155,6 @@ function TeaserPage({ link, fs, onRequestAccess }: { link: DCShareLink; fs: DSCF
             <span>Dubai Sports City, Dubai • UAE</span>
           </div>
 
-          {/* Hero KPIs */}
           <div className="flex items-center justify-center gap-8 mb-10">
             {[
               { val: `${gdv}M`, label: 'GDV' },
@@ -171,7 +168,6 @@ function TeaserPage({ link, fs, onRequestAccess }: { link: DCShareLink; fs: DSCF
             ))}
           </div>
 
-          {/* CTA */}
           <Button
             onClick={onRequestAccess}
             className="h-14 px-10 text-lg font-bold gap-2 bg-amber-500 hover:bg-amber-600 text-black rounded-xl shadow-lg shadow-amber-500/30 animate-fade-in"
@@ -186,7 +182,6 @@ function TeaserPage({ link, fs, onRequestAccess }: { link: DCShareLink; fs: DSCF
         </div>
       </div>
 
-      {/* Footer */}
       <footer className="border-t border-white/10 px-6 py-4 flex items-center justify-center gap-8 text-xs text-white/30 uppercase tracking-widest">
         <span>Off-Market</span>
         <span>•</span>
@@ -295,25 +290,25 @@ export default function DCReport() {
   const debtAmt = fs.totalCost * 0.6;
 
   return (
-    <div className="min-h-screen bg-background">
+    <div className="min-h-screen bg-gradient-to-b from-slate-50 to-white">
       {/* Nav Header */}
-      <header className="border-b border-border/50 bg-card/50 backdrop-blur-xl sticky top-0 z-50 no-print">
+      <header className="border-b border-slate-200 bg-white/90 backdrop-blur-xl sticky top-0 z-50 no-print shadow-sm">
         <div className="max-w-6xl mx-auto px-6 py-3 flex items-center justify-between">
           <div className="flex items-center gap-3">
             <img src={xEstateLogo} alt="X-Estate" className="w-10 h-10" />
             <div>
-              <h1 className="text-lg font-bold text-foreground">HyperPlot AI</h1>
-              <p className="text-xs text-muted-foreground">Dubai Real Estate Feasibility</p>
+              <h1 className="text-lg font-bold text-slate-800">HyperPlot AI</h1>
+              <p className="text-xs text-slate-400">Dubai Real Estate Feasibility</p>
             </div>
           </div>
           <div className="flex items-center gap-2">
-            <Badge variant="outline" className="text-xs border-success/40 text-success gap-1">
+            <Badge variant="outline" className="text-xs border-emerald-300 text-emerald-600 bg-emerald-50 gap-1">
               <Check className="w-3 h-3" /> LIVE DATA
             </Badge>
-            <Button variant="outline" size="sm" className="gap-1.5 text-xs" onClick={() => window.print()}>
+            <Button variant="outline" size="sm" className="gap-1.5 text-xs border-slate-300 text-slate-600 hover:bg-slate-50" onClick={() => window.print()}>
               <Printer className="w-3.5 h-3.5" /> Print
             </Button>
-            <Button size="sm" className="gap-1.5 text-xs bg-primary">
+            <Button size="sm" className="gap-1.5 text-xs bg-teal-600 hover:bg-teal-700 text-white">
               <Share2 className="w-3.5 h-3.5" /> Share Link
             </Button>
           </div>
@@ -321,21 +316,21 @@ export default function DCReport() {
       </header>
 
       {/* Hero */}
-      <div className="bg-gradient-to-b from-card to-background border-b border-border/50">
+      <div className="bg-gradient-to-b from-white to-slate-50 border-b border-slate-200">
         <div className="max-w-6xl mx-auto px-6 py-10">
           <div className="flex items-center gap-2 mb-2">
-            <span className="text-sm font-bold text-destructive uppercase tracking-wider">🏆 Decision Confidence</span>
+            <span className="text-sm font-bold text-amber-600 uppercase tracking-wider">🏆 Decision Confidence</span>
           </div>
-          <h2 className="text-3xl font-bold text-foreground mb-2">
-            Feasibility Analysis: <span className="text-primary">Plot {link.plotId}</span>
+          <h2 className="text-3xl font-bold text-slate-800 mb-2">
+            Feasibility Analysis: <span className="text-teal-600">Plot {link.plotId}</span>
           </h2>
-          <p className="text-muted-foreground max-w-2xl">
+          <p className="text-slate-500 max-w-2xl">
             Residential development opportunity analysis with strategic recommendations and financial projections
           </p>
-          <div className="flex items-center gap-4 mt-4 text-xs text-muted-foreground">
+          <div className="flex items-center gap-4 mt-4 text-xs text-slate-400">
             <span className="flex items-center gap-1">📅 Generated: {new Date(link.createdAt).toLocaleDateString('en-US', { month: 'short', year: 'numeric' })}</span>
             <span className="flex items-center gap-1">📍 Dubai Sports City (DSC)</span>
-            <span className="flex items-center gap-1 text-success">🔒 Secure Link</span>
+            <span className="flex items-center gap-1 text-emerald-500">🔒 Secure Link</span>
           </div>
         </div>
       </div>
@@ -353,7 +348,7 @@ export default function DCReport() {
       </div>
 
       {/* Tab Navigation */}
-      <div className="sticky top-[57px] z-40 bg-background/80 backdrop-blur-xl border-b border-border/50 no-print">
+      <div className="sticky top-[57px] z-40 bg-white/90 backdrop-blur-xl border-b border-slate-200 no-print shadow-sm">
         <div className="max-w-6xl mx-auto px-6">
           <div className="flex gap-0">
             {([
@@ -366,8 +361,8 @@ export default function DCReport() {
                 onClick={() => setActiveTab(k)}
                 className={`py-3 px-5 text-sm font-semibold border-b-2 transition-all flex items-center gap-1.5 ${
                   activeTab === k
-                    ? 'text-primary border-primary'
-                    : 'text-muted-foreground border-transparent hover:text-foreground'
+                    ? 'text-teal-600 border-teal-500'
+                    : 'text-slate-400 border-transparent hover:text-slate-600'
                 }`}
               >
                 <span>{icon}</span> {l}
@@ -382,18 +377,18 @@ export default function DCReport() {
 
         {activeTab === 'feasibility' && (
           <>
-            <div className="rounded-xl border border-primary/30 bg-primary/5 p-4 mb-6 flex items-center gap-3 animate-fade-in">
+            <div className="rounded-xl border border-teal-200 bg-teal-50 p-4 mb-6 flex items-center gap-3 animate-fade-in">
               <span className="text-2xl">{mixTemplate.icon}</span>
               <div>
-                <div className="text-sm font-bold text-foreground">Selected Strategy: {mixTemplate.label}</div>
-                <div className="text-xs text-muted-foreground">{mixTemplate.desc}</div>
+                <div className="text-sm font-bold text-slate-800">Selected Strategy: {mixTemplate.label}</div>
+                <div className="text-xs text-slate-500">{mixTemplate.desc}</div>
               </div>
             </div>
 
             <Section num={1} title="Development Configuration" delay={200}>
               <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-                <div className="rounded-xl border border-border/50 bg-card p-5">
-                  <h4 className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-3">Plot Details</h4>
+                <div className="rounded-xl border border-slate-200 bg-white p-5 shadow-sm">
+                  <h4 className="text-xs font-semibold text-slate-500 uppercase tracking-wider mb-3">Plot Details</h4>
                   <div className="space-y-2">
                     {[
                       ['Plot Area', `${fmt(Math.round(fs.plot.area))} sqft`],
@@ -402,15 +397,15 @@ export default function DCReport() {
                       ['BUA', `${fmt(Math.round(fs.bua))} sqft`],
                       ['Approved Height', fs.plot.height],
                     ].map(([param, val]) => (
-                      <div key={param as string} className="flex justify-between py-1.5 border-b border-border/30 last:border-0">
-                        <span className="text-sm text-muted-foreground">{param}</span>
-                        <span className="text-sm font-semibold font-mono text-foreground">{val}</span>
+                      <div key={param as string} className="flex justify-between py-1.5 border-b border-slate-100 last:border-0">
+                        <span className="text-sm text-slate-500">{param}</span>
+                        <span className="text-sm font-semibold font-mono text-slate-800">{val}</span>
                       </div>
                     ))}
                   </div>
                 </div>
-                <div className="rounded-xl border border-border/50 bg-card p-5">
-                  <h4 className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-3">Efficiency Metrics</h4>
+                <div className="rounded-xl border border-slate-200 bg-white p-5 shadow-sm">
+                  <h4 className="text-xs font-semibold text-slate-500 uppercase tracking-wider mb-3">Efficiency Metrics</h4>
                   <MetricBar label="Sellable Area" value={`${fmt(Math.round(fs.sellableArea))} sqft (95%)`} percent={95} />
                   <MetricBar label="GFA Utilization" value="100%" percent={100} />
                   <MetricBar label="Avg Selling PSF" value={`AED ${fmt(Math.round(fs.avgPsf))}`} percent={Math.min((fs.avgPsf / 2000) * 100, 100)} />
@@ -419,7 +414,7 @@ export default function DCReport() {
             </Section>
 
             <Section num={2} title="Recommended Unit Mix" delay={400}>
-              <div className="overflow-x-auto rounded-xl border border-border/50 bg-card">
+              <div className="overflow-x-auto rounded-xl border border-slate-200 bg-white shadow-sm">
                 <Table>
                   <TableHeader>
                     <TableRow>
@@ -459,8 +454,8 @@ export default function DCReport() {
 
             <Section num={3} title="Financial Feasibility" delay={600}>
               <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-                <div className="rounded-xl border border-border/50 bg-card p-5">
-                  <h4 className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-3">Cost Breakdown</h4>
+                <div className="rounded-xl border border-slate-200 bg-white p-5 shadow-sm">
+                  <h4 className="text-xs font-semibold text-slate-500 uppercase tracking-wider mb-3">Cost Breakdown</h4>
                   <div className="space-y-3">
                     {[
                       { label: 'Land Cost', sub: 'Including transfer fees', val: fs.landCost, pctGdv: fs.landCost / fs.grossSales },
@@ -468,52 +463,52 @@ export default function DCReport() {
                       { label: 'Soft Costs', sub: 'Design, permits, legal', val: fs.authorityFees + fs.consultantFees + fs.marketing, pctGdv: (fs.authorityFees + fs.consultantFees + fs.marketing) / fs.grossSales },
                       { label: 'Contingency', sub: '5% buffer', val: fs.contingency, pctGdv: fs.contingency / fs.grossSales },
                     ].map(c => (
-                      <div key={c.label} className="flex items-center justify-between py-2 border-b border-border/30 last:border-0">
+                      <div key={c.label} className="flex items-center justify-between py-2 border-b border-slate-100 last:border-0">
                         <div>
-                          <div className="text-sm font-medium text-foreground">{c.label}</div>
-                          <div className="text-xs text-muted-foreground">{c.sub}</div>
+                          <div className="text-sm font-medium text-slate-800">{c.label}</div>
+                          <div className="text-xs text-slate-400">{c.sub}</div>
                         </div>
                         <div className="text-right">
-                          <div className="text-sm font-bold font-mono text-foreground">{fmtM(c.val)}</div>
-                          <div className="text-xs text-muted-foreground">{pct(c.pctGdv)}</div>
+                          <div className="text-sm font-bold font-mono text-slate-800">{fmtM(c.val)}</div>
+                          <div className="text-xs text-slate-400">{pct(c.pctGdv)}</div>
                         </div>
                       </div>
                     ))}
                   </div>
                 </div>
-                <div className="rounded-xl border border-border/50 bg-card p-5">
-                  <h4 className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-3">Return Metrics</h4>
+                <div className="rounded-xl border border-slate-200 bg-white p-5 shadow-sm">
+                  <h4 className="text-xs font-semibold text-slate-500 uppercase tracking-wider mb-3">Return Metrics</h4>
                   <div className="mb-4">
                     <div className="flex justify-between mb-1">
-                      <span className="text-sm text-muted-foreground">Project ROI</span>
-                      <span className="text-2xl font-extrabold text-primary font-mono">{pct(fs.roi)}</span>
+                      <span className="text-sm text-slate-500">Project ROI</span>
+                      <span className="text-2xl font-extrabold text-teal-600 font-mono">{pct(fs.roi)}</span>
                     </div>
                     <Progress value={Math.min(fs.roi * 100, 100)} className="h-2" />
-                    <div className="flex justify-between mt-1 text-xs text-muted-foreground">
+                    <div className="flex justify-between mt-1 text-xs text-slate-400">
                       <span>Industry avg: 20%</span>
-                      <span className="text-success font-bold">{fs.roi > 0.2 ? 'Excellent' : fs.roi > 0.1 ? 'Good' : 'Below avg'}</span>
+                      <span className="text-emerald-500 font-bold">{fs.roi > 0.2 ? 'Excellent' : fs.roi > 0.1 ? 'Good' : 'Below avg'}</span>
                     </div>
                   </div>
                   <div className="mb-4">
                     <div className="flex justify-between mb-1">
-                      <span className="text-sm text-muted-foreground">Profit Margin</span>
-                      <span className="text-lg font-bold font-mono text-foreground">{pct(fs.grossMargin)}</span>
+                      <span className="text-sm text-slate-500">Profit Margin</span>
+                      <span className="text-lg font-bold font-mono text-slate-800">{pct(fs.grossMargin)}</span>
                     </div>
                     <Progress value={Math.min(fs.grossMargin * 100, 100)} className="h-2" />
                   </div>
-                  <div className="mt-4 p-3 rounded-lg bg-muted/30 border border-border/30">
+                  <div className="mt-4 p-3 rounded-lg bg-slate-50 border border-slate-200">
                     <div className="flex items-center gap-1.5 mb-2">
-                      <Building2 className="w-3.5 h-3.5 text-muted-foreground" />
-                      <span className="text-xs font-bold text-muted-foreground uppercase">Finance Structure</span>
+                      <Building2 className="w-3.5 h-3.5 text-slate-400" />
+                      <span className="text-xs font-bold text-slate-500 uppercase">Finance Structure</span>
                     </div>
                     <div className="grid grid-cols-2 gap-3">
-                      <div className="text-center p-2 rounded-lg bg-primary/10 border border-primary/20">
-                        <div className="text-xs text-muted-foreground">Equity (40%)</div>
-                        <div className="text-sm font-bold font-mono text-primary">{fmtM(equityAmt)}</div>
+                      <div className="text-center p-2 rounded-lg bg-teal-50 border border-teal-200">
+                        <div className="text-xs text-slate-500">Equity (40%)</div>
+                        <div className="text-sm font-bold font-mono text-teal-600">{fmtM(equityAmt)}</div>
                       </div>
-                      <div className="text-center p-2 rounded-lg bg-muted/50 border border-border/30">
-                        <div className="text-xs text-muted-foreground">Debt (60%)</div>
-                        <div className="text-sm font-bold font-mono text-foreground">{fmtM(debtAmt)}</div>
+                      <div className="text-center p-2 rounded-lg bg-white border border-slate-200">
+                        <div className="text-xs text-slate-500">Debt (60%)</div>
+                        <div className="text-sm font-bold font-mono text-slate-800">{fmtM(debtAmt)}</div>
                       </div>
                     </div>
                   </div>
@@ -524,12 +519,12 @@ export default function DCReport() {
             <Section num={4} title="Recommended Payment Plan" delay={800}>
               <div className="grid grid-cols-3 gap-4">
                 {Object.entries(fs.payPlan).map(([stage, pctVal]) => (
-                  <div key={stage} className="rounded-xl border border-border/50 bg-card p-5 text-center">
-                    <div className="text-4xl font-extrabold text-primary font-mono mb-2">{pctVal}%</div>
-                    <div className="text-xs font-bold text-muted-foreground uppercase tracking-wider mb-1">
+                  <div key={stage} className="rounded-xl border border-slate-200 bg-white p-5 text-center shadow-sm">
+                    <div className="text-4xl font-extrabold text-teal-600 font-mono mb-2">{pctVal}%</div>
+                    <div className="text-xs font-bold text-slate-500 uppercase tracking-wider mb-1">
                       {stage === 'booking' ? 'On Booking' : stage === 'construction' ? 'During Construction' : 'Upon Handover'}
                     </div>
-                    <div className="text-xs text-muted-foreground font-mono">{fmtA(fs.grossSales * pctVal / 100)}</div>
+                    <div className="text-xs text-slate-400 font-mono">{fmtA(fs.grossSales * pctVal / 100)}</div>
                   </div>
                 ))}
               </div>
@@ -539,7 +534,7 @@ export default function DCReport() {
 
         {activeTab === 'benchmarks' && (
           <Section title="DSC Market Benchmarks" badge={`${COMPS.length} projects`} delay={200}>
-            <div className="overflow-x-auto rounded-xl border border-border/50 bg-card">
+            <div className="overflow-x-auto rounded-xl border border-slate-200 bg-white shadow-sm">
               <Table>
                 <TableHeader>
                   <TableRow>
@@ -566,8 +561,8 @@ export default function DCReport() {
                 </TableBody>
               </Table>
             </div>
-            <div className="mt-3 p-3 rounded-lg bg-muted/30 border border-border/30 text-xs text-muted-foreground">
-              <strong className="text-foreground">Market Intelligence:</strong> DSC sales avg AED 1,565/sqft ({TXN_COUNT.total} txns) · Rental avg AED 86/sqft/yr
+            <div className="mt-3 p-3 rounded-lg bg-slate-50 border border-slate-200 text-xs text-slate-500">
+              <strong className="text-slate-800">Market Intelligence:</strong> DSC sales avg AED 1,565/sqft ({TXN_COUNT.total} txns) · Rental avg AED 86/sqft/yr
             </div>
           </Section>
         )}
@@ -575,7 +570,7 @@ export default function DCReport() {
         {activeTab === 'sensitivity' && (
           <>
             <Section num={5} title="Price Sensitivity Analysis" badge="±10% Range" delay={200}>
-              <div className="overflow-x-auto rounded-xl border border-border/50 bg-card">
+              <div className="overflow-x-auto rounded-xl border border-slate-200 bg-white shadow-sm">
                 <Table>
                   <TableHeader>
                     <TableRow>
@@ -589,8 +584,8 @@ export default function DCReport() {
                       const psf = Math.round(fs.avgPsf * (1 + s.delta));
                       const isBase = s.delta === 0;
                       return (
-                        <TableRow key={i} className={isBase ? 'bg-primary/5' : ''}>
-                          <TableCell className={`text-xs font-bold py-2 ${isBase ? 'text-primary' : s.delta > 0 ? 'text-success' : 'text-warning'}`}>
+                        <TableRow key={i} className={isBase ? 'bg-teal-50' : ''}>
+                          <TableCell className={`text-xs font-bold py-2 ${isBase ? 'text-teal-600' : s.delta > 0 ? 'text-emerald-500' : 'text-amber-500'}`}>
                             {isBase ? '► BASE' : s.delta > 0 ? `▲ +${Math.abs(s.delta * 100)}%` : `▼ -${Math.abs(s.delta * 100)}%`}
                           </TableCell>
                           <TableCell className="text-sm text-right font-mono py-2">AED {fmt(psf)}</TableCell>
@@ -612,10 +607,10 @@ export default function DCReport() {
             </Section>
 
             <Section num={6} title="Developer Benchmark Sensitivity" badge={`${COMPS.length} projects`} delay={400}>
-              <p className="text-xs text-muted-foreground mb-3">
+              <p className="text-xs text-slate-500 mb-3">
                 Impact on your plot's feasibility if sold at each DSC developer's average PSF
               </p>
-              <div className="overflow-x-auto rounded-xl border border-border/50 bg-card">
+              <div className="overflow-x-auto rounded-xl border border-slate-200 bg-white shadow-sm">
                 <Table>
                   <TableHeader>
                     <TableRow>
@@ -642,12 +637,12 @@ export default function DCReport() {
                         </TableRow>
                       );
                     })}
-                    <TableRow className="bg-primary/5 border-t-2 border-primary/30">
-                      <TableCell className="text-sm font-bold text-primary py-2">Your Plot</TableCell>
-                      <TableCell className="text-sm text-right text-primary py-2">{link.plotId}</TableCell>
-                      <TableCell className="text-sm text-right font-mono font-bold text-primary py-2">AED {fmt(Math.round(fs.avgPsf))}</TableCell>
+                    <TableRow className="bg-teal-50 border-t-2 border-teal-300">
+                      <TableCell className="text-sm font-bold text-teal-600 py-2">Your Plot</TableCell>
+                      <TableCell className="text-sm text-right text-teal-600 py-2">{link.plotId}</TableCell>
+                      <TableCell className="text-sm text-right font-mono font-bold text-teal-600 py-2">AED {fmt(Math.round(fs.avgPsf))}</TableCell>
                       <TableCell className="text-sm text-right font-mono font-bold py-2">{fmtM(fs.grossSales)}</TableCell>
-                      <TableCell className="text-sm text-right font-mono font-bold text-success py-2">{fmtM(fs.grossProfit)}</TableCell>
+                      <TableCell className="text-sm text-right font-mono font-bold text-emerald-500 py-2">{fmtM(fs.grossProfit)}</TableCell>
                       <TableCell className="text-sm text-right font-bold py-2">{pct(fs.grossMargin)}</TableCell>
                       <TableCell className="text-sm text-right font-bold py-2">{pct(fs.roi)}</TableCell>
                     </TableRow>
@@ -662,25 +657,25 @@ export default function DCReport() {
       {/* Unit Mix Bottom Bar */}
       <div className="fixed bottom-0 left-0 right-0 z-50 no-print">
         <div className="max-w-6xl mx-auto px-6">
-          <div className="bg-card/95 backdrop-blur-xl border border-border/50 border-b-0 rounded-t-xl px-4 py-3">
+          <div className="bg-white/95 backdrop-blur-xl border border-slate-200 border-b-0 rounded-t-xl px-4 py-3 shadow-lg">
             <div className="flex items-center gap-3">
-              <span className="text-[10px] text-muted-foreground font-bold uppercase tracking-wider whitespace-nowrap">Unit Mix Strategy:</span>
+              <span className="text-[10px] text-slate-400 font-bold uppercase tracking-wider whitespace-nowrap">Unit Mix Strategy:</span>
               {(Object.entries(MIX_TEMPLATES) as [MixKey, typeof MIX_TEMPLATES.investor][]).map(([k, v]) => (
                 <div
                   key={k}
                   className={`flex-1 flex items-center gap-3 py-2.5 px-4 rounded-lg border transition-all ${
                     link.mixStrategy === k
-                      ? 'bg-primary/15 border-primary/50 text-foreground'
-                      : 'bg-muted/20 border-border/30 text-muted-foreground'
+                      ? 'bg-teal-50 border-teal-300 text-slate-800'
+                      : 'bg-slate-50 border-slate-200 text-slate-400'
                   }`}
                 >
                   <span className="text-lg">{v.icon}</span>
                   <div>
                     <div className="text-xs font-bold">{v.label}</div>
-                    <div className="text-[10px] text-muted-foreground">{v.tag}</div>
+                    <div className="text-[10px] text-slate-400">{v.tag}</div>
                   </div>
                   {link.mixStrategy === k && (
-                    <div className="ml-auto text-[10px] font-mono text-muted-foreground">
+                    <div className="ml-auto text-[10px] font-mono text-slate-500">
                       Units: {fmt(fs.units.total)} · ROI: {pct(fs.roi)} · PSF: {fmt(Math.round(fs.avgPsf))}
                     </div>
                   )}
@@ -692,13 +687,13 @@ export default function DCReport() {
       </div>
 
       {/* Footer */}
-      <footer className="border-t border-border/50 bg-card/50 pb-24">
+      <footer className="border-t border-slate-200 bg-white pb-24">
         <div className="max-w-6xl mx-auto px-6 py-6 flex items-center justify-between">
           <div className="flex items-center gap-3">
             <img src={xEstateLogo} alt="X-Estate" className="w-8 h-8 opacity-50" />
-            <span className="text-xs text-muted-foreground">HyperPlot AI · Decision Confidence</span>
+            <span className="text-xs text-slate-400">HyperPlot AI · Decision Confidence</span>
           </div>
-          <div className="text-xs text-muted-foreground">
+          <div className="text-xs text-slate-400">
             Confidential Feasibility Analysis • Generated {new Date(link.createdAt).toLocaleDateString()}
           </div>
         </div>
