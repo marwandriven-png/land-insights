@@ -1,10 +1,11 @@
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useEffect } from 'react';
 import { X, Link2, Copy, Check, Calendar, Shield, Eye, Download, Clock, Trash2, Users, AlertTriangle, RefreshCw, Settings, UserPlus, Phone, Building2, Mail, ExternalLink, ToggleLeft, ToggleRight } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Switch } from '@/components/ui/switch';
 import { toast } from 'sonner';
 import { DSCFeasibilityResult, DSCPlotInput, MixKey, MIX_TEMPLATES, fmt, fmtM, pct } from '@/lib/dscFeasibility';
+import { supabase } from '@/integrations/supabase/client';
 
 export interface DCShareLink {
   id: string;
@@ -48,16 +49,34 @@ interface DCShareModalProps {
   overrides?: Record<string, number | string | undefined>;
 }
 
-const STORAGE_KEY = 'hyperplot_dc_share_links';
 const CONTACTS_KEY = 'hyperplot_dc_contacts';
 const LOGS_KEY = 'hyperplot_dc_security_logs';
 const SHEETS_URL_KEY = 'hyperplot_sheets_url';
 
-export function loadShareLinks(): DCShareLink[] {
-  try { return JSON.parse(localStorage.getItem(STORAGE_KEY) || '[]'); } catch { return []; }
+export async function loadShareLinksFromDB(): Promise<DCShareLink[]> {
+  const { data, error } = await supabase.from('dc_share_links').select('*');
+  if (error || !data) return [];
+  return data.map((r: any) => ({
+    id: r.id,
+    plotId: r.plot_id,
+    mixStrategy: r.mix_strategy as MixKey,
+    plotInput: r.plot_input as DSCPlotInput,
+    overrides: r.overrides as Record<string, number | string | undefined>,
+    createdAt: r.created_at,
+    expiresAt: r.expires_at,
+    views: r.views,
+    downloads: r.downloads,
+    isActive: r.is_active,
+    url: `${window.location.origin}/dc/${r.id}`,
+  }));
 }
-export function saveShareLinks(links: DCShareLink[]) {
-  localStorage.setItem(STORAGE_KEY, JSON.stringify(links));
+
+// Keep for backwards compat in DCReport
+export function loadShareLinks(): DCShareLink[] {
+  return [];
+}
+export function saveShareLinks(_links: DCShareLink[]) {
+  // no-op — now using database
 }
 
 function loadContacts(): PreApprovedContact[] {
@@ -86,7 +105,7 @@ type ContactFilter = 'all' | 'accessed' | 'not_accessed';
 type LogFilter = 'all' | 'security' | 'granted' | 'forwarded' | 'expired' | 'revoked';
 
 export function DCShareModal({ open, onClose, plotId, activeMix, fs, plotInput, overrides }: DCShareModalProps) {
-  const [links, setLinks] = useState<DCShareLink[]>(loadShareLinks);
+  const [links, setLinks] = useState<DCShareLink[]>([]);
   const [contacts, setContacts] = useState<PreApprovedContact[]>(loadContacts);
   const [logs, setLogs] = useState<SecurityLog[]>(loadLogs);
   const [tab, setTab] = useState<ModalTab>('link');
@@ -100,6 +119,13 @@ export function DCShareModal({ open, onClose, plotId, activeMix, fs, plotInput, 
   const [sheetsUrl, setSheetsUrl] = useState(localStorage.getItem(SHEETS_URL_KEY) || '');
   const [sheetsConnected, setSheetsConnected] = useState(!!localStorage.getItem(SHEETS_URL_KEY));
   const [showSheetsConfig, setShowSheetsConfig] = useState(false);
+
+  // Load links from database
+  useEffect(() => {
+    if (open) {
+      loadShareLinksFromDB().then(setLinks);
+    }
+  }, [open]);
 
   const plotLinks = useMemo(() => links.filter(l => l.plotId === plotId), [links, plotId]);
   const accessedCount = contacts.filter(c => c.accessed).length;
@@ -121,7 +147,7 @@ export function DCShareModal({ open, onClose, plotId, activeMix, fs, plotInput, 
     return logs;
   }, [logs, logFilter]);
 
-  const generateLink = () => {
+  const generateLink = async () => {
     try {
       const id = Math.random().toString(36).slice(2, 10);
       const expiresAt = expiryDays > 0
@@ -136,16 +162,19 @@ export function DCShareModal({ open, onClose, plotId, activeMix, fs, plotInput, 
         zone: fs.plot.zone,
         constraints: fs.plot.constraints,
       };
-      // Encode payload in URL so links work cross-browser (no localStorage dependency)
-      const payload = {
-        id, plotId, mix: activeMix,
-        input, overrides: overrides || {},
-        createdAt: new Date().toISOString(),
-        expiresAt,
-      };
-      const encoded = btoa(encodeURIComponent(JSON.stringify(payload)))
-        .replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
-      const url = `${window.location.origin}/dc/${id}?d=${encoded}`;
+      const url = `${window.location.origin}/dc/${id}`;
+
+      // Save to database
+      const { error } = await supabase.from('dc_share_links').insert({
+        id,
+        plot_id: plotId,
+        mix_strategy: activeMix,
+        plot_input: input as any,
+        overrides: (overrides || {}) as any,
+        created_at: new Date().toISOString(),
+        expires_at: expiresAt,
+      });
+      if (error) throw error;
 
       const newLink: DCShareLink = {
         id, plotId, mixStrategy: activeMix,
@@ -155,9 +184,7 @@ export function DCShareModal({ open, onClose, plotId, activeMix, fs, plotInput, 
         expiresAt, views: 0, downloads: 0, isActive: true,
         url,
       };
-      const updated = [...links, newLink];
-      setLinks(updated);
-      saveShareLinks(updated);
+      setLinks(prev => [...prev, newLink]);
       const newLog: SecurityLog = { id: Math.random().toString(36).slice(2, 8), event: 'access_granted', email: 'system', device: '—', time: new Date().toLocaleString() };
       const updatedLogs = [newLog, ...logs];
       setLogs(updatedLogs);
@@ -176,10 +203,10 @@ export function DCShareModal({ open, onClose, plotId, activeMix, fs, plotInput, 
     toast.success('Link copied to clipboard');
   };
 
-  const revokeLink = (linkId: string) => {
+  const revokeLink = async (linkId: string) => {
+    await supabase.from('dc_share_links').update({ is_active: false }).eq('id', linkId);
     const updated = links.map(l => l.id === linkId ? { ...l, isActive: false } : l);
     setLinks(updated);
-    saveShareLinks(updated);
     const newLog: SecurityLog = { id: Math.random().toString(36).slice(2, 8), event: 'link_revoked', email: 'admin', device: '—', time: new Date().toLocaleString() };
     const updatedLogs = [newLog, ...logs];
     setLogs(updatedLogs);
@@ -187,10 +214,9 @@ export function DCShareModal({ open, onClose, plotId, activeMix, fs, plotInput, 
     toast.success('Link revoked');
   };
 
-  const deleteLink = (linkId: string) => {
-    const updated = links.filter(l => l.id !== linkId);
-    setLinks(updated);
-    saveShareLinks(updated);
+  const deleteLink = async (linkId: string) => {
+    await supabase.from('dc_share_links').delete().eq('id', linkId);
+    setLinks(prev => prev.filter(l => l.id !== linkId));
     toast.success('Link deleted');
   };
 
