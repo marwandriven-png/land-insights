@@ -4,11 +4,7 @@ import { PlotData, AffectionPlanData, gisService } from '@/services/DDAGISServic
 import { Input } from '@/components/ui/input';
 import { calcDSCFeasibility, DSCPlotInput, MIX_TEMPLATES, fmt, fmtM, fmtA, pct, MixKey, TXN_AVG_PSF, TXN_WEIGHTED_AVG_PSF } from '@/lib/dscFeasibility';
 
-interface FeasibilityCalculatorProps {
-  plot: PlotData;
-}
-
-interface FeasibilityParams {
+export interface FeasibilityParams {
   constructionPsf: number;
   landCostPsf: number;
   authorityFeePct: number;
@@ -19,7 +15,7 @@ interface FeasibilityParams {
   financePct: number;
 }
 
-const DEFAULT_PARAMS: FeasibilityParams = {
+export const DEFAULT_FEASIBILITY_PARAMS: FeasibilityParams = {
   constructionPsf: 420,
   landCostPsf: 148,
   authorityFeePct: 4,
@@ -29,6 +25,14 @@ const DEFAULT_PARAMS: FeasibilityParams = {
   contingencyPct: 5,
   financePct: 4,
 };
+
+interface FeasibilityCalculatorProps {
+  plot: PlotData;
+  sharedParams?: FeasibilityParams;
+  onParamsChange?: (params: FeasibilityParams) => void;
+}
+
+// (FeasibilityParams and DEFAULT_FEASIBILITY_PARAMS are exported above)
 
 function toDSCInput(plot: PlotData, plan: AffectionPlanData | null): DSCPlotInput {
   const areaSqft = plot.area * 10.764;
@@ -45,10 +49,15 @@ function toDSCInput(plot: PlotData, plan: AffectionPlanData | null): DSCPlotInpu
   };
 }
 
-export function FeasibilityCalculator({ plot }: FeasibilityCalculatorProps) {
-  const [params, setParams] = useState<FeasibilityParams>(DEFAULT_PARAMS);
+export function FeasibilityCalculator({ plot, sharedParams, onParamsChange }: FeasibilityCalculatorProps) {
+  const [params, setParams] = useState<FeasibilityParams>(sharedParams || DEFAULT_FEASIBILITY_PARAMS);
   const [editing, setEditing] = useState(false);
   const [plan, setPlan] = useState<AffectionPlanData | null>(null);
+
+  // Sync from shared params when they change externally
+  useEffect(() => {
+    if (sharedParams) setParams(sharedParams);
+  }, [sharedParams]);
 
   useEffect(() => {
     setEditing(false);
@@ -69,7 +78,9 @@ export function FeasibilityCalculator({ plot }: FeasibilityCalculatorProps) {
   const updateParam = (key: keyof FeasibilityParams, value: string) => {
     const num = parseFloat(value);
     if (!isNaN(num) && num >= 0) {
-      setParams(prev => ({ ...prev, [key]: num }));
+      const updated = { ...params, [key]: num };
+      setParams(updated);
+      onParamsChange?.(updated);
     }
   };
 
@@ -114,7 +125,7 @@ export function FeasibilityCalculator({ plot }: FeasibilityCalculatorProps) {
           </div>
           <div>
             <label className="text-xs text-muted-foreground">Floor Plate Eff. (%)</label>
-            <Input type="number" value={Math.round(params.efficiency * 100)} onChange={(e) => { const v = parseFloat(e.target.value); if (!isNaN(v) && v > 0) setParams(p => ({ ...p, efficiency: v / 100 })); }} className="h-8 text-sm mt-0.5" />
+            <Input type="number" value={Math.round(params.efficiency * 100)} onChange={(e) => { const v = parseFloat(e.target.value); if (!isNaN(v) && v > 0) { const updated = { ...params, efficiency: v / 100 }; setParams(updated); onParamsChange?.(updated); } }} className="h-8 text-sm mt-0.5" />
           </div>
           <div>
             <label className="text-xs text-muted-foreground">Avg PSF (Txn)</label>

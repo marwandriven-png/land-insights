@@ -14,6 +14,7 @@ import { PlotListItem } from './PlotListItem';
 import { LandMatchingWizard } from './LandMatchingWizard';
 import { FeasibilitySettings } from './FeasibilitySettings';
 import { ManualLandForm } from './ManualLandForm';
+import { FeasibilityParams, DEFAULT_FEASIBILITY_PARAMS } from './FeasibilityCalculator';
 import { Button } from '@/components/ui/button';
 import { ScrollArea } from '@/components/ui/scroll-area';
 
@@ -42,6 +43,7 @@ export function HyperPlotAI() {
   const [decisionFullscreen, setDecisionFullscreen] = useState(false);
   const [lastSeen, setLastSeen] = useState<LastSeenEntry[]>(getLastSeen());
   const [comparisonPlots, setComparisonPlots] = useState<PlotData[]>([]);
+  const [sharedFeasibilityParams, setSharedFeasibilityParams] = useState<FeasibilityParams>(DEFAULT_FEASIBILITY_PARAMS);
   const plotsListRef = useRef<HTMLDivElement>(null);
   const [filters, setFilters] = useState<FilterState>({
     status: [],
@@ -363,7 +365,7 @@ export function HyperPlotAI() {
       {/* Main Content */}
       {decisionFullscreen && activeTab === 'feasibility' && selectedPlot ? (
         <div className="flex-1 min-h-0 overflow-hidden">
-          <DecisionConfidence plot={selectedPlot} comparisonPlots={comparisonPlots} isFullscreen onToggleFullscreen={() => setDecisionFullscreen(false)} onExitComparison={() => setComparisonPlots([])} />
+          <DecisionConfidence plot={selectedPlot} comparisonPlots={comparisonPlots} isFullscreen onToggleFullscreen={() => setDecisionFullscreen(false)} onExitComparison={() => setComparisonPlots([])} sharedFeasibilityParams={sharedFeasibilityParams} onFeasibilityParamsChange={setSharedFeasibilityParams} />
         </div>
       ) : (
       <div className="px-4 py-4 flex-1 min-h-0 overflow-hidden">
@@ -402,7 +404,7 @@ export function HyperPlotAI() {
               </div>
             )}
             {activeTab === 'feasibility' && selectedPlot ? (
-              <DecisionConfidence plot={selectedPlot} comparisonPlots={comparisonPlots} isFullscreen={false} onToggleFullscreen={() => setDecisionFullscreen(true)} onExitComparison={() => setComparisonPlots([])} />
+              <DecisionConfidence plot={selectedPlot} comparisonPlots={comparisonPlots} isFullscreen={false} onToggleFullscreen={() => setDecisionFullscreen(true)} onExitComparison={() => setComparisonPlots([])} sharedFeasibilityParams={sharedFeasibilityParams} onFeasibilityParamsChange={setSharedFeasibilityParams} />
             ) : activeTab === 'feasibility' ? (
               <div className="h-full flex items-center justify-center glass-card glow-border">
                 <div className="text-center">
@@ -476,9 +478,10 @@ export function HyperPlotAI() {
                 plot={selectedPlot}
                 onClose={handleCloseDetailPanel}
                 onSelectPlot={handlePlotFound}
+                sharedFeasibilityParams={sharedFeasibilityParams}
+                onFeasibilityParamsChange={setSharedFeasibilityParams}
                 onGoToLocation={(plot) => {
                   setActiveTab('map');
-                  // Re-select to trigger map zoom
                   setSelectedPlot(null);
                   setTimeout(() => {
                     setSelectedPlot(plot);
