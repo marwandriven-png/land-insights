@@ -14,6 +14,39 @@ export type Database = {
   }
   public: {
     Tables: {
+      dc_access_logs: {
+        Row: {
+          created_at: string
+          device: string | null
+          email: string | null
+          event: string
+          id: string
+          link_id: string
+          mobile: string | null
+          name: string | null
+        }
+        Insert: {
+          created_at?: string
+          device?: string | null
+          email?: string | null
+          event?: string
+          id?: string
+          link_id: string
+          mobile?: string | null
+          name?: string | null
+        }
+        Update: {
+          created_at?: string
+          device?: string | null
+          email?: string | null
+          event?: string
+          id?: string
+          link_id?: string
+          mobile?: string | null
+          name?: string | null
+        }
+        Relationships: []
+      }
       dc_share_links: {
         Row: {
           created_at: string

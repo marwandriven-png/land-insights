@@ -34,9 +34,12 @@ export interface PreApprovedContact {
 export interface SecurityLog {
   id: string;
   event: 'access_granted' | 'access_denied' | 'link_forwarded' | 'link_expired' | 'link_revoked';
+  name: string;
   email: string;
+  mobile: string;
   device: string;
   time: string;
+  linkId: string;
 }
 
 interface DCShareModalProps {
@@ -50,7 +53,6 @@ interface DCShareModalProps {
 }
 
 const CONTACTS_KEY = 'hyperplot_dc_contacts';
-const LOGS_KEY = 'hyperplot_dc_security_logs';
 const SHEETS_URL_KEY = 'hyperplot_sheets_url';
 
 export async function loadShareLinksFromDB(): Promise<DCShareLink[]> {
@@ -84,21 +86,20 @@ function loadContacts(): PreApprovedContact[] {
 }
 function saveContacts(c: PreApprovedContact[]) { localStorage.setItem(CONTACTS_KEY, JSON.stringify(c)); }
 
-function loadLogs(): SecurityLog[] {
-  try {
-    const stored = JSON.parse(localStorage.getItem(LOGS_KEY) || '[]');
-    if (stored.length > 0) return stored;
-  } catch {}
-  return [
-    { id: '1', event: 'access_granted', email: 'mohamed@gmail.com', device: '1lq4gq', time: '2/18/2026, 7:30:45 AM' },
-    { id: '2', event: 'access_granted', email: 'mohamed@gmail.com', device: '—', time: '2/18/2026, 7:30:40 AM' },
-    { id: '3', event: 'access_granted', email: 'omair.kcp@gmail.com', device: '5ljftx', time: '2/17/2026, 3:10:25 AM' },
-    { id: '4', event: 'access_granted', email: 'omair.kcp@gmail.com', device: '—', time: '2/17/2026, 3:07:59 AM' },
-    { id: '5', event: 'link_forwarded', email: 'sajjad.h.akram@gmail.com', device: 'qj5r2i', time: '2/17/2026, 3:01:14 AM' },
-    { id: '6', event: 'access_denied', email: 'unknown@test.com', device: 'x8k2m1', time: '2/16/2026, 11:45:00 PM' },
-  ];
+async function loadLogsFromDB(): Promise<SecurityLog[]> {
+  const { data, error } = await supabase.from('dc_access_logs').select('*').order('created_at', { ascending: false }).limit(100);
+  if (error || !data) return [];
+  return data.map((r: any) => ({
+    id: r.id,
+    event: r.event as SecurityLog['event'],
+    name: r.name || '—',
+    email: r.email || '—',
+    mobile: r.mobile || '—',
+    device: r.device || '—',
+    time: new Date(r.created_at).toLocaleString(),
+    linkId: r.link_id,
+  }));
 }
-function saveLogs(l: SecurityLog[]) { localStorage.setItem(LOGS_KEY, JSON.stringify(l)); }
 
 type ModalTab = 'link' | 'contacts' | 'logs';
 type ContactFilter = 'all' | 'accessed' | 'not_accessed';
@@ -107,7 +108,7 @@ type LogFilter = 'all' | 'security' | 'granted' | 'forwarded' | 'expired' | 'rev
 export function DCShareModal({ open, onClose, plotId, activeMix, fs, plotInput, overrides }: DCShareModalProps) {
   const [links, setLinks] = useState<DCShareLink[]>([]);
   const [contacts, setContacts] = useState<PreApprovedContact[]>(loadContacts);
-  const [logs, setLogs] = useState<SecurityLog[]>(loadLogs);
+  const [logs, setLogs] = useState<SecurityLog[]>([]);
   const [tab, setTab] = useState<ModalTab>('link');
   const [expiryDays, setExpiryDays] = useState(1);
   const [captcha, setCaptcha] = useState(true);
@@ -120,10 +121,19 @@ export function DCShareModal({ open, onClose, plotId, activeMix, fs, plotInput, 
   const [sheetsConnected, setSheetsConnected] = useState(!!localStorage.getItem(SHEETS_URL_KEY));
   const [showSheetsConfig, setShowSheetsConfig] = useState(false);
 
-  // Load links from database
+  // Load links and logs from database
+  const refreshData = async () => {
+    const [linksData, logsData] = await Promise.all([
+      loadShareLinksFromDB(),
+      loadLogsFromDB(),
+    ]);
+    setLinks(linksData);
+    setLogs(logsData);
+  };
+
   useEffect(() => {
     if (open) {
-      loadShareLinksFromDB().then(setLinks);
+      refreshData();
     }
   }, [open]);
 
@@ -185,10 +195,7 @@ export function DCShareModal({ open, onClose, plotId, activeMix, fs, plotInput, 
         url,
       };
       setLinks(prev => [...prev, newLink]);
-      const newLog: SecurityLog = { id: Math.random().toString(36).slice(2, 8), event: 'access_granted', email: 'system', device: '—', time: new Date().toLocaleString() };
-      const updatedLogs = [newLog, ...logs];
-      setLogs(updatedLogs);
-      saveLogs(updatedLogs);
+      toast.success('Secure link generated');
       toast.success('Secure link generated');
     } catch (error) {
       console.error('Error generating link:', error);
@@ -205,12 +212,18 @@ export function DCShareModal({ open, onClose, plotId, activeMix, fs, plotInput, 
 
   const revokeLink = async (linkId: string) => {
     await supabase.from('dc_share_links').update({ is_active: false }).eq('id', linkId);
-    const updated = links.map(l => l.id === linkId ? { ...l, isActive: false } : l);
-    setLinks(updated);
-    const newLog: SecurityLog = { id: Math.random().toString(36).slice(2, 8), event: 'link_revoked', email: 'admin', device: '—', time: new Date().toLocaleString() };
-    const updatedLogs = [newLog, ...logs];
-    setLogs(updatedLogs);
-    saveLogs(updatedLogs);
+    setLinks(prev => prev.map(l => l.id === linkId ? { ...l, isActive: false } : l));
+
+    // Log revoke event to database
+    await supabase.from('dc_access_logs').insert({
+      link_id: linkId,
+      event: 'link_revoked',
+      email: 'admin',
+      device: '—',
+    });
+
+    // Refresh logs
+    loadLogsFromDB().then(setLogs);
     toast.success('Link revoked');
   };
 
@@ -605,7 +618,7 @@ export function DCShareModal({ open, onClose, plotId, activeMix, fs, plotInput, 
                     {l}
                   </button>
                 ))}
-                <button className="ml-auto text-xs text-white/30 flex items-center gap-1 hover:text-white/60 transition-colors">
+                <button onClick={() => loadLogsFromDB().then(setLogs)} className="ml-auto text-xs text-white/30 flex items-center gap-1 hover:text-white/60 transition-colors">
                   <RefreshCw className="w-3 h-3" /> Refresh
                 </button>
               </div>
@@ -615,7 +628,9 @@ export function DCShareModal({ open, onClose, plotId, activeMix, fs, plotInput, 
                   <thead>
                     <tr className="bg-white/5 border-b border-white/10">
                       <th className="text-left px-3 py-2 text-xs font-semibold text-white/40">Event</th>
+                      <th className="text-left px-3 py-2 text-xs font-semibold text-white/40">Name</th>
                       <th className="text-left px-3 py-2 text-xs font-semibold text-white/40">Email</th>
+                      <th className="text-left px-3 py-2 text-xs font-semibold text-white/40">Mobile</th>
                       <th className="text-left px-3 py-2 text-xs font-semibold text-white/40">Device</th>
                       <th className="text-left px-3 py-2 text-xs font-semibold text-white/40">Time</th>
                       <th className="text-left px-3 py-2 text-xs font-semibold text-white/40">Actions</th>
@@ -626,13 +641,15 @@ export function DCShareModal({ open, onClose, plotId, activeMix, fs, plotInput, 
                       const ev = eventLabel(log.event);
                       return (
                         <tr key={log.id} className="border-b border-white/5 last:border-0 hover:bg-white/5 transition-colors">
-                          <td className={`px-3 py-2.5 font-medium ${ev.cls}`}>{ev.text}</td>
-                          <td className="px-3 py-2.5 text-white/60">{log.email}</td>
+                          <td className={`px-3 py-2.5 font-medium text-xs ${ev.cls}`}>{ev.text}</td>
+                          <td className="px-3 py-2.5 text-white/60 text-xs">{log.name}</td>
+                          <td className="px-3 py-2.5 text-white/60 text-xs">{log.email}</td>
+                          <td className="px-3 py-2.5 text-white/50 text-xs">{log.mobile}</td>
                           <td className="px-3 py-2.5 font-mono text-white/30 text-xs">{log.device}</td>
                           <td className="px-3 py-2.5 text-white/30 text-xs">{log.time}</td>
                           <td className="px-3 py-2.5">
-                            {log.event === 'access_granted' && (
-                              <button className="text-xs text-red-500 font-medium hover:underline">Revoke</button>
+                            {log.event === 'access_granted' && log.linkId && (
+                              <button onClick={() => revokeLink(log.linkId)} className="text-xs text-red-500 font-medium hover:underline">Revoke</button>
                             )}
                           </td>
                         </tr>
@@ -640,7 +657,7 @@ export function DCShareModal({ open, onClose, plotId, activeMix, fs, plotInput, 
                     })}
                     {filteredLogs.length === 0 && (
                       <tr>
-                        <td colSpan={5} className="px-3 py-6 text-center text-white/30 text-sm">No events found</td>
+                        <td colSpan={7} className="px-3 py-6 text-center text-white/30 text-sm">No events found</td>
                       </tr>
                     )}
                   </tbody>
