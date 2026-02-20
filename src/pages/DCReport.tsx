@@ -157,7 +157,7 @@ function AnimatedBackground() {
 }
 
 // ─── Registration Step ───
-function RegistrationStep({ onComplete }: { onComplete: () => void }) {
+function RegistrationStep({ onComplete, linkId }: { onComplete: () => void; linkId?: string }) {
   const [name, setName] = useState('');
   const [email, setEmail] = useState('');
   const [mobile, setMobile] = useState('');
@@ -172,9 +172,24 @@ function RegistrationStep({ onComplete }: { onComplete: () => void }) {
     return Object.keys(e).length === 0;
   };
 
-  const handleSubmit = () => {
+  const handleSubmit = async () => {
     if (!validate()) return;
-    localStorage.setItem('dc_registered_user', JSON.stringify({ name, email, mobile, registeredAt: new Date().toISOString() }));
+    const userData = { name, email, mobile, registeredAt: new Date().toISOString() };
+    localStorage.setItem('dc_registered_user', JSON.stringify(userData));
+
+    // Log registration event to database
+    if (linkId) {
+      const deviceId = Math.random().toString(36).slice(2, 8);
+      await supabase.from('dc_access_logs').insert({
+        link_id: linkId,
+        event: 'access_granted',
+        name: name.trim(),
+        email: email.trim(),
+        mobile: mobile.trim(),
+        device: deviceId,
+      });
+    }
+
     onComplete();
   };
 
@@ -604,7 +619,7 @@ export default function DCReport() {
     return <TeaserPage link={link} fs={fs} onRequestAccess={() => setAccessPhase('register')} />;
   }
   if (accessPhase === 'register') {
-    return <RegistrationStep onComplete={() => setAccessPhase('nda')} />;
+    return <RegistrationStep onComplete={() => setAccessPhase('nda')} linkId={linkId} />;
   }
   if (accessPhase === 'nda') {
     return <NDAStep onAccept={() => setAccessPhase('full')} />;
