@@ -972,50 +972,6 @@ export default function DCReport() {
               </div>
             </Section>
 
-            <Section num={6} title="Developer Benchmark Sensitivity" badge={`${COMPS.length} projects`}>
-              <p className="text-xs mb-3" style={{ color: '#9ca3af' }}>
-                Impact on your plot's feasibility if sold at each DSC developer's average PSF
-              </p>
-              <div className="overflow-x-auto rounded-xl" style={tableWrapStyle}>
-                <Table>
-                  <TableHeader>
-                    <TableRow style={{ borderBottom: '1px solid #1f2937' }}>
-                      {['Developer', 'Project', 'PSF', 'Revenue', 'Profit', 'Margin', 'ROI'].map(h => (
-                        <TableHead key={h} className="text-xs text-right first:text-left whitespace-nowrap" style={{ color: '#9ca3af' }}>{h}</TableHead>
-                      ))}
-                    </TableRow>
-                  </TableHeader>
-                  <TableBody>
-                    {COMPS.map(c => {
-                      const devRevenue = fs.sellableArea * c.psf;
-                      const devProfit = devRevenue - fs.totalCost;
-                      const devMargin = devProfit / devRevenue;
-                      const devRoi = devProfit / fs.totalCost;
-                      return (
-                        <TableRow key={c.name} style={{ borderBottom: '1px solid rgba(31,41,55,0.5)' }}>
-                          <TableCell className="text-sm font-bold py-2 text-white">{c.developer}</TableCell>
-                          <TableCell className="text-sm text-right py-2" style={{ color: '#9ca3af' }}>{c.name}</TableCell>
-                          <TableCell className="text-sm text-right font-mono py-2 text-cyan-400">AED {fmt(c.psf)}</TableCell>
-                          <TableCell className="text-sm text-right font-mono py-2 text-white">{fmtM(devRevenue)}</TableCell>
-                          <TableCell className="text-sm text-right font-mono py-2" style={{ color: devProfit > 0 ? '#14b8a6' : '#ef4444' }}>{fmtM(devProfit)}</TableCell>
-                          <TableCell className="text-sm text-right py-2" style={{ color: devMargin > 0.2 ? '#10b981' : '#f59e0b' }}>{pct(devMargin)}</TableCell>
-                          <TableCell className="text-sm text-right py-2" style={{ color: devRoi > 0.15 ? '#10b981' : '#f59e0b' }}>{pct(devRoi)}</TableCell>
-                        </TableRow>
-                      );
-                    })}
-                    <TableRow style={{ borderTop: '2px solid rgba(6,182,212,0.4)', background: 'rgba(6,182,212,0.05)' }}>
-                      <TableCell className="text-sm font-bold text-cyan-400 py-2">Your Plot</TableCell>
-                      <TableCell className="text-sm text-right text-cyan-400 py-2">{link.plotId}</TableCell>
-                      <TableCell className="text-sm text-right font-mono font-bold text-cyan-400 py-2" style={{ textShadow: '0 0 10px rgba(6,182,212,0.3)' }}>AED {fmt(Math.round(fs.avgPsf))}</TableCell>
-                      <TableCell className="text-sm text-right font-mono font-bold py-2 text-white">{fmtM(fs.grossSales)}</TableCell>
-                      <TableCell className="text-sm text-right font-mono font-bold py-2" style={{ color: '#14b8a6' }}>{fmtM(fs.grossProfit)}</TableCell>
-                      <TableCell className="text-sm text-right font-bold py-2 text-white">{pct(fs.grossMargin)}</TableCell>
-                      <TableCell className="text-sm text-right font-bold py-2 text-white">{pct(fs.roi)}</TableCell>
-                    </TableRow>
-                  </TableBody>
-                </Table>
-              </div>
-            </Section>
           </>
         )}
       </div>

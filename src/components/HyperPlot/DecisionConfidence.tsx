@@ -935,61 +935,6 @@ export function DecisionConfidence({ plot, comparisonPlots = [], isFullscreen, o
                 </div>
               </Section>
 
-              {/* Developer-Level Sensitivity — What if you sold at each benchmark's PSF? */}
-              <Section num={8} title="Developer Benchmark Sensitivity" badge={`${COMPS.length} projects`}>
-                <p className="text-xs text-muted-foreground mb-3">
-                  Impact on your plot's feasibility if sold at each DSC developer's average PSF
-                </p>
-                <div className="overflow-x-auto">
-                  <Table>
-                    <TableHeader>
-                      <TableRow>
-                        {['Developer', 'Project', 'Benchmark PSF', 'Your Revenue', 'Your Profit', 'Margin', 'ROI', 'vs Base'].map(h => (
-                          <TableHead key={h} className="text-[10px] text-right first:text-left whitespace-nowrap">{h}</TableHead>
-                        ))}
-                      </TableRow>
-                    </TableHeader>
-                    <TableBody>
-                      {COMPS.map(c => {
-                        const devRevenue = fs.sellableArea * c.psf;
-                        const devProfit = devRevenue - fs.totalCost;
-                        const devMargin = devProfit / devRevenue;
-                        const devRoi = devProfit / fs.totalCost;
-                        const deltaVsBase = devRevenue - fs.grossSales;
-                        return (
-                          <TableRow key={c.name} className={c.psf === Math.max(...COMPS.map(x => x.psf)) ? 'bg-success/5' : c.psf === Math.min(...COMPS.map(x => x.psf)) ? 'bg-warning/5' : ''}>
-                            <TableCell className="text-xs font-bold py-1.5">{c.developer}</TableCell>
-                            <TableCell className="text-xs text-right text-muted-foreground py-1.5">{c.name}</TableCell>
-                            <TableCell className="text-xs text-right font-mono py-1.5">AED {fmt(c.psf)}</TableCell>
-                            <TableCell className="text-xs text-right font-mono py-1.5">{fmtM(devRevenue)}</TableCell>
-                            <TableCell className={`text-xs text-right font-mono py-1.5 ${devProfit > 0 ? 'text-success' : 'text-destructive'}`}>{fmtM(devProfit)}</TableCell>
-                            <TableCell className={`text-xs text-right py-1.5 ${devMargin > 0.2 ? 'text-success' : devMargin > 0 ? 'text-warning' : 'text-destructive'}`}>{pct(devMargin)}</TableCell>
-                            <TableCell className={`text-xs text-right py-1.5 ${devRoi > 0.15 ? 'text-success' : devRoi > 0 ? 'text-warning' : 'text-destructive'}`}>{pct(devRoi)}</TableCell>
-                            <TableCell className={`text-xs text-right font-mono py-1.5 ${deltaVsBase >= 0 ? 'text-success' : 'text-warning'}`}>
-                              {deltaVsBase >= 0 ? '+' : ''}{fmtM(deltaVsBase)}
-                            </TableCell>
-                          </TableRow>
-                        );
-                      })}
-                      {/* Your plot baseline row */}
-                      <TableRow className="bg-primary/5 border-t-2 border-primary/30">
-                        <TableCell className="text-xs font-bold py-1.5 text-primary">Your Plot</TableCell>
-                        <TableCell className="text-xs text-right text-primary py-1.5">{activePlot.id}</TableCell>
-                        <TableCell className="text-xs text-right font-mono font-bold py-1.5 text-primary">AED {fmt(Math.round(fs.avgPsf))}</TableCell>
-                        <TableCell className="text-xs text-right font-mono font-bold py-1.5">{fmtM(fs.grossSales)}</TableCell>
-                        <TableCell className="text-xs text-right font-mono font-bold py-1.5 text-success">{fmtM(fs.grossProfit)}</TableCell>
-                        <TableCell className="text-xs text-right font-bold py-1.5">{pct(fs.grossMargin)}</TableCell>
-                        <TableCell className="text-xs text-right font-bold py-1.5">{pct(fs.roi)}</TableCell>
-                        <TableCell className="text-xs text-right py-1.5 text-primary font-bold">BASE</TableCell>
-                      </TableRow>
-                    </TableBody>
-                  </Table>
-                </div>
-
-                <div className="mt-3 p-2 rounded-lg bg-muted/30 border border-border/30 text-[10px] text-muted-foreground">
-                  <strong className="text-foreground">Reading:</strong> Each row shows what your plot's financials would look like if units sold at that developer's benchmark PSF. Higher PSF = higher revenue & ROI. Your weighted avg PSF ({fmt(Math.round(fs.avgPsf))}) is derived from 809 real DSC transactions.
-                </div>
-              </Section>
             </>
           )}
 
