@@ -483,10 +483,13 @@ export default function DCReport() {
   const [activeMix, setActiveMix] = useState<MixKey>('balanced');
 
   useEffect(() => {
-    const encoded = searchParams.get('d');
-    if (encoded) {
+    const rawEncoded = searchParams.get('d');
+    if (rawEncoded) {
       try {
-        const payload = JSON.parse(decodeURIComponent(atob(encoded)));
+        // Restore standard base64 from URL-safe variant
+        let b64 = rawEncoded.replace(/-/g, '+').replace(/_/g, '/');
+        while (b64.length % 4) b64 += '=';
+        const payload = JSON.parse(decodeURIComponent(atob(b64)));
         const linkData: DCShareLink = {
           id: payload.id,
           plotId: payload.plotId,
