@@ -1,5 +1,5 @@
 import { useState, useMemo } from 'react';
-import { X, Link2, Copy, Check, Calendar, Shield, Eye, Download, Clock, Trash2, Users, AlertTriangle, RefreshCw, Settings, UserPlus, Phone, Building2, Mail } from 'lucide-react';
+import { X, Link2, Copy, Check, Calendar, Shield, Eye, Download, Clock, Trash2, Users, AlertTriangle, RefreshCw, Settings, UserPlus, Phone, Building2, Mail, ExternalLink, ToggleLeft, ToggleRight } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Switch } from '@/components/ui/switch';
@@ -51,6 +51,7 @@ interface DCShareModalProps {
 const STORAGE_KEY = 'hyperplot_dc_share_links';
 const CONTACTS_KEY = 'hyperplot_dc_contacts';
 const LOGS_KEY = 'hyperplot_dc_security_logs';
+const SHEETS_URL_KEY = 'hyperplot_sheets_url';
 
 export function loadShareLinks(): DCShareLink[] {
   try { return JSON.parse(localStorage.getItem(STORAGE_KEY) || '[]'); } catch { return []; }
@@ -69,7 +70,6 @@ function loadLogs(): SecurityLog[] {
     const stored = JSON.parse(localStorage.getItem(LOGS_KEY) || '[]');
     if (stored.length > 0) return stored;
   } catch {}
-  // Demo data
   return [
     { id: '1', event: 'access_granted', email: 'mohamed@gmail.com', device: '1lq4gq', time: '2/18/2026, 7:30:45 AM' },
     { id: '2', event: 'access_granted', email: 'mohamed@gmail.com', device: '—', time: '2/18/2026, 7:30:40 AM' },
@@ -90,14 +90,18 @@ export function DCShareModal({ open, onClose, plotId, activeMix, fs, plotInput, 
   const [contacts, setContacts] = useState<PreApprovedContact[]>(loadContacts);
   const [logs, setLogs] = useState<SecurityLog[]>(loadLogs);
   const [tab, setTab] = useState<ModalTab>('link');
-  const [expiryDays, setExpiryDays] = useState(1); // 24 hours default
+  const [expiryDays, setExpiryDays] = useState(1);
   const [captcha, setCaptcha] = useState(true);
   const [copiedId, setCopiedId] = useState<string | null>(null);
   const [contactFilter, setContactFilter] = useState<ContactFilter>('all');
   const [logFilter, setLogFilter] = useState<LogFilter>('all');
   const [showAddContact, setShowAddContact] = useState(false);
   const [newContact, setNewContact] = useState({ email: '', phone: '', company: '' });
+  const [sheetsUrl, setSheetsUrl] = useState(localStorage.getItem(SHEETS_URL_KEY) || '');
+  const [sheetsConnected, setSheetsConnected] = useState(!!localStorage.getItem(SHEETS_URL_KEY));
+  const [showSheetsConfig, setShowSheetsConfig] = useState(false);
 
+  const plotLinks = useMemo(() => links.filter(l => l.plotId === plotId), [links, plotId]);
   const accessedCount = contacts.filter(c => c.accessed).length;
   const notAccessedCount = contacts.filter(c => !c.accessed).length;
   const securityAlerts = logs.filter(l => l.event === 'link_forwarded' || l.event === 'access_denied').length;
@@ -122,9 +126,18 @@ export function DCShareModal({ open, onClose, plotId, activeMix, fs, plotInput, 
     const expiresAt = expiryDays > 0
       ? new Date(Date.now() + expiryDays * 86400000).toISOString()
       : null;
+    const input: DSCPlotInput = plotInput || {
+      id: plotId,
+      name: `Plot ${plotId}`,
+      area: fs.plot.area,
+      ratio: fs.plot.ratio,
+      height: fs.plot.height,
+      zone: fs.plot.zone,
+      constraints: fs.plot.constraints,
+    };
     const newLink: DCShareLink = {
       id, plotId, mixStrategy: activeMix,
-      plotInput: plotInput || fs.plot,
+      plotInput: input,
       overrides: overrides || {},
       createdAt: new Date().toISOString(),
       expiresAt, views: 0, downloads: 0, isActive: true,
@@ -133,12 +146,36 @@ export function DCShareModal({ open, onClose, plotId, activeMix, fs, plotInput, 
     const updated = [...links, newLink];
     setLinks(updated);
     saveShareLinks(updated);
-    // Add log
     const newLog: SecurityLog = { id: Math.random().toString(36).slice(2, 8), event: 'access_granted', email: 'system', device: '—', time: new Date().toLocaleString() };
     const updatedLogs = [newLog, ...logs];
     setLogs(updatedLogs);
     saveLogs(updatedLogs);
     toast.success('Secure link generated');
+  };
+
+  const copyLink = (link: DCShareLink) => {
+    navigator.clipboard.writeText(link.url);
+    setCopiedId(link.id);
+    setTimeout(() => setCopiedId(null), 2000);
+    toast.success('Link copied to clipboard');
+  };
+
+  const revokeLink = (linkId: string) => {
+    const updated = links.map(l => l.id === linkId ? { ...l, isActive: false } : l);
+    setLinks(updated);
+    saveShareLinks(updated);
+    const newLog: SecurityLog = { id: Math.random().toString(36).slice(2, 8), event: 'link_revoked', email: 'admin', device: '—', time: new Date().toLocaleString() };
+    const updatedLogs = [newLog, ...logs];
+    setLogs(updatedLogs);
+    saveLogs(updatedLogs);
+    toast.success('Link revoked');
+  };
+
+  const deleteLink = (linkId: string) => {
+    const updated = links.filter(l => l.id !== linkId);
+    setLinks(updated);
+    saveShareLinks(updated);
+    toast.success('Link deleted');
   };
 
   const addContact = () => {
@@ -167,22 +204,43 @@ export function DCShareModal({ open, onClose, plotId, activeMix, fs, plotInput, 
     toast.success('Contact removed');
   };
 
+  const saveSheetUrl = () => {
+    if (!sheetsUrl.trim()) return;
+    localStorage.setItem(SHEETS_URL_KEY, sheetsUrl.trim());
+    setSheetsConnected(true);
+    setShowSheetsConfig(false);
+    toast.success('Google Sheets URL saved');
+  };
+
+  const disconnectSheets = () => {
+    localStorage.removeItem(SHEETS_URL_KEY);
+    setSheetsUrl('');
+    setSheetsConnected(false);
+    toast.success('Google Sheets disconnected');
+  };
+
   if (!open) return null;
 
   const eventLabel = (e: SecurityLog['event']) => {
     switch (e) {
-      case 'access_granted': return { text: '✅Access Granted', cls: 'text-success' };
-      case 'access_denied': return { text: '🚫Access Denied', cls: 'text-destructive' };
-      case 'link_forwarded': return { text: '🚩Link Forwarded', cls: 'text-warning' };
-      case 'link_expired': return { text: '⏰Link Expired', cls: 'text-muted-foreground' };
-      case 'link_revoked': return { text: '🔒Link Revoked', cls: 'text-muted-foreground' };
+      case 'access_granted': return { text: '✅ Access Granted', cls: 'text-success' };
+      case 'access_denied': return { text: '🚫 Access Denied', cls: 'text-destructive' };
+      case 'link_forwarded': return { text: '🚩 Link Forwarded', cls: 'text-warning' };
+      case 'link_expired': return { text: '⏰ Link Expired', cls: 'text-muted-foreground' };
+      case 'link_revoked': return { text: '🔒 Link Revoked', cls: 'text-muted-foreground' };
     }
   };
 
-  const tabs: { key: ModalTab; icon: React.ReactNode; label: string }[] = [
-    { key: 'link', icon: <Link2 className="w-3.5 h-3.5" />, label: 'Link Settings' },
-    { key: 'contacts', icon: <Users className="w-3.5 h-3.5" />, label: 'Pre-Approved Contacts' },
-    { key: 'logs', icon: <AlertTriangle className="w-3.5 h-3.5" />, label: 'Security Logs' },
+  const linkStatus = (l: DCShareLink) => {
+    if (!l.isActive) return { label: 'Revoked', cls: 'text-destructive border-destructive/30 bg-destructive/10' };
+    if (l.expiresAt && new Date(l.expiresAt) < new Date()) return { label: 'Expired', cls: 'text-warning border-warning/30 bg-warning/10' };
+    return { label: 'Active', cls: 'text-success border-success/30 bg-success/10' };
+  };
+
+  const tabs: { key: ModalTab; icon: React.ReactNode; label: string; badge?: number }[] = [
+    { key: 'link', icon: <Link2 className="w-3.5 h-3.5" />, label: 'Link Settings', badge: plotLinks.length },
+    { key: 'contacts', icon: <Users className="w-3.5 h-3.5" />, label: 'Pre-Approved Contacts', badge: contacts.length },
+    { key: 'logs', icon: <AlertTriangle className="w-3.5 h-3.5" />, label: 'Security Logs', badge: securityAlerts > 0 ? securityAlerts : undefined },
   ];
 
   return (
@@ -196,7 +254,7 @@ export function DCShareModal({ open, onClose, plotId, activeMix, fs, plotInput, 
             </div>
             <div>
               <h2 className="text-lg font-bold text-foreground">Share & Access Control</h2>
-              <p className="text-xs text-muted-foreground">Investor Management</p>
+              <p className="text-xs text-muted-foreground">Investor Management · Plot {plotId}</p>
             </div>
           </div>
           <button onClick={onClose} className="p-1.5 rounded-lg hover:bg-muted/50 transition-colors">
@@ -205,22 +263,59 @@ export function DCShareModal({ open, onClose, plotId, activeMix, fs, plotInput, 
         </div>
 
         {/* Google Sheets Banner */}
-        <div className="mx-5 mt-4 p-3 rounded-xl border border-border/50 bg-muted/20 flex items-center justify-between">
-          <div className="flex items-center gap-3">
-            <div className="w-9 h-9 rounded-full bg-success/20 flex items-center justify-center">
-              <Check className="w-4 h-4 text-success" />
+        <div className="mx-5 mt-4 p-3 rounded-xl border border-border/50 bg-muted/20">
+          {!showSheetsConfig ? (
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-3">
+                <div className={`w-9 h-9 rounded-full flex items-center justify-center ${sheetsConnected ? 'bg-success/20' : 'bg-muted/40'}`}>
+                  {sheetsConnected ? <Check className="w-4 h-4 text-success" /> : <Settings className="w-4 h-4 text-muted-foreground" />}
+                </div>
+                <div>
+                  <div className="text-sm font-bold text-foreground">Google Sheets Auto-Approval</div>
+                  <div className="text-xs text-muted-foreground">
+                    {sheetsConnected ? `Connected · ${contacts.filter(c => c.source === 'sheets').length} contacts` : 'Not connected · Add your Sheets URL'}
+                  </div>
+                </div>
+              </div>
+              <div className="flex items-center gap-2">
+                <button onClick={() => setShowSheetsConfig(true)} className="text-xs text-primary hover:underline font-medium transition-colors">
+                  {sheetsConnected ? 'Configure' : 'Connect'}
+                </button>
+                {sheetsConnected && (
+                  <Button variant="outline" size="sm" className="h-8 gap-1.5 text-xs border-primary/40 text-primary">
+                    <RefreshCw className="w-3 h-3" /> Sync Now
+                  </Button>
+                )}
+              </div>
             </div>
-            <div>
-              <div className="text-sm font-bold text-foreground">Google Sheets Auto-Approval</div>
-              <div className="text-xs text-muted-foreground">Synced · {contacts.filter(c => c.source === 'sheets').length || 1} contacts</div>
+          ) : (
+            <div className="space-y-3 animate-fade-in">
+              <div className="flex items-center justify-between">
+                <span className="text-sm font-bold text-foreground">Google Sheets Configuration</span>
+                <button onClick={() => setShowSheetsConfig(false)} className="text-xs text-muted-foreground hover:text-foreground">Cancel</button>
+              </div>
+              <div>
+                <label className="text-xs text-muted-foreground mb-1 block">Google Sheets URL or Apps Script Web App URL</label>
+                <input
+                  type="url"
+                  value={sheetsUrl}
+                  onChange={e => setSheetsUrl(e.target.value)}
+                  placeholder="https://docs.google.com/spreadsheets/d/... or https://script.google.com/macros/s/..."
+                  className="w-full px-3 py-2 rounded-lg bg-muted/30 border border-border/50 text-sm text-foreground placeholder:text-muted-foreground/50"
+                />
+              </div>
+              <div className="flex gap-2">
+                <Button size="sm" className="gap-1.5 text-xs" onClick={saveSheetUrl} disabled={!sheetsUrl.trim()}>
+                  <Check className="w-3 h-3" /> Save & Connect
+                </Button>
+                {sheetsConnected && (
+                  <Button variant="destructive" size="sm" className="gap-1.5 text-xs" onClick={disconnectSheets}>
+                    <X className="w-3 h-3" /> Disconnect
+                  </Button>
+                )}
+              </div>
             </div>
-          </div>
-          <div className="flex items-center gap-2">
-            <button className="text-xs text-muted-foreground hover:text-foreground transition-colors">Configure</button>
-            <Button variant="outline" size="sm" className="h-8 gap-1.5 text-xs border-primary/40 text-primary">
-              <RefreshCw className="w-3 h-3" /> Sync Now
-            </Button>
-          </div>
+          )}
         </div>
 
         {/* Tab Navigation */}
@@ -236,6 +331,11 @@ export function DCShareModal({ open, onClose, plotId, activeMix, fs, plotInput, 
               }`}
             >
               {t.icon} {t.label}
+              {t.badge != null && t.badge > 0 && (
+                <span className={`ml-1 text-[10px] font-bold px-1.5 py-0.5 rounded-full ${
+                  t.key === 'logs' && securityAlerts > 0 ? 'bg-warning/20 text-warning' : 'bg-primary/20 text-primary'
+                }`}>{t.badge}</span>
+              )}
             </button>
           ))}
         </div>
@@ -246,6 +346,57 @@ export function DCShareModal({ open, onClose, plotId, activeMix, fs, plotInput, 
           {/* ─── LINK SETTINGS TAB ─── */}
           {tab === 'link' && (
             <>
+              {/* Generated links list */}
+              {plotLinks.length > 0 && (
+                <div>
+                  <h3 className="text-sm font-bold text-foreground mb-2">Generated Links ({plotLinks.length})</h3>
+                  <div className="space-y-2 max-h-48 overflow-y-auto">
+                    {plotLinks.map(l => {
+                      const st = linkStatus(l);
+                      return (
+                        <div key={l.id} className="p-3 rounded-xl border border-border/50 bg-muted/10 hover:border-primary/30 transition-all animate-fade-in">
+                          <div className="flex items-center justify-between mb-2">
+                            <div className="flex items-center gap-2">
+                              <Badge variant="outline" className={`text-[10px] ${st.cls}`}>{st.label}</Badge>
+                              <span className="text-xs text-muted-foreground font-mono">{l.id}</span>
+                              <Badge variant="outline" className="text-[10px] border-primary/30 text-primary">{MIX_TEMPLATES[l.mixStrategy].label}</Badge>
+                            </div>
+                            <div className="flex items-center gap-1">
+                              <button onClick={() => copyLink(l)} className="p-1.5 rounded-lg hover:bg-muted/50 transition-colors" title="Copy link">
+                                {copiedId === l.id ? <Check className="w-3.5 h-3.5 text-success" /> : <Copy className="w-3.5 h-3.5 text-muted-foreground" />}
+                              </button>
+                              <a href={l.url} target="_blank" rel="noopener noreferrer" className="p-1.5 rounded-lg hover:bg-muted/50 transition-colors" title="Open link">
+                                <ExternalLink className="w-3.5 h-3.5 text-muted-foreground" />
+                              </a>
+                              {l.isActive && (
+                                <button onClick={() => revokeLink(l.id)} className="p-1.5 rounded-lg hover:bg-warning/10 transition-colors" title="Revoke">
+                                  <Shield className="w-3.5 h-3.5 text-warning" />
+                                </button>
+                              )}
+                              <button onClick={() => deleteLink(l.id)} className="p-1.5 rounded-lg hover:bg-destructive/10 transition-colors" title="Delete">
+                                <Trash2 className="w-3.5 h-3.5 text-muted-foreground hover:text-destructive" />
+                              </button>
+                            </div>
+                          </div>
+                          <div className="flex items-center gap-4 text-xs text-muted-foreground">
+                            <span className="flex items-center gap-1"><Eye className="w-3 h-3" /> {l.views} views</span>
+                            <span className="flex items-center gap-1"><Download className="w-3 h-3" /> {l.downloads} downloads</span>
+                            <span className="flex items-center gap-1"><Calendar className="w-3 h-3" /> {new Date(l.createdAt).toLocaleDateString()}</span>
+                            {l.expiresAt && (
+                              <span className="flex items-center gap-1"><Clock className="w-3 h-3" /> Expires {new Date(l.expiresAt).toLocaleDateString()}</span>
+                            )}
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+              )}
+
+              <div className="border-t border-border/30 pt-4">
+                <h3 className="text-sm font-bold text-foreground mb-3">Generate New Link</h3>
+              </div>
+
               <div>
                 <label className="text-sm font-bold text-foreground">Selected Plot</label>
                 <div className="mt-1.5 px-4 py-2.5 rounded-lg bg-muted/30 border border-border/50 text-sm text-foreground">
@@ -306,7 +457,6 @@ export function DCShareModal({ open, onClose, plotId, activeMix, fs, plotInput, 
                 </Button>
               </div>
 
-              {/* Add contact form */}
               {showAddContact && (
                 <div className="p-4 rounded-xl border border-primary/30 bg-primary/5 space-y-2 animate-fade-in">
                   <input type="email" placeholder="Email address" value={newContact.email}
@@ -324,7 +474,6 @@ export function DCShareModal({ open, onClose, plotId, activeMix, fs, plotInput, 
                 </div>
               )}
 
-              {/* Filter pills */}
               <div className="flex gap-2">
                 {([
                   ['all', `All (${contacts.length})`],
@@ -347,7 +496,6 @@ export function DCShareModal({ open, onClose, plotId, activeMix, fs, plotInput, 
                 ))}
               </div>
 
-              {/* Contact list */}
               <div className="space-y-2">
                 {filteredContacts.length === 0 && (
                   <div className="text-center py-6 text-muted-foreground text-sm">No contacts found</div>
@@ -359,16 +507,8 @@ export function DCShareModal({ open, onClose, plotId, activeMix, fs, plotInput, 
                       <div className="min-w-0">
                         <div className="flex items-center gap-2 flex-wrap">
                           <span className="text-sm font-medium text-foreground truncate">{c.email}</span>
-                          {c.phone && (
-                            <span className="text-xs text-muted-foreground flex items-center gap-1">
-                              <Phone className="w-3 h-3" /> {c.phone}
-                            </span>
-                          )}
-                          {c.company && (
-                            <span className="text-xs text-muted-foreground flex items-center gap-1">
-                              <Building2 className="w-3 h-3" /> {c.company}
-                            </span>
-                          )}
+                          {c.phone && <span className="text-xs text-muted-foreground flex items-center gap-1"><Phone className="w-3 h-3" /> {c.phone}</span>}
+                          {c.company && <span className="text-xs text-muted-foreground flex items-center gap-1"><Building2 className="w-3 h-3" /> {c.company}</span>}
                           <Badge variant="outline" className={`text-[10px] ${c.source === 'sheets' ? 'border-primary/40 text-primary' : 'border-border text-muted-foreground'}`}>
                             {c.source === 'sheets' ? 'Sheets' : 'Manual'}
                           </Badge>
@@ -392,7 +532,6 @@ export function DCShareModal({ open, onClose, plotId, activeMix, fs, plotInput, 
           {/* ─── SECURITY LOGS TAB ─── */}
           {tab === 'logs' && (
             <>
-              {/* Alert banner */}
               {securityAlerts > 0 && (
                 <div className="p-3 rounded-xl bg-warning/10 border border-warning/30 flex items-center gap-3 animate-fade-in">
                   <AlertTriangle className="w-5 h-5 text-warning shrink-0" />
@@ -403,7 +542,6 @@ export function DCShareModal({ open, onClose, plotId, activeMix, fs, plotInput, 
                 </div>
               )}
 
-              {/* Filter pills */}
               <div className="flex gap-2 flex-wrap items-center">
                 {([
                   ['all', 'All Events'],
@@ -430,7 +568,6 @@ export function DCShareModal({ open, onClose, plotId, activeMix, fs, plotInput, 
                 </button>
               </div>
 
-              {/* Log table */}
               <div className="rounded-xl border border-border/50 overflow-hidden">
                 <table className="w-full text-sm">
                   <thead>
