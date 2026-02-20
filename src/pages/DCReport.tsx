@@ -1,4 +1,4 @@
-import { useState, useMemo, useEffect } from 'react';
+import { useState, useMemo, useEffect, useRef } from 'react';
 import { useParams, useNavigate, useSearchParams } from 'react-router-dom';
 import { Shield, Lock, Eye, Calendar, Printer, Building2, TrendingUp, DollarSign, BarChart3, MapPin, Share2, ChevronRight, Check, FileText, Phone, Mail, User } from 'lucide-react';
 import xEstateLogo from '@/assets/X-Estate_Logo.svg';
@@ -20,7 +20,8 @@ function useCountUp(target: number, duration = 1200, enabled = true) {
     const step = (ts: number) => {
       if (!start) start = ts;
       const p = Math.min((ts - start) / duration, 1);
-      setValue(Math.round(target * p));
+      const eased = 1 - Math.pow(1 - p, 3); // easeOutCubic
+      setValue(target * eased);
       if (p < 1) requestAnimationFrame(step);
     };
     requestAnimationFrame(step);
@@ -28,14 +29,15 @@ function useCountUp(target: number, duration = 1200, enabled = true) {
   return value;
 }
 
-// ─── KPI Card ───
-function KpiCard({ label, value, sub, accent, delay = 0 }: { label: string; value: string; sub?: string; accent?: boolean; delay?: number }) {
+// ─── Animated KPI Card with counting ───
+function KpiCard({ label, rawValue, formatter, sub, accent, delay = 0 }: { label: string; rawValue: number; formatter: (v: number) => string; sub?: string; accent?: boolean; delay?: number }) {
   const [show, setShow] = useState(false);
+  const animVal = useCountUp(rawValue, 1500, show);
   useEffect(() => { const t = setTimeout(() => setShow(true), delay); return () => clearTimeout(t); }, [delay]);
   return (
     <div className={`rounded-xl border p-5 transition-all duration-700 shadow-sm ${show ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-6'} ${accent ? 'border-amber-300/30 bg-gradient-to-br from-amber-50 to-white' : 'border-slate-200 bg-white'}`}>
       <div className="text-[11px] text-slate-500 font-semibold uppercase tracking-wider mb-1">{label}</div>
-      <div className={`text-2xl font-extrabold font-mono tracking-tight ${accent ? 'text-amber-600' : 'text-slate-800'}`}>{value}</div>
+      <div className={`text-2xl font-extrabold font-mono tracking-tight ${accent ? 'text-amber-600' : 'text-slate-800'}`}>{formatter(animVal)}</div>
       {sub && <div className="text-xs text-slate-400 mt-1">{sub}</div>}
     </div>
   );
@@ -74,6 +76,24 @@ function MetricBar({ label, value, percent }: { label: string; value: string; pe
   );
 }
 
+// ─── Animated Grid Background ───
+function AnimatedBackground() {
+  return (
+    <>
+      {/* Animated grid */}
+      <div className="fixed inset-0 z-0 opacity-30 pointer-events-none" style={{
+        backgroundImage: 'linear-gradient(rgba(6, 182, 212, 0.04) 1px, transparent 1px), linear-gradient(90deg, rgba(6, 182, 212, 0.04) 1px, transparent 1px)',
+        backgroundSize: '50px 50px',
+        animation: 'gridMove 20s linear infinite',
+      }} />
+      {/* Glow orbs */}
+      <div className="fixed top-1/4 left-1/4 w-[500px] h-[500px] rounded-full pointer-events-none z-0" style={{ background: 'radial-gradient(circle, rgba(6, 182, 212, 0.12), transparent 70%)', filter: 'blur(80px)', animation: 'float 10s ease-in-out infinite' }} />
+      <div className="fixed bottom-1/4 right-1/4 w-[400px] h-[400px] rounded-full pointer-events-none z-0" style={{ background: 'radial-gradient(circle, rgba(168, 85, 247, 0.08), transparent 70%)', filter: 'blur(80px)', animation: 'float 12s ease-in-out infinite reverse' }} />
+      <div className="fixed top-1/2 right-1/3 w-[300px] h-[300px] rounded-full pointer-events-none z-0" style={{ background: 'radial-gradient(circle, rgba(245, 158, 11, 0.06), transparent 70%)', filter: 'blur(60px)', animation: 'float 8s ease-in-out infinite 2s' }} />
+    </>
+  );
+}
+
 // ─── Registration Step (Email + Mobile) ───
 function RegistrationStep({ onComplete }: { onComplete: () => void }) {
   const [name, setName] = useState('');
@@ -97,59 +117,59 @@ function RegistrationStep({ onComplete }: { onComplete: () => void }) {
   };
 
   return (
-    <div className="min-h-screen flex items-center justify-center p-4 relative">
-      <img src={teaserBg} alt="" className="absolute inset-0 w-full h-full object-cover" />
-      <div className="absolute inset-0 bg-black/70 backdrop-blur-sm" />
+    <div className="min-h-screen flex items-center justify-center p-4 relative bg-[#0a0e1a]">
+      <AnimatedBackground />
+      <div className="absolute inset-0 bg-gradient-to-b from-[#0a0e1a]/90 via-[#0a0e1a]/80 to-[#0a0e1a]/95 z-[1]" />
       <div className="relative z-10 w-full max-w-md animate-fade-in">
         <div className="flex items-center justify-center gap-0 mb-8">
           {[1, 2, 3].map((s, i) => (
             <div key={s} className="flex items-center">
-              <div className={`w-10 h-10 rounded-full flex items-center justify-center text-sm font-bold ${
-                s <= 2 ? 'bg-amber-500 text-black' : 'bg-white/10 text-white/40'
+              <div className={`w-10 h-10 rounded-full flex items-center justify-center text-sm font-bold transition-all ${
+                s <= 2 ? 'bg-gradient-to-br from-cyan-400 to-teal-500 text-black shadow-lg shadow-cyan-500/20' : 'bg-white/5 text-white/30 border border-white/10'
               }`}>{s}</div>
-              {i < 2 && <div className={`w-16 h-0.5 ${s < 2 ? 'bg-amber-500' : 'bg-white/10'}`} />}
+              {i < 2 && <div className={`w-16 h-0.5 ${s < 2 ? 'bg-gradient-to-r from-cyan-400 to-teal-500' : 'bg-white/10'}`} />}
             </div>
           ))}
         </div>
         <div className="text-center mb-2">
-          <span className="text-xs text-white/50 uppercase tracking-widest">Step 2 of 3</span>
+          <span className="text-xs text-cyan-400/60 uppercase tracking-widest font-semibold">Step 2 of 3</span>
         </div>
         <h1 className="text-2xl font-bold text-center text-white mb-2">Investor Registration</h1>
-        <p className="text-center text-white/50 text-sm mb-6">Complete your details to access the full feasibility report</p>
+        <p className="text-center text-white/40 text-sm mb-6">Complete your details to access the full feasibility report</p>
 
-        <div className="rounded-2xl border border-white/10 bg-white/5 backdrop-blur-xl p-6 space-y-4">
+        <div className="rounded-2xl border border-white/10 bg-white/[0.03] backdrop-blur-xl p-6 space-y-4 shadow-2xl">
           <div>
-            <label className="text-xs text-white/60 font-semibold uppercase tracking-wider mb-1.5 block">Full Name</label>
+            <label className="text-xs text-cyan-400/60 font-semibold uppercase tracking-wider mb-1.5 block">Full Name</label>
             <div className="relative">
-              <User className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-white/30" />
+              <User className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-white/20" />
               <input type="text" value={name} onChange={e => setName(e.target.value)} placeholder="Enter your full name"
-                className="w-full pl-10 pr-4 py-3 rounded-xl bg-white/5 border border-white/15 text-white text-sm placeholder:text-white/25 focus:border-amber-500/50 focus:outline-none transition-colors" />
+                className="w-full pl-10 pr-4 py-3 rounded-xl bg-white/5 border border-white/10 text-white text-sm placeholder:text-white/20 focus:border-cyan-500/50 focus:outline-none focus:shadow-[0_0_15px_rgba(6,182,212,0.1)] transition-all" />
             </div>
             {errors.name && <p className="text-xs text-red-400 mt-1">{errors.name}</p>}
           </div>
           <div>
-            <label className="text-xs text-white/60 font-semibold uppercase tracking-wider mb-1.5 block">Email Address</label>
+            <label className="text-xs text-cyan-400/60 font-semibold uppercase tracking-wider mb-1.5 block">Email Address</label>
             <div className="relative">
-              <Mail className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-white/30" />
+              <Mail className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-white/20" />
               <input type="email" value={email} onChange={e => setEmail(e.target.value)} placeholder="your@email.com"
-                className="w-full pl-10 pr-4 py-3 rounded-xl bg-white/5 border border-white/15 text-white text-sm placeholder:text-white/25 focus:border-amber-500/50 focus:outline-none transition-colors" />
+                className="w-full pl-10 pr-4 py-3 rounded-xl bg-white/5 border border-white/10 text-white text-sm placeholder:text-white/20 focus:border-cyan-500/50 focus:outline-none focus:shadow-[0_0_15px_rgba(6,182,212,0.1)] transition-all" />
             </div>
             {errors.email && <p className="text-xs text-red-400 mt-1">{errors.email}</p>}
           </div>
           <div>
-            <label className="text-xs text-white/60 font-semibold uppercase tracking-wider mb-1.5 block">Mobile Number</label>
+            <label className="text-xs text-cyan-400/60 font-semibold uppercase tracking-wider mb-1.5 block">Mobile Number</label>
             <div className="relative">
-              <Phone className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-white/30" />
+              <Phone className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-white/20" />
               <input type="tel" value={mobile} onChange={e => setMobile(e.target.value)} placeholder="+971 XX XXX XXXX"
-                className="w-full pl-10 pr-4 py-3 rounded-xl bg-white/5 border border-white/15 text-white text-sm placeholder:text-white/25 focus:border-amber-500/50 focus:outline-none transition-colors" />
+                className="w-full pl-10 pr-4 py-3 rounded-xl bg-white/5 border border-white/10 text-white text-sm placeholder:text-white/20 focus:border-cyan-500/50 focus:outline-none focus:shadow-[0_0_15px_rgba(6,182,212,0.1)] transition-all" />
             </div>
             {errors.mobile && <p className="text-xs text-red-400 mt-1">{errors.mobile}</p>}
           </div>
-          <Button onClick={handleSubmit} className="w-full h-12 gap-2 text-sm font-bold bg-amber-500 hover:bg-amber-600 text-black rounded-xl mt-2">
+          <Button onClick={handleSubmit} className="w-full h-12 gap-2 text-sm font-bold bg-gradient-to-r from-cyan-500 to-teal-500 hover:from-cyan-400 hover:to-teal-400 text-black rounded-xl mt-2 shadow-lg shadow-cyan-500/20">
             Continue to NDA <ChevronRight className="w-4 h-4" />
           </Button>
         </div>
-        <p className="text-xs text-white/30 text-center mt-4">Your information is encrypted and kept confidential</p>
+        <p className="text-xs text-white/20 text-center mt-4">Your information is encrypted and kept confidential</p>
       </div>
     </div>
   );
@@ -159,28 +179,28 @@ function RegistrationStep({ onComplete }: { onComplete: () => void }) {
 function NDAStep({ onAccept }: { onAccept: () => void }) {
   const [agreed, setAgreed] = useState(false);
   return (
-    <div className="min-h-screen flex items-center justify-center p-4 relative">
-      <img src={teaserBg} alt="" className="absolute inset-0 w-full h-full object-cover" />
-      <div className="absolute inset-0 bg-black/70 backdrop-blur-sm" />
+    <div className="min-h-screen flex items-center justify-center p-4 relative bg-[#0a0e1a]">
+      <AnimatedBackground />
+      <div className="absolute inset-0 bg-gradient-to-b from-[#0a0e1a]/90 via-[#0a0e1a]/80 to-[#0a0e1a]/95 z-[1]" />
       <div className="relative z-10 w-full max-w-2xl animate-fade-in">
         <div className="flex items-center justify-center gap-0 mb-8">
           {[1, 2, 3].map((s, i) => (
             <div key={s} className="flex items-center">
-              <div className="w-10 h-10 rounded-full flex items-center justify-center text-sm font-bold bg-amber-500 text-black">{s}</div>
-              {i < 2 && <div className="w-16 h-0.5 bg-amber-500" />}
+              <div className="w-10 h-10 rounded-full flex items-center justify-center text-sm font-bold bg-gradient-to-br from-cyan-400 to-teal-500 text-black shadow-lg shadow-cyan-500/20">{s}</div>
+              {i < 2 && <div className="w-16 h-0.5 bg-gradient-to-r from-cyan-400 to-teal-500" />}
             </div>
           ))}
         </div>
         <div className="text-center mb-2">
-          <span className="text-xs text-white/50 uppercase tracking-widest">Step 3 of 3</span>
+          <span className="text-xs text-cyan-400/60 uppercase tracking-widest font-semibold">Step 3 of 3</span>
         </div>
         <h1 className="text-2xl font-bold text-center text-white mb-6">Non-Disclosure Agreement</h1>
-        <div className="rounded-2xl border border-white/10 bg-white/5 backdrop-blur-xl p-6 mb-6">
+        <div className="rounded-2xl border border-white/10 bg-white/[0.03] backdrop-blur-xl p-6 mb-6 shadow-2xl">
           <div className="flex items-center gap-2 mb-4">
-            <FileText className="w-5 h-5 text-amber-400" />
+            <FileText className="w-5 h-5 text-cyan-400" />
             <span className="font-bold text-white">Confidentiality Agreement</span>
           </div>
-          <div className="rounded-lg p-4 text-sm font-mono text-white/60 max-h-48 overflow-y-auto space-y-3 border border-white/10 bg-black/20">
+          <div className="rounded-lg p-4 text-sm font-mono text-white/50 max-h-48 overflow-y-auto space-y-3 border border-white/10 bg-black/30">
             <p>CONFIDENTIALITY AND NON-DISCLOSURE AGREEMENT</p>
             <p>This Confidentiality and Non-Disclosure Agreement ("Agreement") is entered into as of {new Date().toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' })}.</p>
             <p>PARTIES:<br/>Disclosing Party: The Investment Sponsor ("Sponsor")<br/>Receiving Party: Company ("Recipient")</p>
@@ -191,12 +211,12 @@ function NDAStep({ onAccept }: { onAccept: () => void }) {
           </div>
         </div>
         <label className="flex items-start gap-3 mb-6 cursor-pointer">
-          <input type="checkbox" checked={agreed} onChange={e => setAgreed(e.target.checked)} className="mt-1 w-4 h-4 rounded border-white/30 accent-amber-500" />
-          <span className="text-sm text-white/60">
+          <input type="checkbox" checked={agreed} onChange={e => setAgreed(e.target.checked)} className="mt-1 w-4 h-4 rounded border-white/30 accent-cyan-500" />
+          <span className="text-sm text-white/50">
             I have read and agree to the terms of this Non-Disclosure Agreement. I understand that all information shared is confidential and proprietary.
           </span>
         </label>
-        <Button disabled={!agreed} onClick={onAccept} className={`w-full h-12 gap-2 text-sm font-bold rounded-xl ${agreed ? 'bg-amber-500 hover:bg-amber-600 text-black' : 'bg-white/10 text-white/30'}`}>
+        <Button disabled={!agreed} onClick={onAccept} className={`w-full h-12 gap-2 text-sm font-bold rounded-xl transition-all ${agreed ? 'bg-gradient-to-r from-cyan-500 to-teal-500 hover:from-cyan-400 hover:to-teal-400 text-black shadow-lg shadow-cyan-500/20' : 'bg-white/5 text-white/20 border border-white/10'}`}>
           Accept & View Report <ChevronRight className="w-4 h-4" />
         </Button>
       </div>
@@ -206,61 +226,93 @@ function NDAStep({ onAccept }: { onAccept: () => void }) {
 
 // ─── Teaser Landing Page ───
 function TeaserPage({ link, fs, onRequestAccess }: { link: DCShareLink; fs: DSCFeasibilityResult; onRequestAccess: () => void }) {
-  const gdv = useCountUp(Math.round(fs.grossSales / 1000000), 1500);
-  const roi = useCountUp(Math.round(fs.roi * 100), 1200);
-  const units = useCountUp(fs.units.total, 1000);
+  const gdv = useCountUp(Math.round(fs.grossSales / 1000000), 1800);
+  const roi = useCountUp(Math.round(fs.roi * 100), 1400);
+  const units = useCountUp(fs.units.total, 1200);
 
   return (
-    <div className="min-h-screen text-white flex flex-col relative">
-      <img src={teaserBg} alt="" className="absolute inset-0 w-full h-full object-cover z-0" />
-      <div className="absolute inset-0 bg-gradient-to-b from-black/60 via-black/50 to-black/80 z-0" />
+    <div className="min-h-screen text-white flex flex-col relative bg-[#0a0e1a] overflow-hidden">
+      <AnimatedBackground />
 
-      <div className="flex-1 flex flex-col items-center justify-center px-6 py-16 relative z-10">
-        <div className="text-center max-w-2xl">
-          <img src={xEstateLogo} alt="X-Estate" className="w-16 h-16 mx-auto mb-8 opacity-80" />
-          <h1 className="text-5xl md:text-6xl font-black mb-3 tracking-tight leading-none animate-fade-in uppercase">
+      {/* Header bar */}
+      <header className="relative z-10 flex items-center justify-between px-8 py-5">
+        <div className="flex items-center gap-3">
+          <img src={xEstateLogo} alt="X-Estate" className="w-10 h-10 opacity-70" />
+          <div>
+            <h1 className="text-lg font-bold text-white">HyperPlot AI</h1>
+            <p className="text-xs text-cyan-400/50">Dubai Sports City Feasibility Platform</p>
+          </div>
+        </div>
+        <div className="flex items-center gap-3">
+          <Badge className="bg-cyan-500/10 text-cyan-400 border border-cyan-500/30 gap-1 px-3 py-1 text-xs font-semibold animate-pulse">
+            <span className="w-2 h-2 bg-cyan-400 rounded-full inline-block" /> LIVE DATA
+          </Badge>
+        </div>
+      </header>
+
+      <div className="flex-1 flex flex-col items-center justify-center px-6 py-12 relative z-10">
+        <div className="text-center max-w-3xl">
+          {/* Title badge */}
+          <div className="inline-flex items-center gap-2 px-4 py-1.5 rounded-full border border-cyan-500/20 bg-cyan-500/5 mb-8 animate-fade-in">
+            <span className="text-xs text-cyan-400 font-semibold uppercase tracking-widest">🏆 Decision Confidence</span>
+          </div>
+          
+          <h1 className="text-5xl md:text-7xl font-black mb-3 tracking-tight leading-none animate-fade-in uppercase bg-gradient-to-b from-white to-white/60 bg-clip-text text-transparent">
             Confidential
           </h1>
-          <h2 className="text-3xl md:text-4xl font-extrabold mb-2 animate-fade-in tracking-tight" style={{ animationDelay: '200ms' }}>
+          <h2 className="text-3xl md:text-4xl font-extrabold mb-2 animate-fade-in tracking-tight text-white/80" style={{ animationDelay: '200ms' }}>
             Residential Investment
           </h2>
-          <div className="w-24 h-0.5 bg-amber-500 mx-auto my-6 animate-fade-in" style={{ animationDelay: '300ms' }} />
-          <p className="text-lg text-white/60 uppercase tracking-[0.3em] mb-2 animate-fade-in" style={{ animationDelay: '400ms' }}>
+          <div className="w-32 h-0.5 bg-gradient-to-r from-transparent via-cyan-400 to-transparent mx-auto my-8 animate-fade-in" style={{ animationDelay: '300ms' }} />
+          <p className="text-sm text-cyan-400/40 uppercase tracking-[0.3em] mb-2 animate-fade-in" style={{ animationDelay: '400ms' }}>
             Comparative Performance & Growth Indicators
           </p>
-          <div className="flex items-center justify-center gap-2 text-white/50 mb-10 animate-fade-in" style={{ animationDelay: '500ms' }}>
-            <MapPin className="w-4 h-4" />
+          <div className="flex items-center justify-center gap-2 text-white/30 mb-12 animate-fade-in" style={{ animationDelay: '500ms' }}>
+            <MapPin className="w-4 h-4 text-cyan-400/40" />
             <span className="text-sm">Dubai Sports City, Dubai • UAE</span>
           </div>
-          <div className="flex items-center justify-center gap-12 mb-12">
+
+          {/* KPI Cards */}
+          <div className="flex items-center justify-center gap-6 md:gap-10 mb-14">
             {[
-              { val: `AED ${gdv}M`, label: 'GROSS DEVELOPMENT VALUE' },
-              { val: `${roi}%`, label: 'RETURN ON INVESTMENT' },
-              { val: `${fmt(units)}`, label: 'TOTAL UNITS' },
+              { val: `AED ${Math.round(gdv)}M`, label: 'GROSS DEVELOPMENT VALUE' },
+              { val: `${Math.round(roi)}%`, label: 'RETURN ON INVESTMENT' },
+              { val: `${fmt(Math.round(units))}`, label: 'TOTAL UNITS' },
             ].map((kpi, i) => (
-              <div key={kpi.label} className="text-center animate-fade-in" style={{ animationDelay: `${700 + i * 150}ms` }}>
-                <div className="text-3xl md:text-4xl font-black font-mono tracking-tight text-amber-400">{kpi.val}</div>
-                <div className="text-[10px] text-white/40 uppercase tracking-widest mt-2 max-w-[120px] mx-auto leading-tight">{kpi.label}</div>
+              <div key={kpi.label} className="text-center animate-fade-in group" style={{ animationDelay: `${700 + i * 150}ms` }}>
+                <div className="rounded-xl border border-cyan-500/20 bg-white/[0.03] backdrop-blur-sm p-5 mb-2 group-hover:border-cyan-500/40 group-hover:shadow-[0_0_30px_rgba(6,182,212,0.1)] transition-all duration-300">
+                  <div className="text-3xl md:text-4xl font-black font-mono tracking-tight text-cyan-400" style={{ textShadow: '0 0 30px rgba(6, 182, 212, 0.3)' }}>{kpi.val}</div>
+                </div>
+                <div className="text-[10px] text-white/30 uppercase tracking-widest mt-2 max-w-[120px] mx-auto leading-tight">{kpi.label}</div>
               </div>
             ))}
           </div>
-          <Button onClick={onRequestAccess} className="h-14 px-12 text-lg font-bold gap-2 bg-amber-500 hover:bg-amber-600 text-black rounded-xl shadow-2xl shadow-amber-500/20 animate-fade-in" style={{ animationDelay: '1100ms' }}>
+
+          <Button onClick={onRequestAccess} className="h-14 px-12 text-lg font-bold gap-2 bg-gradient-to-r from-cyan-500 to-teal-500 hover:from-cyan-400 hover:to-teal-400 text-black rounded-xl shadow-2xl shadow-cyan-500/20 animate-fade-in transition-all hover:shadow-cyan-500/30 hover:scale-[1.02]" style={{ animationDelay: '1100ms' }}>
             <Lock className="w-5 h-5" /> Request Full Details
           </Button>
-          <p className="text-xs text-white/30 mt-4 animate-fade-in" style={{ animationDelay: '1300ms' }}>
+          <p className="text-xs text-white/20 mt-4 animate-fade-in" style={{ animationDelay: '1300ms' }}>
             Registration & NDA acceptance required to view full investment details
           </p>
         </div>
       </div>
 
-      <footer className="relative z-10 border-t border-white/10 px-6 py-4 flex items-center justify-center gap-8 text-xs text-white/25 uppercase tracking-widest">
+      <footer className="relative z-10 border-t border-white/5 px-6 py-4 flex items-center justify-center gap-8 text-xs text-white/15 uppercase tracking-widest">
         <span>Off-Market</span>
-        <span>•</span>
+        <span className="text-cyan-400/20">•</span>
         <span>Direct Mandate</span>
-        <span>•</span>
+        <span className="text-cyan-400/20">•</span>
         <span>Confidential</span>
-        <span className="ml-auto">© {new Date().getFullYear()}</span>
+        <span className="ml-auto text-white/10">© {new Date().getFullYear()}</span>
       </footer>
+
+      {/* CSS for grid animation */}
+      <style>{`
+        @keyframes gridMove {
+          0% { transform: translate(0, 0); }
+          100% { transform: translate(50px, 50px); }
+        }
+      `}</style>
     </div>
   );
 }
@@ -273,6 +325,7 @@ export default function DCReport() {
   const [status, setStatus] = useState<'loading' | 'valid' | 'expired' | 'revoked' | 'not_found'>('loading');
   const [activeTab, setActiveTab] = useState<'feasibility' | 'benchmarks' | 'sensitivity'>('feasibility');
   const [accessPhase, setAccessPhase] = useState<'teaser' | 'register' | 'nda' | 'full'>('teaser');
+  const [activeMix, setActiveMix] = useState<MixKey>('balanced');
 
   useEffect(() => {
     // First try URL-encoded payload (works cross-browser)
@@ -297,6 +350,7 @@ export default function DCReport() {
           return;
         }
         setLink(linkData);
+        setActiveMix(linkData.mixStrategy);
         setStatus('valid');
         return;
       } catch (e) {
@@ -313,6 +367,7 @@ export default function DCReport() {
     found.views += 1;
     saveShareLinks(links.map(l => l.id === found.id ? found : l));
     setLink(found);
+    setActiveMix(found.mixStrategy);
     setStatus('valid');
   }, [linkId, searchParams]);
 
@@ -323,26 +378,27 @@ export default function DCReport() {
       area: 55284, ratio: 5.87, height: '0m',
       zone: 'Commercial-Residential', constraints: 'Standard guidelines',
     };
-    return calcDSCFeasibility(input, link.mixStrategy, link.overrides as any || {});
-  }, [link]);
+    return calcDSCFeasibility(input, activeMix, link.overrides as any || {});
+  }, [link, activeMix]);
 
   // Status screens
   if (status === 'loading') {
     return (
-      <div className="min-h-screen bg-background flex items-center justify-center">
-        <div className="animate-spin w-8 h-8 border-2 border-primary border-t-transparent rounded-full" />
+      <div className="min-h-screen bg-[#0a0e1a] flex items-center justify-center">
+        <div className="animate-spin w-8 h-8 border-2 border-cyan-400 border-t-transparent rounded-full" />
       </div>
     );
   }
 
   if (status === 'not_found') {
     return (
-      <div className="min-h-screen bg-background flex items-center justify-center">
-        <div className="text-center max-w-md mx-auto p-8">
-          <Shield className="w-16 h-16 text-muted-foreground/30 mx-auto mb-4" />
-          <h1 className="text-2xl font-bold text-foreground mb-2">Link Not Found</h1>
-          <p className="text-muted-foreground mb-6">This feasibility link does not exist or has been removed.</p>
-          <Button onClick={() => navigate('/')} variant="outline">Go to Dashboard</Button>
+      <div className="min-h-screen bg-[#0a0e1a] flex items-center justify-center">
+        <AnimatedBackground />
+        <div className="text-center max-w-md mx-auto p-8 relative z-10">
+          <Shield className="w-16 h-16 text-white/10 mx-auto mb-4" />
+          <h1 className="text-2xl font-bold text-white mb-2">Link Not Found</h1>
+          <p className="text-white/40 mb-6">This feasibility link does not exist or has been removed.</p>
+          <Button onClick={() => navigate('/')} variant="outline" className="border-white/10 text-white/60 hover:bg-white/5">Go to Dashboard</Button>
         </div>
       </div>
     );
@@ -350,12 +406,13 @@ export default function DCReport() {
 
   if (status === 'revoked') {
     return (
-      <div className="min-h-screen bg-background flex items-center justify-center">
-        <div className="text-center max-w-md mx-auto p-8">
-          <Lock className="w-16 h-16 text-destructive/50 mx-auto mb-4" />
-          <h1 className="text-2xl font-bold text-foreground mb-2">Access Revoked</h1>
-          <p className="text-muted-foreground mb-6">This feasibility link has been revoked by the owner.</p>
-          <Button onClick={() => navigate('/')} variant="outline">Go to Dashboard</Button>
+      <div className="min-h-screen bg-[#0a0e1a] flex items-center justify-center">
+        <AnimatedBackground />
+        <div className="text-center max-w-md mx-auto p-8 relative z-10">
+          <Lock className="w-16 h-16 text-red-500/30 mx-auto mb-4" />
+          <h1 className="text-2xl font-bold text-white mb-2">Access Revoked</h1>
+          <p className="text-white/40 mb-6">This feasibility link has been revoked by the owner.</p>
+          <Button onClick={() => navigate('/')} variant="outline" className="border-white/10 text-white/60 hover:bg-white/5">Go to Dashboard</Button>
         </div>
       </div>
     );
@@ -363,14 +420,15 @@ export default function DCReport() {
 
   if (status === 'expired') {
     return (
-      <div className="min-h-screen bg-background flex items-center justify-center">
-        <div className="text-center max-w-md mx-auto p-8">
-          <Calendar className="w-16 h-16 text-amber-500/50 mx-auto mb-4" />
-          <h1 className="text-2xl font-bold text-foreground mb-2">Link Expired</h1>
-          <p className="text-muted-foreground mb-6">
+      <div className="min-h-screen bg-[#0a0e1a] flex items-center justify-center">
+        <AnimatedBackground />
+        <div className="text-center max-w-md mx-auto p-8 relative z-10">
+          <Calendar className="w-16 h-16 text-amber-500/30 mx-auto mb-4" />
+          <h1 className="text-2xl font-bold text-white mb-2">Link Expired</h1>
+          <p className="text-white/40 mb-6">
             Expired on {link?.expiresAt ? new Date(link.expiresAt).toLocaleDateString() : 'N/A'}.
           </p>
-          <Button onClick={() => navigate('/')} variant="outline">Go to Dashboard</Button>
+          <Button onClick={() => navigate('/')} variant="outline" className="border-white/10 text-white/60 hover:bg-white/5">Go to Dashboard</Button>
         </div>
       </div>
     );
@@ -391,7 +449,7 @@ export default function DCReport() {
     return <NDAStep onAccept={() => setAccessPhase('full')} />;
   }
 
-  const mixTemplate = MIX_TEMPLATES[link.mixStrategy];
+  const mixTemplate = MIX_TEMPLATES[activeMix];
   const equityAmt = fs.totalCost * 0.4;
   const debtAmt = fs.totalCost * 0.6;
 
@@ -441,15 +499,15 @@ export default function DCReport() {
         </div>
       </div>
 
-      {/* KPI Strip */}
+      {/* KPI Strip with counting animation */}
       <div className="max-w-6xl mx-auto px-6">
         <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-3 py-6">
-          <KpiCard label="Total GDV" value={fmtM(fs.grossSales)} sub={`Avg PSF: AED ${fmt(Math.round(fs.avgPsf))}`} accent delay={100} />
-          <KpiCard label="Total Cost" value={fmtM(fs.totalCost)} sub={`${pct(fs.totalCost / fs.grossSales)} of GDV`} delay={200} />
-          <KpiCard label="Net Profit" value={fmtM(fs.grossProfit)} sub={`Margin: ${pct(fs.grossMargin)}`} delay={300} />
-          <KpiCard label="ROI" value={pct(fs.roi)} sub="Return on cost" accent delay={400} />
-          <KpiCard label="Units" value={fmt(fs.units.total)} sub={`${fmt(Math.round(fs.sellableArea))} sqft sellable`} delay={500} />
-          <KpiCard label="Yield" value={pct(fs.grossYield)} sub="Annual rent / GDV" delay={600} />
+          <KpiCard label="Total GDV" rawValue={fs.grossSales} formatter={(v) => fmtM(v)} sub={`Avg PSF: AED ${fmt(Math.round(fs.avgPsf))}`} accent delay={100} />
+          <KpiCard label="Total Cost" rawValue={fs.totalCost} formatter={(v) => fmtM(v)} sub={`${pct(fs.totalCost / fs.grossSales)} of GDV`} delay={200} />
+          <KpiCard label="Net Profit" rawValue={fs.grossProfit} formatter={(v) => fmtM(v)} sub={`Margin: ${pct(fs.grossMargin)}`} delay={300} />
+          <KpiCard label="ROI" rawValue={fs.roi * 100} formatter={(v) => `${v.toFixed(1)}%`} sub="Return on cost" accent delay={400} />
+          <KpiCard label="Units" rawValue={fs.units.total} formatter={(v) => fmt(Math.round(v))} sub={`${fmt(Math.round(fs.sellableArea))} sqft sellable`} delay={500} />
+          <KpiCard label="Yield" rawValue={fs.grossYield * 100} formatter={(v) => `${v.toFixed(1)}%`} sub="Annual rent / GDV" delay={600} />
         </div>
       </div>
 
@@ -760,32 +818,33 @@ export default function DCReport() {
         )}
       </div>
 
-      {/* Unit Mix Bottom Bar */}
+      {/* Unit Mix Bottom Bar - CLICKABLE strategies */}
       <div className="fixed bottom-0 left-0 right-0 z-50 no-print">
         <div className="max-w-6xl mx-auto px-6">
           <div className="bg-slate-900/95 backdrop-blur-xl border border-amber-500/20 border-b-0 rounded-t-xl px-4 py-3 shadow-2xl shadow-black/30">
             <div className="flex items-center gap-3">
               <span className="text-[10px] text-amber-400/60 font-bold uppercase tracking-wider whitespace-nowrap shrink-0">Strategy:</span>
               {(Object.entries(MIX_TEMPLATES) as [MixKey, typeof MIX_TEMPLATES.investor][]).map(([k, v]) => {
-                const isActive = link.mixStrategy === k;
+                const isActive = activeMix === k;
                 return (
-                  <div
+                  <button
                     key={k}
-                    className={`flex items-center gap-2 py-2 px-3 rounded-lg border transition-all shrink-0 ${
+                    onClick={() => setActiveMix(k)}
+                    className={`flex items-center gap-2 py-2 px-3 rounded-lg border transition-all shrink-0 cursor-pointer hover:scale-[1.02] active:scale-[0.98] ${
                       isActive
-                        ? 'bg-amber-500/15 border-amber-500/40 text-white'
-                        : 'bg-white/5 border-white/10 text-white/40'
+                        ? 'bg-amber-500/15 border-amber-500/40 text-white shadow-lg shadow-amber-500/10'
+                        : 'bg-white/5 border-white/10 text-white/40 hover:border-white/20 hover:text-white/60'
                     }`}
                   >
                     <span className="text-base">{v.icon}</span>
-                    <div className="min-w-0">
+                    <div className="min-w-0 text-left">
                       <div className="text-xs font-bold truncate">{v.label}</div>
                       <div className={`text-[10px] ${isActive ? 'text-amber-400/70' : 'text-white/25'} truncate`}>{v.tag}</div>
                     </div>
-                  </div>
+                  </button>
                 );
               })}
-              {/* Stats shown separately to avoid overflow */}
+              {/* Stats shown separately */}
               <div className="ml-auto text-[10px] font-mono text-amber-400/70 whitespace-nowrap shrink-0">
                 Units: {fmt(fs.units.total)} · ROI: {pct(fs.roi)} · PSF: {fmt(Math.round(fs.avgPsf))}
               </div>
