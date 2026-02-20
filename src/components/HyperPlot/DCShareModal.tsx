@@ -67,7 +67,7 @@ export async function loadShareLinksFromDB(): Promise<DCShareLink[]> {
     views: r.views,
     downloads: r.downloads,
     isActive: r.is_active,
-    url: `${window.location.origin}/dc/${r.id}`,
+    url: `https://land-insights.lovable.app/dc/${r.id}`,
   }));
 }
 
@@ -162,7 +162,7 @@ export function DCShareModal({ open, onClose, plotId, activeMix, fs, plotInput, 
         zone: fs.plot.zone,
         constraints: fs.plot.constraints,
       };
-      const url = `${window.location.origin}/dc/${id}`;
+      const url = `https://land-insights.lovable.app/dc/${id}`;
 
       // Save to database
       const { error } = await supabase.from('dc_share_links').insert({
