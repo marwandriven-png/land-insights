@@ -448,7 +448,15 @@ export function LandMatchingWizard({
           setError('Could not connect to the spreadsheet');
         }
       } else {
-        setError('Failed to verify spreadsheet access');
+        const errData = await response.json().catch(() => ({}));
+        const msg = errData?.error || 'Failed to verify spreadsheet access';
+        if (msg.includes('API key not valid')) {
+          setError('Google Sheets API key is invalid. Please update the API key in backend secrets.');
+        } else if (msg.includes('404')) {
+          setError('Spreadsheet not found. Ensure it is shared as "Anyone with the link can view".');
+        } else {
+          setError(`Spreadsheet error: ${msg}`);
+        }
       }
     } catch {
       setError('Connection test failed');

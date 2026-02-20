@@ -19,10 +19,20 @@ serve(async (req) => {
     const url = new URL(req.url);
     const action = url.searchParams.get('action');
 
+    // Helper: extract spreadsheet ID from full URL or raw ID
+    const extractSpreadsheetId = (input: string): string => {
+      if (!input) return '';
+      const match = input.match(/\/spreadsheets\/d\/([a-zA-Z0-9_-]+)/);
+      if (match) return match[1];
+      // Already a raw ID
+      return input.trim();
+    };
+
     if (action === 'lookup') {
       // Lookup plot numbers in a Google Sheet
       const body = await req.json();
-      const { spreadsheetId, sheetName, plotNumbers } = body;
+      const { spreadsheetId: rawSheetId, sheetName, plotNumbers } = body;
+      const spreadsheetId = extractSpreadsheetId(rawSheetId);
 
       if (!spreadsheetId || !plotNumbers || !Array.isArray(plotNumbers)) {
         return new Response(JSON.stringify({ error: 'spreadsheetId and plotNumbers[] required' }), {
@@ -105,7 +115,7 @@ serve(async (req) => {
     if (action === 'test') {
       // Test connectivity with a spreadsheet
       const body = await req.json();
-      const { spreadsheetId } = body;
+      const spreadsheetId = extractSpreadsheetId(body.spreadsheetId);
 
       if (!spreadsheetId) {
         return new Response(JSON.stringify({ error: 'spreadsheetId required' }), {
@@ -116,13 +126,17 @@ serve(async (req) => {
 
       const sheetsUrl = `https://sheets.googleapis.com/v4/spreadsheets/${spreadsheetId}?key=${GOOGLE_SHEETS_API_KEY}&fields=properties.title,sheets.properties.title`;
 
+      console.log('Testing spreadsheet access, extracted ID:', spreadsheetId);
+
       const response = await fetch(sheetsUrl, {
         method: 'GET',
         headers: { 'Accept': 'application/json' }
       });
 
       if (!response.ok) {
-        throw new Error(`Google Sheets API returned ${response.status}`);
+        const errText = await response.text();
+        console.error('Google Sheets test error:', response.status, errText);
+        throw new Error(`Google Sheets API returned ${response.status}: ${errText}`);
       }
 
       const data = await response.json();
