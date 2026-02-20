@@ -259,45 +259,45 @@ export function DCShareModal({ open, onClose, plotId, activeMix, fs, plotInput, 
   ];
 
   return (
-    <div className="fixed inset-0 bg-black/40 backdrop-blur-sm z-[60] flex items-center justify-center p-4 animate-fade-in">
-      <div className="bg-white border border-slate-200 rounded-2xl shadow-2xl w-full max-w-2xl max-h-[85vh] flex flex-col animate-scale-in">
+    <div className="fixed inset-0 bg-black/50 backdrop-blur-sm z-[60] flex items-center justify-center p-4 animate-fade-in">
+      <div className="bg-slate-900 border border-amber-500/20 rounded-2xl shadow-2xl shadow-black/40 w-full max-w-2xl max-h-[85vh] flex flex-col animate-scale-in">
         {/* Header */}
-        <div className="flex items-center justify-between p-5 border-b border-slate-200 shrink-0">
+        <div className="flex items-center justify-between p-5 border-b border-white/10 shrink-0">
           <div className="flex items-center gap-3">
-            <div className="w-10 h-10 rounded-xl bg-teal-100 flex items-center justify-center">
-              <Shield className="w-5 h-5 text-teal-600" />
+            <div className="w-10 h-10 rounded-xl bg-amber-500/15 flex items-center justify-center">
+              <Shield className="w-5 h-5 text-amber-400" />
             </div>
             <div>
-              <h2 className="text-lg font-bold text-slate-800">Share & Access Control</h2>
-              <p className="text-xs text-slate-500">Investor Management · Plot {plotId}</p>
+              <h2 className="text-lg font-bold text-white">Share & Access Control</h2>
+              <p className="text-xs text-white/40">Investor Management · Plot {plotId}</p>
             </div>
           </div>
-          <button onClick={onClose} className="p-1.5 rounded-lg hover:bg-slate-100 transition-colors">
-            <X className="w-5 h-5 text-slate-400" />
+          <button onClick={onClose} className="p-1.5 rounded-lg hover:bg-white/10 transition-colors">
+            <X className="w-5 h-5 text-white/40" />
           </button>
         </div>
 
         {/* Google Sheets Banner */}
-        <div className="mx-5 mt-4 p-3 rounded-xl border border-slate-200 bg-slate-50">
+        <div className="mx-5 mt-4 p-3 rounded-xl border border-white/10 bg-white/5">
           {!showSheetsConfig ? (
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-3">
-                <div className={`w-9 h-9 rounded-full flex items-center justify-center ${sheetsConnected ? 'bg-emerald-100' : 'bg-slate-100'}`}>
-                  {sheetsConnected ? <Check className="w-4 h-4 text-emerald-600" /> : <Settings className="w-4 h-4 text-slate-400" />}
+                <div className={`w-9 h-9 rounded-full flex items-center justify-center ${sheetsConnected ? 'bg-emerald-500/15' : 'bg-white/10'}`}>
+                  {sheetsConnected ? <Check className="w-4 h-4 text-emerald-400" /> : <Settings className="w-4 h-4 text-white/30" />}
                 </div>
                 <div>
-                  <div className="text-sm font-bold text-slate-800">Google Sheets Auto-Approval</div>
-                  <div className="text-xs text-slate-500">
+                  <div className="text-sm font-bold text-white">Google Sheets Auto-Approval</div>
+                  <div className="text-xs text-white/40">
                     {sheetsConnected ? `Connected · ${contacts.filter(c => c.source === 'sheets').length} contacts` : 'Not connected · Add your Sheets URL'}
                   </div>
                 </div>
               </div>
               <div className="flex items-center gap-2">
-                <button onClick={() => setShowSheetsConfig(true)} className="text-xs text-teal-600 hover:underline font-medium transition-colors">
+                <button onClick={() => setShowSheetsConfig(true)} className="text-xs text-amber-400 hover:underline font-medium transition-colors">
                   {sheetsConnected ? 'Configure' : 'Connect'}
                 </button>
                 {sheetsConnected && (
-                  <Button variant="outline" size="sm" className="h-8 gap-1.5 text-xs border-teal-300 text-teal-600">
+                  <Button variant="outline" size="sm" className="h-8 gap-1.5 text-xs border-amber-500/30 text-amber-400 bg-transparent hover:bg-amber-500/10">
                     <RefreshCw className="w-3 h-3" /> Sync Now
                   </Button>
                 )}
@@ -306,21 +306,21 @@ export function DCShareModal({ open, onClose, plotId, activeMix, fs, plotInput, 
           ) : (
             <div className="space-y-3 animate-fade-in">
               <div className="flex items-center justify-between">
-                <span className="text-sm font-bold text-slate-800">Google Sheets Configuration</span>
-                <button onClick={() => setShowSheetsConfig(false)} className="text-xs text-slate-400 hover:text-slate-600">Cancel</button>
+                <span className="text-sm font-bold text-white">Google Sheets Configuration</span>
+                <button onClick={() => setShowSheetsConfig(false)} className="text-xs text-white/30 hover:text-white/60">Cancel</button>
               </div>
               <div>
-                <label className="text-xs text-slate-500 mb-1 block">Google Sheets URL or Apps Script Web App URL</label>
+                <label className="text-xs text-white/40 mb-1 block">Google Sheets URL or Apps Script Web App URL</label>
                 <input
                   type="url"
                   value={sheetsUrl}
                   onChange={e => setSheetsUrl(e.target.value)}
                   placeholder="https://docs.google.com/spreadsheets/d/... or https://script.google.com/macros/s/..."
-                  className="w-full px-3 py-2 rounded-lg bg-white border border-slate-200 text-sm text-slate-800 placeholder:text-slate-400"
+                  className="w-full px-3 py-2 rounded-lg bg-white/5 border border-white/15 text-sm text-white placeholder:text-white/25"
                 />
               </div>
               <div className="flex gap-2">
-                <Button size="sm" className="gap-1.5 text-xs bg-teal-600 hover:bg-teal-700 text-white" onClick={saveSheetUrl} disabled={!sheetsUrl.trim()}>
+                <Button size="sm" className="gap-1.5 text-xs bg-amber-500 hover:bg-amber-600 text-black font-bold" onClick={saveSheetUrl} disabled={!sheetsUrl.trim()}>
                   <Check className="w-3 h-3" /> Save & Connect
                 </Button>
                 {sheetsConnected && (
@@ -341,14 +341,14 @@ export function DCShareModal({ open, onClose, plotId, activeMix, fs, plotInput, 
               onClick={() => setTab(t.key)}
               className={`flex items-center gap-1.5 px-4 py-2.5 text-sm font-semibold rounded-t-lg border transition-all ${
                 tab === t.key
-                  ? 'bg-white border-slate-200 border-b-transparent text-teal-600 -mb-px z-10'
-                  : 'bg-transparent border-transparent text-slate-400 hover:text-slate-600'
+                  ? 'bg-white/5 border-white/10 border-b-transparent text-amber-400 -mb-px z-10'
+                  : 'bg-transparent border-transparent text-white/30 hover:text-white/60'
               }`}
             >
               {t.icon} {t.label}
               {t.badge != null && t.badge > 0 && (
                 <span className={`ml-1 text-[10px] font-bold px-1.5 py-0.5 rounded-full ${
-                  t.key === 'logs' && securityAlerts > 0 ? 'bg-amber-100 text-amber-600' : 'bg-teal-100 text-teal-600'
+                  t.key === 'logs' && securityAlerts > 0 ? 'bg-amber-500/20 text-amber-400' : 'bg-amber-500/15 text-amber-400'
                 }`}>{t.badge}</span>
               )}
             </button>
@@ -356,7 +356,7 @@ export function DCShareModal({ open, onClose, plotId, activeMix, fs, plotInput, 
         </div>
 
         {/* Tab Content */}
-        <div className="flex-1 min-h-0 overflow-y-auto border-t border-slate-200 p-5 space-y-4 bg-white/50">
+        <div className="flex-1 min-h-0 overflow-y-auto border-t border-white/10 p-5 space-y-4 bg-slate-900/50">
           
           {/* ─── LINK SETTINGS TAB ─── */}
           {tab === 'link' && (
@@ -364,36 +364,36 @@ export function DCShareModal({ open, onClose, plotId, activeMix, fs, plotInput, 
               {/* Generated links list */}
               {plotLinks.length > 0 && (
                 <div>
-                  <h3 className="text-sm font-bold text-slate-800 mb-2">Generated Links ({plotLinks.length})</h3>
+                  <h3 className="text-sm font-bold text-white mb-2">Generated Links ({plotLinks.length})</h3>
                   <div className="space-y-2 max-h-48 overflow-y-auto">
                     {plotLinks.map(l => {
                       const st = linkStatus(l);
                       return (
-                        <div key={l.id} className="p-3 rounded-xl border border-slate-200 bg-slate-50 hover:border-teal-300 transition-all animate-fade-in">
+                        <div key={l.id} className="p-3 rounded-xl border border-white/10 bg-white/5 hover:border-amber-500/30 transition-all animate-fade-in">
                           <div className="flex items-center justify-between mb-2">
                             <div className="flex items-center gap-2">
                               <Badge variant="outline" className={`text-[10px] ${st.cls}`}>{st.label}</Badge>
-                              <span className="text-xs text-slate-500 font-mono">{l.id}</span>
-                              <Badge variant="outline" className="text-[10px] border-teal-300 text-teal-600">{MIX_TEMPLATES[l.mixStrategy].label}</Badge>
+                               <span className="text-xs text-white/40 font-mono">{l.id}</span>
+                              <Badge variant="outline" className="text-[10px] border-amber-500/30 text-amber-400">{MIX_TEMPLATES[l.mixStrategy].label}</Badge>
                             </div>
                             <div className="flex items-center gap-1">
-                              <button onClick={() => copyLink(l)} className="p-1.5 rounded-lg hover:bg-slate-100 transition-colors" title="Copy link">
-                                {copiedId === l.id ? <Check className="w-3.5 h-3.5 text-emerald-500" /> : <Copy className="w-3.5 h-3.5 text-slate-400" />}
+                              <button onClick={() => copyLink(l)} className="p-1.5 rounded-lg hover:bg-white/10 transition-colors" title="Copy link">
+                                {copiedId === l.id ? <Check className="w-3.5 h-3.5 text-emerald-400" /> : <Copy className="w-3.5 h-3.5 text-white/40" />}
                               </button>
-                              <a href={l.url} target="_blank" rel="noopener noreferrer" className="p-1.5 rounded-lg hover:bg-slate-100 transition-colors" title="Open link">
-                                <ExternalLink className="w-3.5 h-3.5 text-slate-400" />
+                              <a href={l.url} target="_blank" rel="noopener noreferrer" className="p-1.5 rounded-lg hover:bg-white/10 transition-colors" title="Open link">
+                                <ExternalLink className="w-3.5 h-3.5 text-white/40" />
                               </a>
                               {l.isActive && (
-                                <button onClick={() => revokeLink(l.id)} className="p-1.5 rounded-lg hover:bg-amber-50 transition-colors" title="Revoke">
-                                  <Shield className="w-3.5 h-3.5 text-amber-500" />
+                                <button onClick={() => revokeLink(l.id)} className="p-1.5 rounded-lg hover:bg-amber-500/10 transition-colors" title="Revoke">
+                                  <Shield className="w-3.5 h-3.5 text-amber-400" />
                                 </button>
                               )}
-                              <button onClick={() => deleteLink(l.id)} className="p-1.5 rounded-lg hover:bg-red-50 transition-colors" title="Delete">
-                                <Trash2 className="w-3.5 h-3.5 text-slate-400 hover:text-red-500" />
+                              <button onClick={() => deleteLink(l.id)} className="p-1.5 rounded-lg hover:bg-red-500/10 transition-colors" title="Delete">
+                                <Trash2 className="w-3.5 h-3.5 text-white/30 hover:text-red-400" />
                               </button>
                             </div>
                           </div>
-                          <div className="flex items-center gap-4 text-xs text-slate-500">
+                          <div className="flex items-center gap-4 text-xs text-white/40">
                             <span className="flex items-center gap-1"><Eye className="w-3 h-3" /> {l.views} views</span>
                             <span className="flex items-center gap-1"><Download className="w-3 h-3" /> {l.downloads} downloads</span>
                             <span className="flex items-center gap-1"><Calendar className="w-3 h-3" /> {new Date(l.createdAt).toLocaleDateString()}</span>
@@ -408,30 +408,30 @@ export function DCShareModal({ open, onClose, plotId, activeMix, fs, plotInput, 
                 </div>
               )}
 
-              <div className="border-t border-slate-200 pt-4">
-                <h3 className="text-sm font-bold text-slate-800 mb-3">Generate New Link</h3>
+              <div className="border-t border-white/10 pt-4">
+                <h3 className="text-sm font-bold text-white mb-3">Generate New Link</h3>
               </div>
 
               <div>
-                <label className="text-sm font-bold text-slate-700">Selected Plot</label>
-                <div className="mt-1.5 px-4 py-2.5 rounded-lg bg-slate-50 border border-slate-200 text-sm text-slate-800">
+                <label className="text-sm font-bold text-white/70">Selected Plot</label>
+                <div className="mt-1.5 px-4 py-2.5 rounded-lg bg-white/5 border border-white/10 text-sm text-white">
                   Plot {plotId} — Dubai Sports City
                 </div>
               </div>
 
               <div>
-                <label className="text-sm font-bold text-slate-700">Unit Mix Strategy</label>
-                <div className="mt-1.5 px-4 py-2.5 rounded-lg bg-slate-50 border border-slate-200 text-sm text-teal-600 font-semibold">
+                <label className="text-sm font-bold text-white/70">Unit Mix Strategy</label>
+                <div className="mt-1.5 px-4 py-2.5 rounded-lg bg-white/5 border border-white/10 text-sm text-amber-400 font-semibold">
                   {MIX_TEMPLATES[activeMix].label}
                 </div>
               </div>
 
               <div>
-                <label className="text-sm font-bold text-slate-700">Link Expiry</label>
+                <label className="text-sm font-bold text-white/70">Link Expiry</label>
                 <select
                   value={expiryDays}
                   onChange={e => setExpiryDays(Number(e.target.value))}
-                  className="w-full mt-1.5 h-10 text-sm rounded-lg bg-white border border-slate-200 px-4 text-slate-800"
+                  className="w-full mt-1.5 h-10 text-sm rounded-lg bg-white/5 border border-white/10 px-4 text-white"
                 >
                   <option value={1}>24 hours</option>
                   <option value={7}>7 days</option>
@@ -442,15 +442,15 @@ export function DCShareModal({ open, onClose, plotId, activeMix, fs, plotInput, 
                 </select>
               </div>
 
-              <div className="flex items-center justify-between p-4 rounded-xl border border-slate-200 bg-slate-50">
+              <div className="flex items-center justify-between p-4 rounded-xl border border-white/10 bg-white/5">
                 <div>
-                  <div className="text-sm font-bold text-slate-800">CAPTCHA Protection</div>
-                  <div className="text-xs text-slate-500">Require CAPTCHA verification before access</div>
+                  <div className="text-sm font-bold text-white">CAPTCHA Protection</div>
+                  <div className="text-xs text-white/40">Require CAPTCHA verification before access</div>
                 </div>
                 <Switch checked={captcha} onCheckedChange={setCaptcha} />
               </div>
 
-              <Button onClick={generateLink} className="w-full h-12 gap-2 text-sm font-bold bg-teal-600 hover:bg-teal-700 text-white">
+              <Button onClick={generateLink} className="w-full h-12 gap-2 text-sm font-bold bg-amber-500 hover:bg-amber-600 text-black">
                 <Link2 className="w-4 h-4" />
                 Generate Secure Link
               </Button>
@@ -462,30 +462,30 @@ export function DCShareModal({ open, onClose, plotId, activeMix, fs, plotInput, 
             <>
               <div className="flex items-center justify-between">
                 <div>
-                  <h3 className="text-sm font-bold text-slate-800">Pre-Approved Contacts</h3>
-                  <p className="text-xs text-slate-500">
+                  <h3 className="text-sm font-bold text-white">Pre-Approved Contacts</h3>
+                  <p className="text-xs text-white/40">
                     {contacts.length} active · {accessedCount} accessed · {notAccessedCount} not accessed
                   </p>
                 </div>
-                <Button variant="outline" size="sm" className="gap-1.5 text-xs border-slate-300 text-slate-600" onClick={() => setShowAddContact(!showAddContact)}>
+                <Button variant="outline" size="sm" className="gap-1.5 text-xs border-white/15 text-white/60 bg-transparent hover:bg-white/10" onClick={() => setShowAddContact(!showAddContact)}>
                   <UserPlus className="w-3.5 h-3.5" /> Add Contact
                 </Button>
               </div>
 
               {showAddContact && (
-                <div className="p-4 rounded-xl border border-teal-200 bg-teal-50 space-y-2 animate-fade-in">
+                <div className="p-4 rounded-xl border border-amber-500/20 bg-amber-500/10 space-y-2 animate-fade-in">
                   <input type="email" placeholder="Email address" value={newContact.email}
                     onChange={e => setNewContact(p => ({ ...p, email: e.target.value }))}
-                    className="w-full px-3 py-2 rounded-lg bg-white border border-slate-200 text-sm text-slate-800" />
+                    className="w-full px-3 py-2 rounded-lg bg-white/5 border border-white/15 text-sm text-white placeholder:text-white/25" />
                   <div className="grid grid-cols-2 gap-2">
                     <input type="tel" placeholder="Phone number" value={newContact.phone}
                       onChange={e => setNewContact(p => ({ ...p, phone: e.target.value }))}
-                      className="w-full px-3 py-2 rounded-lg bg-white border border-slate-200 text-sm text-slate-800" />
+                      className="w-full px-3 py-2 rounded-lg bg-white/5 border border-white/15 text-sm text-white placeholder:text-white/25" />
                     <input type="text" placeholder="Company" value={newContact.company}
                       onChange={e => setNewContact(p => ({ ...p, company: e.target.value }))}
-                      className="w-full px-3 py-2 rounded-lg bg-white border border-slate-200 text-sm text-slate-800" />
+                      className="w-full px-3 py-2 rounded-lg bg-white/5 border border-white/15 text-sm text-white placeholder:text-white/25" />
                   </div>
-                  <Button size="sm" className="w-full bg-teal-600 hover:bg-teal-700 text-white" onClick={addContact}>Add Contact</Button>
+                  <Button size="sm" className="w-full bg-amber-500 hover:bg-amber-600 text-black font-bold" onClick={addContact}>Add Contact</Button>
                 </div>
               )}
 
@@ -500,8 +500,8 @@ export function DCShareModal({ open, onClose, plotId, activeMix, fs, plotInput, 
                     onClick={() => setContactFilter(k)}
                     className={`px-3 py-1.5 text-xs font-semibold rounded-full border transition-all ${
                       contactFilter === k
-                        ? 'border-teal-300 bg-teal-50 text-teal-600'
-                        : 'border-slate-200 text-slate-400 hover:text-slate-600'
+                        ? 'border-amber-500/40 bg-amber-500/15 text-amber-400'
+                        : 'border-white/10 text-white/30 hover:text-white/60'
                     }`}
                   >
                     {k === 'accessed' && <Eye className="w-3 h-3 inline mr-1" />}
@@ -513,29 +513,29 @@ export function DCShareModal({ open, onClose, plotId, activeMix, fs, plotInput, 
 
               <div className="space-y-2">
                 {filteredContacts.length === 0 && (
-                  <div className="text-center py-6 text-slate-400 text-sm">No contacts found</div>
+                  <div className="text-center py-6 text-white/30 text-sm">No contacts found</div>
                 )}
                 {filteredContacts.map(c => (
-                  <div key={c.id} className="p-3 rounded-xl border border-slate-200 bg-white flex items-center justify-between hover:border-teal-300 transition-all">
+                  <div key={c.id} className="p-3 rounded-xl border border-white/10 bg-white/5 flex items-center justify-between hover:border-amber-500/30 transition-all">
                     <div className="flex items-center gap-3 min-w-0">
-                      <Mail className="w-4 h-4 text-slate-400 shrink-0" />
+                      <Mail className="w-4 h-4 text-white/30 shrink-0" />
                       <div className="min-w-0">
                         <div className="flex items-center gap-2 flex-wrap">
-                          <span className="text-sm font-medium text-slate-800 truncate">{c.email}</span>
-                          {c.phone && <span className="text-xs text-slate-500 flex items-center gap-1"><Phone className="w-3 h-3" /> {c.phone}</span>}
-                          {c.company && <span className="text-xs text-slate-500 flex items-center gap-1"><Building2 className="w-3 h-3" /> {c.company}</span>}
-                          <Badge variant="outline" className={`text-[10px] ${c.source === 'sheets' ? 'border-teal-300 text-teal-600' : 'border-slate-200 text-slate-500'}`}>
+                          <span className="text-sm font-medium text-white truncate">{c.email}</span>
+                          {c.phone && <span className="text-xs text-white/40 flex items-center gap-1"><Phone className="w-3 h-3" /> {c.phone}</span>}
+                          {c.company && <span className="text-xs text-white/40 flex items-center gap-1"><Building2 className="w-3 h-3" /> {c.company}</span>}
+                          <Badge variant="outline" className={`text-[10px] ${c.source === 'sheets' ? 'border-amber-500/30 text-amber-400' : 'border-white/15 text-white/40'}`}>
                             {c.source === 'sheets' ? 'Sheets' : 'Manual'}
                           </Badge>
                         </div>
                       </div>
                     </div>
                     <div className="flex items-center gap-2 shrink-0 ml-3">
-                      <span className={`text-xs font-medium ${c.accessed ? 'text-emerald-500' : 'text-slate-400'}`}>
+                      <span className={`text-xs font-medium ${c.accessed ? 'text-emerald-400' : 'text-white/30'}`}>
                         {c.accessed ? 'Accessed' : 'Not registered'}
                       </span>
-                      <button onClick={() => deleteContact(c.id)} className="p-1 rounded hover:bg-red-50 transition-colors">
-                        <Trash2 className="w-3.5 h-3.5 text-slate-400 hover:text-red-500" />
+                      <button onClick={() => deleteContact(c.id)} className="p-1 rounded hover:bg-red-500/10 transition-colors">
+                        <Trash2 className="w-3.5 h-3.5 text-white/30 hover:text-red-400" />
                       </button>
                     </div>
                   </div>
@@ -548,11 +548,11 @@ export function DCShareModal({ open, onClose, plotId, activeMix, fs, plotInput, 
           {tab === 'logs' && (
             <>
               {securityAlerts > 0 && (
-                <div className="p-3 rounded-xl bg-amber-50 border border-amber-200 flex items-center gap-3 animate-fade-in">
-                  <AlertTriangle className="w-5 h-5 text-amber-500 shrink-0" />
+                <div className="p-3 rounded-xl bg-amber-500/10 border border-amber-500/20 flex items-center gap-3 animate-fade-in">
+                  <AlertTriangle className="w-5 h-5 text-amber-400 shrink-0" />
                   <div>
-                    <div className="text-sm font-bold text-amber-600">{securityAlerts} Security Alert{securityAlerts > 1 ? 's' : ''}</div>
-                    <div className="text-xs text-slate-500">Forwarded links or device mismatches detected</div>
+                    <div className="text-sm font-bold text-amber-400">{securityAlerts} Security Alert{securityAlerts > 1 ? 's' : ''}</div>
+                    <div className="text-xs text-white/40">Forwarded links or device mismatches detected</div>
                   </div>
                 </div>
               )}
@@ -571,38 +571,38 @@ export function DCShareModal({ open, onClose, plotId, activeMix, fs, plotInput, 
                     onClick={() => setLogFilter(k)}
                     className={`px-3 py-1.5 text-xs font-semibold rounded-full border transition-all ${
                       logFilter === k
-                        ? 'border-teal-300 bg-teal-50 text-teal-600'
-                        : 'border-slate-200 text-slate-400 hover:text-slate-600'
+                        ? 'border-amber-500/40 bg-amber-500/15 text-amber-400'
+                        : 'border-white/10 text-white/30 hover:text-white/60'
                     }`}
                   >
                     {l}
                   </button>
                 ))}
-                <button className="ml-auto text-xs text-slate-400 flex items-center gap-1 hover:text-slate-600 transition-colors">
+                <button className="ml-auto text-xs text-white/30 flex items-center gap-1 hover:text-white/60 transition-colors">
                   <RefreshCw className="w-3 h-3" /> Refresh
                 </button>
               </div>
 
-              <div className="rounded-xl border border-slate-200 overflow-hidden">
+              <div className="rounded-xl border border-white/10 overflow-hidden">
                 <table className="w-full text-sm">
                   <thead>
-                    <tr className="bg-slate-50 border-b border-slate-200">
-                      <th className="text-left px-3 py-2 text-xs font-semibold text-slate-500">Event</th>
-                      <th className="text-left px-3 py-2 text-xs font-semibold text-slate-500">Email</th>
-                      <th className="text-left px-3 py-2 text-xs font-semibold text-slate-500">Device</th>
-                      <th className="text-left px-3 py-2 text-xs font-semibold text-slate-500">Time</th>
-                      <th className="text-left px-3 py-2 text-xs font-semibold text-slate-500">Actions</th>
+                    <tr className="bg-white/5 border-b border-white/10">
+                      <th className="text-left px-3 py-2 text-xs font-semibold text-white/40">Event</th>
+                      <th className="text-left px-3 py-2 text-xs font-semibold text-white/40">Email</th>
+                      <th className="text-left px-3 py-2 text-xs font-semibold text-white/40">Device</th>
+                      <th className="text-left px-3 py-2 text-xs font-semibold text-white/40">Time</th>
+                      <th className="text-left px-3 py-2 text-xs font-semibold text-white/40">Actions</th>
                     </tr>
                   </thead>
                   <tbody>
                     {filteredLogs.map(log => {
                       const ev = eventLabel(log.event);
                       return (
-                        <tr key={log.id} className="border-b border-slate-100 last:border-0 hover:bg-slate-50 transition-colors">
+                        <tr key={log.id} className="border-b border-white/5 last:border-0 hover:bg-white/5 transition-colors">
                           <td className={`px-3 py-2.5 font-medium ${ev.cls}`}>{ev.text}</td>
-                          <td className="px-3 py-2.5 text-slate-600">{log.email}</td>
-                          <td className="px-3 py-2.5 font-mono text-slate-400 text-xs">{log.device}</td>
-                          <td className="px-3 py-2.5 text-slate-400 text-xs">{log.time}</td>
+                          <td className="px-3 py-2.5 text-white/60">{log.email}</td>
+                          <td className="px-3 py-2.5 font-mono text-white/30 text-xs">{log.device}</td>
+                          <td className="px-3 py-2.5 text-white/30 text-xs">{log.time}</td>
                           <td className="px-3 py-2.5">
                             {log.event === 'access_granted' && (
                               <button className="text-xs text-red-500 font-medium hover:underline">Revoke</button>
@@ -613,7 +613,7 @@ export function DCShareModal({ open, onClose, plotId, activeMix, fs, plotInput, 
                     })}
                     {filteredLogs.length === 0 && (
                       <tr>
-                        <td colSpan={5} className="px-3 py-6 text-center text-slate-400 text-sm">No events found</td>
+                        <td colSpan={5} className="px-3 py-6 text-center text-white/30 text-sm">No events found</td>
                       </tr>
                     )}
                   </tbody>

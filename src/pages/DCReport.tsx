@@ -33,9 +33,9 @@ function KpiCard({ label, value, sub, accent, delay = 0 }: { label: string; valu
   const [show, setShow] = useState(false);
   useEffect(() => { const t = setTimeout(() => setShow(true), delay); return () => clearTimeout(t); }, [delay]);
   return (
-    <div className={`rounded-xl border p-5 transition-all duration-700 shadow-sm ${show ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-6'} ${accent ? 'border-teal-200 bg-gradient-to-br from-teal-50 to-white' : 'border-slate-200 bg-white'}`}>
+    <div className={`rounded-xl border p-5 transition-all duration-700 shadow-sm ${show ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-6'} ${accent ? 'border-amber-300/30 bg-gradient-to-br from-amber-50 to-white' : 'border-slate-200 bg-white'}`}>
       <div className="text-[11px] text-slate-500 font-semibold uppercase tracking-wider mb-1">{label}</div>
-      <div className={`text-2xl font-extrabold font-mono tracking-tight ${accent ? 'text-teal-600' : 'text-slate-800'}`}>{value}</div>
+      <div className={`text-2xl font-extrabold font-mono tracking-tight ${accent ? 'text-amber-600' : 'text-slate-800'}`}>{value}</div>
       {sub && <div className="text-xs text-slate-400 mt-1">{sub}</div>}
     </div>
   );
@@ -49,10 +49,10 @@ function Section({ num, title, badge, children, delay = 0 }: { num?: number; tit
     <div className={`mb-8 transition-all duration-700 ${show ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-8'}`}>
       <div className="flex items-center gap-2.5 mb-4 pb-3 border-b border-slate-200">
         {num != null && (
-          <span className="w-8 h-8 flex items-center justify-center rounded-md bg-gradient-to-br from-teal-500 to-cyan-500 text-white font-extrabold text-xs shrink-0">{num}</span>
+          <span className="w-8 h-8 flex items-center justify-center rounded-md bg-gradient-to-br from-amber-500 to-amber-600 text-white font-extrabold text-xs shrink-0">{num}</span>
         )}
         <h3 className="text-sm font-bold text-slate-600 uppercase tracking-widest">{title}</h3>
-        {badge && <Badge variant="outline" className="text-xs border-teal-300 text-teal-600 ml-auto">{badge}</Badge>}
+        {badge && <Badge variant="outline" className="text-xs border-amber-300 text-amber-600 ml-auto">{badge}</Badge>}
       </div>
       {children}
     </div>
@@ -67,8 +67,8 @@ function MetricBar({ label, value, percent }: { label: string; value: string; pe
         <span className="text-slate-500">{label}</span>
         <span className="font-semibold text-slate-800">{value}</span>
       </div>
-      <div className="h-1.5 bg-slate-100 rounded-full overflow-hidden">
-        <div className="h-full rounded-full bg-gradient-to-r from-teal-500 to-cyan-400 transition-all duration-1000" style={{ width: `${Math.min(percent, 100)}%` }} />
+        <div className="h-1.5 bg-slate-100 rounded-full overflow-hidden">
+          <div className="h-full rounded-full bg-gradient-to-r from-amber-500 to-amber-400 transition-all duration-1000" style={{ width: `${Math.min(percent, 100)}%` }} />
       </div>
     </div>
   );
@@ -408,13 +408,13 @@ export default function DCReport() {
             </div>
           </div>
           <div className="flex items-center gap-2">
-            <Badge variant="outline" className="text-xs border-emerald-300 text-emerald-600 bg-emerald-50 gap-1">
+             <Badge variant="outline" className="text-xs border-amber-300 text-amber-600 bg-amber-50 gap-1">
               <Check className="w-3 h-3" /> LIVE DATA
             </Badge>
             <Button variant="outline" size="sm" className="gap-1.5 text-xs border-slate-300 text-slate-600 hover:bg-slate-50" onClick={() => window.print()}>
               <Printer className="w-3.5 h-3.5" /> Print
             </Button>
-            <Button size="sm" className="gap-1.5 text-xs bg-teal-600 hover:bg-teal-700 text-white">
+            <Button size="sm" className="gap-1.5 text-xs bg-amber-500 hover:bg-amber-600 text-black font-bold">
               <Share2 className="w-3.5 h-3.5" /> Share Link
             </Button>
           </div>
@@ -424,11 +424,11 @@ export default function DCReport() {
       {/* Hero */}
       <div className="bg-gradient-to-b from-white to-slate-50 border-b border-slate-200">
         <div className="max-w-6xl mx-auto px-6 py-10">
-          <div className="flex items-center gap-2 mb-2">
+           <div className="flex items-center gap-2 mb-2">
             <span className="text-sm font-bold text-amber-600 uppercase tracking-wider">🏆 Decision Confidence</span>
           </div>
           <h2 className="text-3xl font-bold text-slate-800 mb-2">
-            Feasibility Analysis: <span className="text-teal-600">Plot {link.plotId}</span>
+            Feasibility Analysis: <span className="text-amber-600">Plot {link.plotId}</span>
           </h2>
           <p className="text-slate-500 max-w-2xl">
             Residential development opportunity analysis with strategic recommendations and financial projections
@@ -436,7 +436,7 @@ export default function DCReport() {
           <div className="flex items-center gap-4 mt-4 text-xs text-slate-400">
             <span className="flex items-center gap-1">📅 Generated: {new Date(link.createdAt).toLocaleDateString('en-US', { month: 'short', year: 'numeric' })}</span>
             <span className="flex items-center gap-1">📍 Dubai Sports City (DSC)</span>
-            <span className="flex items-center gap-1 text-emerald-500">🔒 Secure Link</span>
+            <span className="flex items-center gap-1 text-amber-500">🔒 Secure Link</span>
           </div>
         </div>
       </div>
@@ -467,7 +467,7 @@ export default function DCReport() {
                 onClick={() => setActiveTab(k)}
                 className={`py-3 px-5 text-sm font-semibold border-b-2 transition-all flex items-center gap-1.5 ${
                   activeTab === k
-                    ? 'text-teal-600 border-teal-500'
+                    ? 'text-amber-600 border-amber-500'
                     : 'text-slate-400 border-transparent hover:text-slate-600'
                 }`}
               >
@@ -483,7 +483,7 @@ export default function DCReport() {
 
         {activeTab === 'feasibility' && (
           <>
-            <div className="rounded-xl border border-teal-200 bg-teal-50 p-4 mb-6 flex items-center gap-3 animate-fade-in">
+            <div className="rounded-xl border border-amber-200 bg-amber-50 p-4 mb-6 flex items-center gap-3 animate-fade-in">
               <span className="text-2xl">{mixTemplate.icon}</span>
               <div>
                 <div className="text-sm font-bold text-slate-800">Selected Strategy: {mixTemplate.label}</div>
@@ -587,7 +587,7 @@ export default function DCReport() {
                   <div className="mb-4">
                     <div className="flex justify-between mb-1">
                       <span className="text-sm text-slate-500">Project ROI</span>
-                      <span className="text-2xl font-extrabold text-teal-600 font-mono">{pct(fs.roi)}</span>
+                      <span className="text-2xl font-extrabold text-amber-600 font-mono">{pct(fs.roi)}</span>
                     </div>
                     <Progress value={Math.min(fs.roi * 100, 100)} className="h-2" />
                     <div className="flex justify-between mt-1 text-xs text-slate-400">
@@ -608,9 +608,9 @@ export default function DCReport() {
                       <span className="text-xs font-bold text-slate-500 uppercase">Finance Structure</span>
                     </div>
                     <div className="grid grid-cols-2 gap-3">
-                      <div className="text-center p-2 rounded-lg bg-teal-50 border border-teal-200">
+                       <div className="text-center p-2 rounded-lg bg-amber-50 border border-amber-200">
                         <div className="text-xs text-slate-500">Equity (40%)</div>
-                        <div className="text-sm font-bold font-mono text-teal-600">{fmtM(equityAmt)}</div>
+                        <div className="text-sm font-bold font-mono text-amber-600">{fmtM(equityAmt)}</div>
                       </div>
                       <div className="text-center p-2 rounded-lg bg-white border border-slate-200">
                         <div className="text-xs text-slate-500">Debt (60%)</div>
@@ -626,7 +626,7 @@ export default function DCReport() {
               <div className="grid grid-cols-3 gap-4">
                 {Object.entries(fs.payPlan).map(([stage, pctVal]) => (
                   <div key={stage} className="rounded-xl border border-slate-200 bg-white p-5 text-center shadow-sm">
-                    <div className="text-4xl font-extrabold text-teal-600 font-mono mb-2">{pctVal}%</div>
+                    <div className="text-4xl font-extrabold text-amber-600 font-mono mb-2">{pctVal}%</div>
                     <div className="text-xs font-bold text-slate-500 uppercase tracking-wider mb-1">
                       {stage === 'booking' ? 'On Booking' : stage === 'construction' ? 'During Construction' : 'Upon Handover'}
                     </div>
@@ -690,8 +690,8 @@ export default function DCReport() {
                       const psf = Math.round(fs.avgPsf * (1 + s.delta));
                       const isBase = s.delta === 0;
                       return (
-                        <TableRow key={i} className={isBase ? 'bg-teal-50' : ''}>
-                          <TableCell className={`text-xs font-bold py-2 ${isBase ? 'text-teal-600' : s.delta > 0 ? 'text-emerald-500' : 'text-amber-500'}`}>
+                        <TableRow key={i} className={isBase ? 'bg-amber-50' : ''}>
+                          <TableCell className={`text-xs font-bold py-2 ${isBase ? 'text-amber-600' : s.delta > 0 ? 'text-emerald-500' : 'text-amber-500'}`}>
                             {isBase ? '► BASE' : s.delta > 0 ? `▲ +${Math.abs(s.delta * 100)}%` : `▼ -${Math.abs(s.delta * 100)}%`}
                           </TableCell>
                           <TableCell className="text-sm text-right font-mono py-2">AED {fmt(psf)}</TableCell>
@@ -743,10 +743,10 @@ export default function DCReport() {
                         </TableRow>
                       );
                     })}
-                    <TableRow className="bg-teal-50 border-t-2 border-teal-300">
-                      <TableCell className="text-sm font-bold text-teal-600 py-2">Your Plot</TableCell>
-                      <TableCell className="text-sm text-right text-teal-600 py-2">{link.plotId}</TableCell>
-                      <TableCell className="text-sm text-right font-mono font-bold text-teal-600 py-2">AED {fmt(Math.round(fs.avgPsf))}</TableCell>
+                     <TableRow className="bg-amber-50 border-t-2 border-amber-400">
+                      <TableCell className="text-sm font-bold text-amber-600 py-2">Your Plot</TableCell>
+                      <TableCell className="text-sm text-right text-amber-600 py-2">{link.plotId}</TableCell>
+                      <TableCell className="text-sm text-right font-mono font-bold text-amber-600 py-2">AED {fmt(Math.round(fs.avgPsf))}</TableCell>
                       <TableCell className="text-sm text-right font-mono font-bold py-2">{fmtM(fs.grossSales)}</TableCell>
                       <TableCell className="text-sm text-right font-mono font-bold text-emerald-500 py-2">{fmtM(fs.grossProfit)}</TableCell>
                       <TableCell className="text-sm text-right font-bold py-2">{pct(fs.grossMargin)}</TableCell>
@@ -763,30 +763,32 @@ export default function DCReport() {
       {/* Unit Mix Bottom Bar */}
       <div className="fixed bottom-0 left-0 right-0 z-50 no-print">
         <div className="max-w-6xl mx-auto px-6">
-          <div className="bg-white/95 backdrop-blur-xl border border-slate-200 border-b-0 rounded-t-xl px-4 py-3 shadow-lg">
+          <div className="bg-slate-900/95 backdrop-blur-xl border border-amber-500/20 border-b-0 rounded-t-xl px-4 py-3 shadow-2xl shadow-black/30">
             <div className="flex items-center gap-3">
-              <span className="text-[10px] text-slate-400 font-bold uppercase tracking-wider whitespace-nowrap">Unit Mix Strategy:</span>
-              {(Object.entries(MIX_TEMPLATES) as [MixKey, typeof MIX_TEMPLATES.investor][]).map(([k, v]) => (
-                <div
-                  key={k}
-                  className={`flex-1 flex items-center gap-3 py-2.5 px-4 rounded-lg border transition-all ${
-                    link.mixStrategy === k
-                      ? 'bg-teal-50 border-teal-300 text-slate-800'
-                      : 'bg-slate-50 border-slate-200 text-slate-400'
-                  }`}
-                >
-                  <span className="text-lg">{v.icon}</span>
-                  <div>
-                    <div className="text-xs font-bold">{v.label}</div>
-                    <div className="text-[10px] text-slate-400">{v.tag}</div>
-                  </div>
-                  {link.mixStrategy === k && (
-                    <div className="ml-auto text-[10px] font-mono text-slate-500">
-                      Units: {fmt(fs.units.total)} · ROI: {pct(fs.roi)} · PSF: {fmt(Math.round(fs.avgPsf))}
+              <span className="text-[10px] text-amber-400/60 font-bold uppercase tracking-wider whitespace-nowrap shrink-0">Strategy:</span>
+              {(Object.entries(MIX_TEMPLATES) as [MixKey, typeof MIX_TEMPLATES.investor][]).map(([k, v]) => {
+                const isActive = link.mixStrategy === k;
+                return (
+                  <div
+                    key={k}
+                    className={`flex items-center gap-2 py-2 px-3 rounded-lg border transition-all shrink-0 ${
+                      isActive
+                        ? 'bg-amber-500/15 border-amber-500/40 text-white'
+                        : 'bg-white/5 border-white/10 text-white/40'
+                    }`}
+                  >
+                    <span className="text-base">{v.icon}</span>
+                    <div className="min-w-0">
+                      <div className="text-xs font-bold truncate">{v.label}</div>
+                      <div className={`text-[10px] ${isActive ? 'text-amber-400/70' : 'text-white/25'} truncate`}>{v.tag}</div>
                     </div>
-                  )}
-                </div>
-              ))}
+                  </div>
+                );
+              })}
+              {/* Stats shown separately to avoid overflow */}
+              <div className="ml-auto text-[10px] font-mono text-amber-400/70 whitespace-nowrap shrink-0">
+                Units: {fmt(fs.units.total)} · ROI: {pct(fs.roi)} · PSF: {fmt(Math.round(fs.avgPsf))}
+              </div>
             </div>
           </div>
         </div>
