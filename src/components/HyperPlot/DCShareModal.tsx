@@ -137,7 +137,7 @@ export function DCShareModal({ open, onClose, plotId, activeMix, fs, plotInput, 
     }
   }, [open]);
 
-  const plotLinks = useMemo(() => links.filter(l => l.plotId === plotId), [links, plotId]);
+  const plotLinks = useMemo(() => links, [links]);
   const accessedCount = contacts.filter(c => c.accessed).length;
   const notAccessedCount = contacts.filter(c => !c.accessed).length;
   const securityAlerts = logs.filter(l => l.event === 'link_forwarded' || l.event === 'access_denied').length;
