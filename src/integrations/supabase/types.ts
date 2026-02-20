@@ -14,7 +14,45 @@ export type Database = {
   }
   public: {
     Tables: {
-      [_ in never]: never
+      dc_share_links: {
+        Row: {
+          created_at: string
+          downloads: number
+          expires_at: string | null
+          id: string
+          is_active: boolean
+          mix_strategy: string
+          overrides: Json | null
+          plot_id: string
+          plot_input: Json
+          views: number
+        }
+        Insert: {
+          created_at?: string
+          downloads?: number
+          expires_at?: string | null
+          id: string
+          is_active?: boolean
+          mix_strategy: string
+          overrides?: Json | null
+          plot_id: string
+          plot_input: Json
+          views?: number
+        }
+        Update: {
+          created_at?: string
+          downloads?: number
+          expires_at?: string | null
+          id?: string
+          is_active?: boolean
+          mix_strategy?: string
+          overrides?: Json | null
+          plot_id?: string
+          plot_input?: Json
+          views?: number
+        }
+        Relationships: []
+      }
     }
     Views: {
       [_ in never]: never

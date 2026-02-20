@@ -1,5 +1,5 @@
 import { useState, useMemo, useEffect, useRef, useCallback } from 'react';
-import { useParams, useNavigate, useSearchParams } from 'react-router-dom';
+import { useParams, useNavigate } from 'react-router-dom';
 import { Shield, Lock, Eye, Calendar, Printer, Building2, TrendingUp, DollarSign, BarChart3, MapPin, Share2, ChevronRight, Check, FileText, Phone, Mail, User, CheckCircle, ArrowRight, AlertTriangle } from 'lucide-react';
 import xEstateLogo from '@/assets/X-Estate_Logo.svg';
 import teaserBg from '@/assets/teaser-bg.jpg';
@@ -10,6 +10,23 @@ import { Switch } from '@/components/ui/switch';
 import { Table, TableHeader, TableBody, TableRow, TableHead, TableCell, TableFooter } from '@/components/ui/table';
 import { calcDSCFeasibility, DSCPlotInput, DSCFeasibilityResult, MixKey, MIX_TEMPLATES, COMPS, UNIT_SIZES, RENT_PSF_YR, TXN_AVG_PSF, TXN_COUNT, fmt, fmtM, fmtA, pct } from '@/lib/dscFeasibility';
 import { DCShareLink, loadShareLinks, saveShareLinks } from '@/components/HyperPlot/DCShareModal';
+import { supabase } from '@/integrations/supabase/client';
+
+function mapToLink(r: any): DCShareLink {
+  return {
+    id: r.id,
+    plotId: r.plot_id,
+    mixStrategy: r.mix_strategy as MixKey,
+    plotInput: r.plot_input as DSCPlotInput,
+    overrides: r.overrides as Record<string, number | string | undefined>,
+    createdAt: r.created_at,
+    expiresAt: r.expires_at,
+    views: r.views,
+    downloads: r.downloads,
+    isActive: r.is_active,
+    url: `${window.location.origin}/dc/${r.id}`,
+  };
+}
 
 // ─── Animated counter hook ───
 function useCountUp(target: number, duration = 1200, enabled = true) {
@@ -474,7 +491,6 @@ function AnalysisSummary({ fs, mixTemplate }: { fs: DSCFeasibilityResult; mixTem
 
 export default function DCReport() {
   const { linkId } = useParams<{ linkId: string }>();
-  const [searchParams] = useSearchParams();
   const navigate = useNavigate();
   const [link, setLink] = useState<DCShareLink | null>(null);
   const [status, setStatus] = useState<'loading' | 'valid' | 'expired' | 'revoked' | 'not_found'>('loading');
@@ -483,49 +499,41 @@ export default function DCReport() {
   const [activeMix, setActiveMix] = useState<MixKey>('balanced');
 
   useEffect(() => {
-    const rawEncoded = searchParams.get('d');
-    if (rawEncoded) {
-      try {
-        // Restore standard base64 from URL-safe variant
-        let b64 = rawEncoded.replace(/-/g, '+').replace(/_/g, '/');
-        while (b64.length % 4) b64 += '=';
-        const payload = JSON.parse(decodeURIComponent(atob(b64)));
-        const linkData: DCShareLink = {
-          id: payload.id,
-          plotId: payload.plotId,
-          mixStrategy: payload.mix as MixKey,
-          plotInput: payload.input,
-          overrides: payload.overrides || {},
-          createdAt: payload.createdAt,
-          expiresAt: payload.expiresAt,
-          views: 0, downloads: 0, isActive: true,
-          url: window.location.href,
-        };
-        if (linkData.expiresAt && new Date(linkData.expiresAt) < new Date()) {
-          setLink(linkData);
-          setStatus('expired');
-          return;
-        }
-        setLink(linkData);
-        setActiveMix(linkData.mixStrategy);
-        setStatus('valid');
-        return;
-      } catch (e) {
-        console.error('Failed to decode share link payload:', e);
-      }
-    }
+    if (!linkId) { setStatus('not_found'); return; }
 
-    const links = loadShareLinks();
-    const found = links.find(l => l.id === linkId);
-    if (!found) { setStatus('not_found'); return; }
-    if (!found.isActive) { setLink(found); setStatus('revoked'); return; }
-    if (found.expiresAt && new Date(found.expiresAt) < new Date()) { setLink(found); setStatus('expired'); return; }
-    found.views += 1;
-    saveShareLinks(links.map(l => l.id === found.id ? found : l));
-    setLink(found);
-    setActiveMix(found.mixStrategy);
-    setStatus('valid');
-  }, [linkId, searchParams]);
+    const fetchLink = async () => {
+      const { data, error } = await supabase
+        .from('dc_share_links')
+        .select('*')
+        .eq('id', linkId)
+        .single();
+
+      if (error || !data) { setStatus('not_found'); return; }
+      if (!data.is_active) {
+        const linkData = mapToLink(data);
+        setLink(linkData);
+        setStatus('revoked');
+        return;
+      }
+      if (data.expires_at && new Date(data.expires_at) < new Date()) {
+        const linkData = mapToLink(data);
+        setLink(linkData);
+        setStatus('expired');
+        return;
+      }
+
+      // Increment views
+      await supabase.from('dc_share_links').update({ views: (data.views || 0) + 1 }).eq('id', linkId);
+
+      const linkData = mapToLink(data);
+      linkData.views = (data.views || 0) + 1;
+      setLink(linkData);
+      setActiveMix(linkData.mixStrategy);
+      setStatus('valid');
+    };
+
+    fetchLink();
+  }, [linkId]);
 
   const fs = useMemo(() => {
     if (!link) return null;
