@@ -684,8 +684,36 @@ export function DecisionConfidence({ plot, comparisonPlots = [], isFullscreen, o
                   <KpiCard label="Avg Selling PSF" value={`AED ${fmt(Math.round(fs.avgPsf))}`} sub={`Wtd avg from ${TXN_COUNT.total} txns`} positive={fs.avgPsf >= TXN_WEIGHTED_AVG_PSF} />
                 </div>
 
+              {/* 5.2 Finance Structure */}
+                <div className="text-[10px] text-muted-foreground font-bold uppercase tracking-widest mb-2">5.2 Finance Structure</div>
+                <div className="grid grid-cols-2 gap-3 mb-4">
+                  <div className="data-card">
+                    <div className="flex items-center gap-2 mb-2">
+                      <div className="w-3 h-3 rounded-full bg-primary" />
+                      <span className="text-xs text-muted-foreground font-semibold uppercase">Equity (40%)</span>
+                    </div>
+                    <div className="text-xl font-bold font-mono text-foreground">{fmtM(fs.totalCost * 0.4)}</div>
+                    <div className="mt-2 h-1.5 bg-muted/50 rounded-full overflow-hidden">
+                      <div className="h-full rounded-full bg-primary" style={{ width: '40%' }} />
+                    </div>
+                  </div>
+                  <div className="data-card">
+                    <div className="flex items-center gap-2 mb-2">
+                      <div className="w-3 h-3 rounded-full bg-cyan-500" />
+                      <span className="text-xs text-muted-foreground font-semibold uppercase">Debt (60%)</span>
+                    </div>
+                    <div className="text-xl font-bold font-mono text-foreground">{fmtM(fs.totalCost * 0.6)}</div>
+                    <div className="mt-2 h-1.5 bg-muted/50 rounded-full overflow-hidden">
+                      <div className="h-full rounded-full bg-cyan-500" style={{ width: '60%' }} />
+                    </div>
+                  </div>
+                </div>
+                <div className="text-[10px] text-muted-foreground p-2 rounded-lg bg-muted/30 border border-border/30 mb-4">
+                  💡 Total development cost {fmtM(fs.totalCost)} financed via 40/60 equity-debt split. Equity required: {fmtM(fs.totalCost * 0.4)}, debt facility: {fmtM(fs.totalCost * 0.6)}.
+                </div>
+
                 {/* 5.3 Profit Summary */}
-                <div className="text-[10px] text-muted-foreground font-bold uppercase tracking-widest mb-2">5.2 Profit & Return Summary</div>
+                <div className="text-[10px] text-muted-foreground font-bold uppercase tracking-widest mb-2">5.3 Profit & Return Summary</div>
                 <div className="overflow-x-auto">
                   <Table>
                     <TableHeader>
