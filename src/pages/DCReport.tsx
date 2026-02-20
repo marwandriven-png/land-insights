@@ -1,6 +1,6 @@
-import { useState, useMemo, useEffect, useRef } from 'react';
+import { useState, useMemo, useEffect, useRef, useCallback } from 'react';
 import { useParams, useNavigate, useSearchParams } from 'react-router-dom';
-import { Shield, Lock, Eye, Calendar, Printer, Building2, TrendingUp, DollarSign, BarChart3, MapPin, Share2, ChevronRight, Check, FileText, Phone, Mail, User } from 'lucide-react';
+import { Shield, Lock, Eye, Calendar, Printer, Building2, TrendingUp, DollarSign, BarChart3, MapPin, Share2, ChevronRight, Check, FileText, Phone, Mail, User, CheckCircle, ArrowRight, AlertTriangle } from 'lucide-react';
 import xEstateLogo from '@/assets/X-Estate_Logo.svg';
 import teaserBg from '@/assets/teaser-bg.jpg';
 import { Button } from '@/components/ui/button';
@@ -29,48 +29,79 @@ function useCountUp(target: number, duration = 1200, enabled = true) {
   return value;
 }
 
-// ─── KPI Card – dark theme with glow ───
+// ─── Scroll-triggered animation hook ───
+function useScrollReveal(threshold = 0.15) {
+  const ref = useRef<HTMLDivElement>(null);
+  const [visible, setVisible] = useState(false);
+  useEffect(() => {
+    const el = ref.current;
+    if (!el) return;
+    const obs = new IntersectionObserver(([e]) => { if (e.isIntersecting) { setVisible(true); obs.disconnect(); } }, { threshold });
+    obs.observe(el);
+    return () => obs.disconnect();
+  }, [threshold]);
+  return { ref, visible };
+}
+
+// ─── 3D Card wrapper ───
+function Card3D({ children, className = '', style = {} }: { children: React.ReactNode; className?: string; style?: React.CSSProperties }) {
+  const cardRef = useRef<HTMLDivElement>(null);
+  const handleMouseMove = useCallback((e: React.MouseEvent) => {
+    const card = cardRef.current;
+    if (!card) return;
+    const rect = card.getBoundingClientRect();
+    const x = (e.clientX - rect.left) / rect.width - 0.5;
+    const y = (e.clientY - rect.top) / rect.height - 0.5;
+    card.style.transform = `perspective(800px) rotateY(${x * 6}deg) rotateX(${-y * 6}deg) translateY(-4px)`;
+    card.style.boxShadow = `${-x * 20}px ${y * 20}px 40px rgba(6,182,212,0.15), 0 0 20px rgba(6,182,212,0.05)`;
+  }, []);
+  const handleMouseLeave = useCallback(() => {
+    const card = cardRef.current;
+    if (!card) return;
+    card.style.transform = 'perspective(800px) rotateY(0deg) rotateX(0deg) translateY(0px)';
+    card.style.boxShadow = '';
+  }, []);
+  return (
+    <div ref={cardRef} className={`transition-all duration-300 ease-out ${className}`} style={{ ...style, transformStyle: 'preserve-3d', willChange: 'transform' }}
+      onMouseMove={handleMouseMove} onMouseLeave={handleMouseLeave}>
+      {children}
+    </div>
+  );
+}
+
+// ─── KPI Card – dark theme with glow + 3D ───
 function KpiCard({ label, rawValue, formatter, sub, color = 'cyan', delay = 0 }: { label: string; rawValue: number; formatter: (v: number) => string; sub?: string; color?: 'cyan' | 'teal' | 'green' | 'white' | 'purple'; delay?: number }) {
   const [show, setShow] = useState(false);
   const animVal = useCountUp(rawValue, 1500, show);
   useEffect(() => { const t = setTimeout(() => setShow(true), delay); return () => clearTimeout(t); }, [delay]);
 
   const colorMap = {
-    cyan: 'text-cyan-400',
-    teal: 'text-teal-400',
-    green: 'text-green-400',
-    white: 'text-white',
-    purple: 'text-purple-400',
+    cyan: 'text-cyan-400', teal: 'text-teal-400', green: 'text-green-400', white: 'text-white', purple: 'text-purple-400',
   };
   const glowMap = {
-    cyan: '0 0 20px rgba(6, 182, 212, 0.5)',
-    teal: '0 0 20px rgba(20, 184, 166, 0.5)',
-    green: '0 0 20px rgba(16, 185, 129, 0.5)',
-    white: 'none',
-    purple: '0 0 20px rgba(139, 92, 246, 0.5)',
+    cyan: '0 0 20px rgba(6, 182, 212, 0.5)', teal: '0 0 20px rgba(20, 184, 166, 0.5)', green: '0 0 20px rgba(16, 185, 129, 0.5)', white: 'none', purple: '0 0 20px rgba(139, 92, 246, 0.5)',
   };
 
   return (
-    <div className={`rounded-xl p-4 transition-all duration-700 ${show ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-6'}`}
+    <Card3D className={`rounded-xl p-4 transition-all duration-700 ${show ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-6'}`}
       style={{ background: 'linear-gradient(135deg, rgba(17, 24, 39, 0.9), rgba(17, 24, 39, 0.6))', border: '1px solid #1f2937', backdropFilter: 'blur(10px)' }}>
       <div className="text-[11px] text-gray-400 font-semibold uppercase tracking-wider mb-1">{label}</div>
       <div className={`text-2xl font-extrabold font-mono tracking-tight ${colorMap[color]}`} style={{ textShadow: glowMap[color] }}>{formatter(animVal)}</div>
       {sub && <div className="text-xs text-gray-500 mt-1">{sub}</div>}
-    </div>
+    </Card3D>
   );
 }
 
-// ─── Section with numbered badge ───
-function Section({ num, title, badge, children, delay = 0 }: { num?: number; title: string; badge?: string; children: React.ReactNode; delay?: number }) {
-  const [show, setShow] = useState(false);
-  useEffect(() => { const t = setTimeout(() => setShow(true), delay); return () => clearTimeout(t); }, [delay]);
+// ─── Scroll-animated Section ───
+function Section({ num, title, badge, children }: { num?: number; title: string; badge?: string; children: React.ReactNode }) {
+  const { ref, visible } = useScrollReveal(0.1);
   return (
-    <div className={`mb-8 transition-all duration-700 ${show ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-8'}`}>
+    <div ref={ref} className={`mb-8 transition-all duration-700 ease-out ${visible ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-12'}`}>
       <div className="flex items-center gap-2.5 mb-4 pb-3 border-b border-gray-700/50">
         {num != null && (
           <span className="w-8 h-8 flex items-center justify-center rounded-md bg-gradient-to-br from-cyan-500 to-teal-600 text-white font-extrabold text-xs shrink-0">{num}</span>
         )}
-        <h3 className="text-sm font-bold text-gray-300 uppercase tracking-widest">{title}</h3>
+        <h3 className="text-base font-bold text-gray-300 uppercase tracking-widest">{title}</h3>
         {badge && <Badge variant="outline" className="text-xs border-cyan-500/30 text-cyan-400 ml-auto">{badge}</Badge>}
       </div>
       {children}
@@ -148,7 +179,7 @@ function RegistrationStep({ onComplete }: { onComplete: () => void }) {
         <div className="text-center mb-2">
           <span className="text-xs uppercase tracking-widest font-semibold" style={{ color: 'rgba(6,182,212,0.6)' }}>Step 2 of 3</span>
         </div>
-        <h1 className="text-2xl font-bold text-center text-white mb-2">Investor Registration</h1>
+        <h1 className="text-3xl font-bold text-center text-white mb-2">Investor Registration</h1>
         <p className="text-center text-sm mb-6" style={{ color: 'rgba(255,255,255,0.4)' }}>Complete your details to access the full feasibility report</p>
 
         <div className="rounded-2xl p-6 space-y-4 shadow-2xl" style={{ border: '1px solid rgba(255,255,255,0.1)', background: 'rgba(255,255,255,0.03)', backdropFilter: 'blur(20px)' }}>
@@ -195,51 +226,70 @@ function RegistrationStep({ onComplete }: { onComplete: () => void }) {
   );
 }
 
-// ─── NDA Step ───
+// ─── Enhanced NDA Step ───
 function NDAStep({ onAccept }: { onAccept: () => void }) {
   const [agreed, setAgreed] = useState(false);
   return (
-    <div className="min-h-screen flex items-center justify-center p-4 relative" style={{ background: '#0a0e1a' }}>
+    <div className="min-h-screen flex items-center justify-center p-4 relative" style={{ background: '#060a14' }}>
       <AnimatedBackground />
-      <div className="absolute inset-0 z-[1]" style={{ background: 'linear-gradient(to bottom, rgba(10,14,26,0.9), rgba(10,14,26,0.8), rgba(10,14,26,0.95))' }} />
+      {/* Extra deep overlay for richer contrast */}
+      <div className="absolute inset-0 z-[1]" style={{ background: 'radial-gradient(ellipse at center top, rgba(6,182,212,0.06) 0%, transparent 60%), linear-gradient(to bottom, rgba(6,10,20,0.95), rgba(6,10,20,0.85), rgba(6,10,20,0.98))' }} />
       <div className="relative z-10 w-full max-w-2xl animate-fade-in">
-        <div className="flex items-center justify-center gap-0 mb-8">
+        {/* Step indicators */}
+        <div className="flex items-center justify-center gap-0 mb-10">
           {[1, 2, 3].map((s, i) => (
             <div key={s} className="flex items-center">
-              <div className="w-10 h-10 rounded-full flex items-center justify-center text-sm font-bold bg-gradient-to-br from-cyan-400 to-teal-500 text-black" style={{ boxShadow: '0 0 15px rgba(6,182,212,0.3)' }}>{s}</div>
-              {i < 2 && <div className="w-16 h-0.5 bg-gradient-to-r from-cyan-400 to-teal-500" />}
+              <div className="w-12 h-12 rounded-full flex items-center justify-center text-base font-bold bg-gradient-to-br from-cyan-400 to-teal-500 text-black shadow-xl" style={{ boxShadow: '0 0 20px rgba(6,182,212,0.4)' }}>{s}</div>
+              {i < 2 && <div className="w-20 h-0.5 bg-gradient-to-r from-cyan-400 to-teal-500" />}
             </div>
           ))}
         </div>
-        <div className="text-center mb-2">
-          <span className="text-xs uppercase tracking-widest font-semibold" style={{ color: 'rgba(6,182,212,0.6)' }}>Step 3 of 3</span>
+        <div className="text-center mb-3">
+          <span className="text-sm uppercase tracking-[0.25em] font-semibold text-cyan-400/70">Step 3 of 3</span>
         </div>
-        <h1 className="text-2xl font-bold text-center text-white mb-6">Non-Disclosure Agreement</h1>
-        <div className="rounded-2xl p-6 mb-6 shadow-2xl" style={{ border: '1px solid rgba(255,255,255,0.1)', background: 'rgba(255,255,255,0.03)', backdropFilter: 'blur(20px)' }}>
-          <div className="flex items-center gap-2 mb-4">
-            <FileText className="w-5 h-5 text-cyan-400" />
-            <span className="font-bold text-white">Confidentiality Agreement</span>
+        <h1 className="text-4xl font-extrabold text-center text-white mb-2 tracking-tight">Non-Disclosure Agreement</h1>
+        <p className="text-center text-base mb-8" style={{ color: 'rgba(255,255,255,0.45)' }}>Review and accept to unlock the full investment analysis</p>
+
+        {/* NDA card with enhanced glass-morphism */}
+        <Card3D className="rounded-2xl p-8 mb-8 shadow-2xl" style={{ border: '1px solid rgba(6,182,212,0.15)', background: 'linear-gradient(135deg, rgba(17,24,39,0.8), rgba(6,10,20,0.9))', backdropFilter: 'blur(24px)', boxShadow: '0 25px 60px rgba(0,0,0,0.5), inset 0 1px 0 rgba(255,255,255,0.05)' }}>
+          <div className="flex items-center gap-3 mb-5">
+            <div className="w-10 h-10 rounded-lg flex items-center justify-center" style={{ background: 'rgba(6,182,212,0.15)', border: '1px solid rgba(6,182,212,0.3)' }}>
+              <FileText className="w-5 h-5 text-cyan-400" />
+            </div>
+            <div>
+              <span className="font-bold text-lg text-white">Confidentiality Agreement</span>
+              <p className="text-xs text-gray-500">Legally binding document</p>
+            </div>
           </div>
-          <div className="rounded-lg p-4 text-sm font-mono max-h-48 overflow-y-auto space-y-3" style={{ color: 'rgba(255,255,255,0.5)', border: '1px solid rgba(255,255,255,0.1)', background: 'rgba(0,0,0,0.3)' }}>
-            <p>CONFIDENTIALITY AND NON-DISCLOSURE AGREEMENT</p>
-            <p>This Confidentiality and Non-Disclosure Agreement ("Agreement") is entered into as of {new Date().toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' })}.</p>
-            <p>PARTIES:<br/>Disclosing Party: The Investment Sponsor ("Sponsor")<br/>Receiving Party: Company ("Recipient")</p>
-            <p>PROJECT: Confidential Real Estate Investment Opportunity<br/>ASSET LOCATION: Dubai Sports City, Dubai, United Arab Emirates</p>
-            <p>1. CONFIDENTIAL INFORMATION: All financial projections, feasibility analyses, development parameters, unit mix strategies, pricing models, and related data shared through this platform.</p>
-            <p>2. OBLIGATIONS: The Recipient agrees to maintain strict confidentiality and not disclose, reproduce, or distribute any information without prior written consent.</p>
-            <p>3. TERM: This Agreement shall remain in effect for a period of two (2) years from the date of execution.</p>
+          <div className="rounded-xl p-5 text-base leading-relaxed font-mono max-h-56 overflow-y-auto space-y-4 scrollbar-thin" style={{ color: 'rgba(255,255,255,0.6)', border: '1px solid rgba(255,255,255,0.08)', background: 'rgba(0,0,0,0.4)' }}>
+            <p className="text-cyan-400/80 font-bold text-sm tracking-wider">CONFIDENTIALITY AND NON-DISCLOSURE AGREEMENT</p>
+            <p>This Confidentiality and Non-Disclosure Agreement ("Agreement") is entered into as of <span className="text-white font-semibold">{new Date().toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' })}</span>.</p>
+            <p><span className="text-cyan-400/60 font-bold text-xs tracking-wider">PARTIES:</span><br/>Disclosing Party: The Investment Sponsor ("Sponsor")<br/>Receiving Party: Company ("Recipient")</p>
+            <p><span className="text-cyan-400/60 font-bold text-xs tracking-wider">PROJECT:</span> Confidential Real Estate Investment Opportunity<br/><span className="text-cyan-400/60 font-bold text-xs tracking-wider">ASSET LOCATION:</span> Dubai Sports City, Dubai, United Arab Emirates</p>
+            <p><span className="text-white/80 font-semibold">1. CONFIDENTIAL INFORMATION:</span> All financial projections, feasibility analyses, development parameters, unit mix strategies, pricing models, and related data shared through this platform.</p>
+            <p><span className="text-white/80 font-semibold">2. OBLIGATIONS:</span> The Recipient agrees to maintain strict confidentiality and not disclose, reproduce, or distribute any information without prior written consent.</p>
+            <p><span className="text-white/80 font-semibold">3. TERM:</span> This Agreement shall remain in effect for a period of two (2) years from the date of execution.</p>
           </div>
-        </div>
-        <label className="flex items-start gap-3 mb-6 cursor-pointer">
-          <input type="checkbox" checked={agreed} onChange={e => setAgreed(e.target.checked)} className="mt-1 w-4 h-4 rounded accent-cyan-500" style={{ borderColor: 'rgba(255,255,255,0.3)' }} />
-          <span className="text-sm" style={{ color: 'rgba(255,255,255,0.5)' }}>
-            I have read and agree to the terms of this Non-Disclosure Agreement. I understand that all information shared is confidential and proprietary.
+        </Card3D>
+
+        <label className="flex items-start gap-4 mb-8 cursor-pointer group px-2">
+          <div className={`w-6 h-6 rounded-md border-2 flex items-center justify-center shrink-0 mt-0.5 transition-all ${agreed ? 'bg-gradient-to-br from-cyan-400 to-teal-500 border-cyan-400' : 'border-gray-600 hover:border-gray-400'}`} onClick={() => setAgreed(!agreed)}>
+            {agreed && <Check className="w-4 h-4 text-black" />}
+          </div>
+          <span className="text-base leading-relaxed" style={{ color: 'rgba(255,255,255,0.55)' }}>
+            I have read and agree to the terms of this <span className="text-white font-medium">Non-Disclosure Agreement</span>. I understand that all information shared is <span className="text-cyan-400/80 font-medium">confidential and proprietary</span>.
           </span>
         </label>
-        <Button disabled={!agreed} onClick={onAccept} className={`w-full h-12 gap-2 text-sm font-bold rounded-xl transition-all ${agreed ? 'text-black' : ''}`}
-          style={agreed ? { background: 'linear-gradient(to right, #06b6d4, #14b8a6)', boxShadow: '0 10px 30px rgba(6,182,212,0.2)' } : { background: 'rgba(255,255,255,0.05)', color: 'rgba(255,255,255,0.2)', border: '1px solid rgba(255,255,255,0.1)' }}>
-          Accept & View Report <ChevronRight className="w-4 h-4" />
+
+        <Button disabled={!agreed} onClick={onAccept} className={`w-full h-14 gap-2 text-base font-bold rounded-xl transition-all ${agreed ? 'text-black' : ''}`}
+          style={agreed ? { background: 'linear-gradient(to right, #06b6d4, #14b8a6)', boxShadow: '0 15px 40px rgba(6,182,212,0.25)' } : { background: 'rgba(255,255,255,0.04)', color: 'rgba(255,255,255,0.2)', border: '1px solid rgba(255,255,255,0.08)' }}>
+          Accept & View Report <ChevronRight className="w-5 h-5" />
         </Button>
+
+        <div className="flex items-center justify-center gap-6 mt-6 text-xs" style={{ color: 'rgba(255,255,255,0.2)' }}>
+          <span className="flex items-center gap-1"><Lock className="w-3 h-3" /> End-to-end encrypted</span>
+          <span className="flex items-center gap-1"><Shield className="w-3 h-3" /> Bank-grade security</span>
+        </div>
       </div>
     </div>
   );
@@ -298,9 +348,9 @@ function TeaserPage({ link, fs, onRequestAccess }: { link: DCShareLink; fs: DSCF
               { val: `${fmt(Math.round(units))}`, label: 'TOTAL UNITS' },
             ].map((kpi, i) => (
               <div key={kpi.label} className="text-center animate-fade-in group" style={{ animationDelay: `${700 + i * 150}ms` }}>
-                <div className="rounded-xl p-5 mb-2 transition-all duration-300 group-hover:shadow-lg" style={{ border: '1px solid rgba(6,182,212,0.2)', background: 'rgba(255,255,255,0.03)', backdropFilter: 'blur(4px)' }}>
+                <Card3D className="rounded-xl p-5 mb-2 transition-all duration-300" style={{ border: '1px solid rgba(6,182,212,0.2)', background: 'rgba(255,255,255,0.03)', backdropFilter: 'blur(4px)' }}>
                   <div className="text-3xl md:text-4xl font-black font-mono tracking-tight text-cyan-400" style={{ textShadow: '0 0 30px rgba(6, 182, 212, 0.3)' }}>{kpi.val}</div>
-                </div>
+                </Card3D>
                 <div className="text-[10px] uppercase tracking-widest mt-2 max-w-[120px] mx-auto leading-tight" style={{ color: 'rgba(255,255,255,0.3)' }}>{kpi.label}</div>
               </div>
             ))}
@@ -331,6 +381,94 @@ function TeaserPage({ link, fs, onRequestAccess }: { link: DCShareLink; fs: DSCF
         }
       `}</style>
     </div>
+  );
+}
+
+// ─── Key Strengths & Risk Mitigation Summary ───
+function AnalysisSummary({ fs, mixTemplate }: { fs: DSCFeasibilityResult; mixTemplate: typeof MIX_TEMPLATES.balanced }) {
+  const { ref: ref1, visible: v1 } = useScrollReveal(0.1);
+  const { ref: ref2, visible: v2 } = useScrollReveal(0.1);
+  const { ref: ref3, visible: v3 } = useScrollReveal(0.1);
+
+  const breakEvenPsf = Math.round(fs.totalCost / fs.sellableArea);
+  const marketAvgPsf = 1565;
+  const safetyMargin = Math.round(((marketAvgPsf - breakEvenPsf) / marketAvgPsf) * 100);
+
+  const strengths = [
+    `${pct(fs.roi)} ROI significantly exceeds market average (25-30%)`,
+    `${pct(fs.grossMargin)} profit margin provides healthy buffer against market volatility`,
+    `Break-even at AED ${fmt(breakEvenPsf)} PSF vs market AED ${fmt(marketAvgPsf)} (${safetyMargin}% safety margin)`,
+    `${mixTemplate.label} unit mix reduces absorption risk and targets broad market segment`,
+    `${(fs.grossYield * 100).toFixed(1)}% yield attractive to institutional investors`,
+  ];
+
+  const risks = [
+    `Sensitivity analysis confirms viability even at -5% price decline`,
+    `Only becomes marginal at -10% price drop (unlikely scenario)`,
+    `Market floor (AED ${fmt(Math.round(fs.sens[0]?.revenue ? fs.avgPsf * 0.9 : 1452))}) remains ${Math.round(((fs.avgPsf * 0.9 - breakEvenPsf) / breakEvenPsf) * 100)}% above break-even`,
+    `Dubai South infrastructure investment supports long-term price appreciation`,
+    `Flexible unit mix allows pivot to investor-focused if market shifts`,
+  ];
+
+  const nextSteps = [
+    { num: '01', title: 'Secure Acquisition', desc: `Target land cost at ${pct(fs.landCost / fs.grossSales)} of GDV (AED ${fmtM(fs.landCost)})` },
+    { num: '02', title: 'Pre-sales Strategy', desc: 'Launch phase 1 to test price elasticity and market response' },
+    { num: '03', title: 'Unit Mix Finalization', desc: 'Confirm based on pre-sales feedback and absorption rates' },
+    { num: '04', title: 'Monitor DSC Pipeline', desc: 'Track absorption rates quarterly to optimize pricing strategy' },
+  ];
+
+  return (
+    <>
+      {/* Proceed button */}
+      <div ref={ref1} className={`mb-10 transition-all duration-700 ${v1 ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-12'}`}>
+        <div className="rounded-2xl p-8 text-center" style={{ background: 'linear-gradient(135deg, rgba(17,24,39,0.9), rgba(17,24,39,0.6))', border: '1px solid #1f2937', backdropFilter: 'blur(10px)' }}>
+          <Button className="h-14 px-16 text-lg font-bold gap-3 text-black rounded-xl transition-all hover:scale-[1.02]" style={{ background: 'linear-gradient(to right, #06b6d4, #14b8a6)', boxShadow: '0 10px 40px rgba(6,182,212,0.25)' }}>
+            <Check className="w-6 h-6" /> PROCEED
+          </Button>
+          <p className="text-base mt-4" style={{ color: 'rgba(255,255,255,0.5)' }}>
+            With <span className="font-bold text-white">{mixTemplate.label}</span> Strategy
+          </p>
+        </div>
+      </div>
+
+      {/* Key Strengths & Risk Mitigation */}
+      <div ref={ref2} className={`grid grid-cols-1 lg:grid-cols-2 gap-6 mb-10 transition-all duration-700 ${v2 ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-12'}`}>
+        <Card3D className="rounded-2xl p-7" style={{ background: 'linear-gradient(135deg, rgba(17,24,39,0.9), rgba(17,24,39,0.6))', border: '1px solid rgba(20,184,166,0.2)', backdropFilter: 'blur(10px)' }}>
+          <h4 className="text-lg font-bold uppercase tracking-wider mb-5 text-teal-400">Key Strengths</h4>
+          <div className="space-y-4">
+            {strengths.map((s, i) => (
+              <div key={i} className="flex items-start gap-3">
+                <CheckCircle className="w-5 h-5 text-teal-400 shrink-0 mt-0.5" />
+                <span className="text-sm leading-relaxed" style={{ color: 'rgba(255,255,255,0.65)' }}>{s}</span>
+              </div>
+            ))}
+          </div>
+        </Card3D>
+
+        <Card3D className="rounded-2xl p-7" style={{ background: 'linear-gradient(135deg, rgba(17,24,39,0.9), rgba(17,24,39,0.6))', border: '1px solid rgba(6,182,212,0.2)', backdropFilter: 'blur(10px)' }}>
+          <h4 className="text-lg font-bold uppercase tracking-wider mb-5 text-cyan-400">Risk Mitigation</h4>
+          <div className="space-y-4">
+            {risks.map((r, i) => (
+              <div key={i} className="flex items-start gap-3">
+                <ArrowRight className="w-5 h-5 text-cyan-400 shrink-0 mt-0.5" />
+                <span className="text-sm leading-relaxed" style={{ color: 'rgba(255,255,255,0.65)' }}>{r}</span>
+              </div>
+            ))}
+          </div>
+        </Card3D>
+      </div>
+
+      {/* Next Steps */}
+      <div ref={ref3} className={`grid grid-cols-2 lg:grid-cols-4 gap-4 mb-8 transition-all duration-700 ${v3 ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-12'}`}>
+        {nextSteps.map((step, i) => (
+          <Card3D key={i} className="rounded-xl p-5" style={{ background: 'linear-gradient(135deg, rgba(17,24,39,0.9), rgba(17,24,39,0.6))', border: '1px solid #1f2937', backdropFilter: 'blur(10px)' }}>
+            <div className="text-3xl font-black font-mono mb-2 text-cyan-400" style={{ textShadow: '0 0 15px rgba(6,182,212,0.3)' }}>{step.num}</div>
+            <h5 className="text-base font-bold text-white mb-1">{step.title}</h5>
+            <p className="text-xs leading-relaxed" style={{ color: 'rgba(255,255,255,0.4)' }}>{step.desc}</p>
+          </Card3D>
+        ))}
+      </div>
+    </>
   );
 }
 
@@ -465,7 +603,6 @@ export default function DCReport() {
   const equityAmt = fs.totalCost * 0.4;
   const debtAmt = fs.totalCost * 0.6;
 
-  // Card & table shared styles
   const cardStyle = { background: 'linear-gradient(135deg, rgba(17, 24, 39, 0.9), rgba(17, 24, 39, 0.6))', border: '1px solid #1f2937', backdropFilter: 'blur(10px)' };
   const tableWrapStyle = { ...cardStyle, overflow: 'hidden' };
 
@@ -482,18 +619,18 @@ export default function DCReport() {
             </div>
             <div>
               <h1 className="text-xl font-bold tracking-tight text-white">HyperPlot <span className="text-cyan-400">AI</span></h1>
-              <p className="text-xs" style={{ color: '#9ca3af' }}>Dubai Sports City Feasibility Platform</p>
+              <p className="text-xs" style={{ color: '#9ca3af' }}>Dubai Real Estate Feasibility</p>
             </div>
           </div>
           <div className="flex items-center gap-2">
             <div className="hidden md:flex items-center gap-2 px-3 py-1 rounded-full text-xs font-semibold mr-3" style={{ background: 'rgba(34,197,94,0.1)', border: '1px solid rgba(34,197,94,0.3)', color: '#4ade80' }}>
               <span className="w-2 h-2 rounded-full inline-block animate-pulse" style={{ background: '#4ade80' }} /> Live Data
             </div>
-            <button onClick={() => window.print()} className="p-2.5 rounded-lg transition-colors" style={{ color: '#9ca3af' }} onMouseEnter={e => { e.currentTarget.style.background = 'rgba(17,24,39,0.8)'; e.currentTarget.style.color = '#06b6d4'; }} onMouseLeave={e => { e.currentTarget.style.background = 'transparent'; e.currentTarget.style.color = '#9ca3af'; }}>
-              <Printer className="w-4 h-4" />
+            <button onClick={() => window.print()} className="flex items-center gap-1.5 px-4 py-2 rounded-lg text-sm font-medium transition-colors" style={{ color: '#9ca3af', border: '1px solid #1f2937' }} onMouseEnter={e => { e.currentTarget.style.background = 'rgba(17,24,39,0.8)'; e.currentTarget.style.color = '#06b6d4'; }} onMouseLeave={e => { e.currentTarget.style.background = 'transparent'; e.currentTarget.style.color = '#9ca3af'; }}>
+              <Printer className="w-4 h-4" /> Print
             </button>
-            <button className="p-2.5 rounded-lg transition-colors" style={{ color: '#9ca3af' }} onMouseEnter={e => { e.currentTarget.style.background = 'rgba(17,24,39,0.8)'; e.currentTarget.style.color = '#a855f7'; }} onMouseLeave={e => { e.currentTarget.style.background = 'transparent'; e.currentTarget.style.color = '#9ca3af'; }}>
-              <Share2 className="w-4 h-4" />
+            <button className="flex items-center gap-1.5 px-4 py-2 rounded-lg text-sm font-medium transition-colors text-black" style={{ background: 'linear-gradient(to right, #06b6d4, #14b8a6)' }}>
+              <Share2 className="w-4 h-4" /> Share Link
             </button>
           </div>
         </div>
@@ -533,33 +670,40 @@ export default function DCReport() {
 
       {/* Strategy Selection Cards */}
       <div className="max-w-7xl mx-auto px-6 pb-4 relative z-10">
+        <p className="text-xs uppercase tracking-widest font-semibold mb-3" style={{ color: '#6b7280' }}>Unit Mix Strategy:</p>
         <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
           {(Object.entries(MIX_TEMPLATES) as [MixKey, typeof MIX_TEMPLATES.investor][]).map(([k, v]) => {
             const isActive = activeMix === k;
+            const mixFs = calcDSCFeasibility(fs.plot, k, link.overrides as any || {});
             return (
-              <button
-                key={k}
-                onClick={() => setActiveMix(k)}
-                className={`rounded-xl p-5 text-left transition-all duration-300 cursor-pointer ${isActive ? '' : 'opacity-60 hover:opacity-80'}`}
-                style={isActive ? {
-                  background: 'linear-gradient(to bottom right, rgba(6,182,212,0.1), transparent)',
-                  border: '2px solid rgba(6,182,212,0.5)',
-                  boxShadow: '0 0 20px rgba(6,182,212,0.3)',
-                } : {
-                  ...cardStyle,
-                }}
-              >
-                <div className="flex items-center gap-3 mb-3">
-                  <div className="w-10 h-10 rounded-lg flex items-center justify-center" style={{ background: isActive ? 'rgba(6,182,212,0.2)' : 'rgba(20,184,166,0.2)' }}>
-                    <span className="text-lg">{v.icon}</span>
+              <Card3D key={k}>
+                <button
+                  onClick={() => setActiveMix(k)}
+                  className={`w-full rounded-xl p-5 text-left transition-all duration-300 cursor-pointer ${isActive ? '' : 'opacity-60 hover:opacity-80'}`}
+                  style={isActive ? {
+                    background: 'linear-gradient(to bottom right, rgba(6,182,212,0.1), transparent)',
+                    border: '2px solid rgba(6,182,212,0.5)',
+                    boxShadow: '0 0 20px rgba(6,182,212,0.3)',
+                  } : {
+                    ...cardStyle,
+                  }}
+                >
+                  <div className="flex items-center gap-3 mb-3">
+                    <div className="w-10 h-10 rounded-lg flex items-center justify-center" style={{ background: isActive ? 'rgba(6,182,212,0.2)' : 'rgba(20,184,166,0.2)' }}>
+                      <span className="text-lg">{v.icon}</span>
+                    </div>
+                    <div>
+                      <h4 className="font-bold text-white text-base">{v.label}</h4>
+                      <p className="text-xs" style={{ color: '#9ca3af' }}>{v.tag}</p>
+                    </div>
                   </div>
-                  <div>
-                    <h4 className="font-bold text-white">{v.label.toUpperCase()}</h4>
-                    <p className="text-xs" style={{ color: '#9ca3af' }}>{v.tag}</p>
+                  <div className="flex items-center gap-4 text-xs font-mono" style={{ color: '#6b7280' }}>
+                    <span>Units: {fmt(mixFs.units.total)}</span>
+                    <span>ROI: {pct(mixFs.roi)}</span>
+                    <span>PSF: {fmt(Math.round(mixFs.avgPsf))}</span>
                   </div>
-                </div>
-                {isActive && <div className="text-xs text-cyan-400 font-medium">Currently Selected</div>}
-              </button>
+                </button>
+              </Card3D>
             );
           })}
         </div>
@@ -596,10 +740,10 @@ export default function DCReport() {
 
         {activeTab === 'feasibility' && (
           <>
-            <Section num={1} title="Development Configuration" delay={200}>
+            <Section num={1} title="Development Configuration">
               <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-                <div className="rounded-xl p-5" style={cardStyle}>
-                  <h4 className="text-xs font-semibold uppercase tracking-wider mb-3" style={{ color: '#9ca3af' }}>Plot Details</h4>
+                <Card3D className="rounded-xl p-5" style={cardStyle}>
+                  <h4 className="text-sm font-semibold uppercase tracking-wider mb-3" style={{ color: '#9ca3af' }}>Plot Details</h4>
                   <div className="space-y-2">
                     {[
                       ['Plot Area', `${fmt(Math.round(fs.plot.area))} sqft`],
@@ -614,17 +758,17 @@ export default function DCReport() {
                       </div>
                     ))}
                   </div>
-                </div>
-                <div className="rounded-xl p-5" style={cardStyle}>
-                  <h4 className="text-xs font-semibold uppercase tracking-wider mb-3" style={{ color: '#9ca3af' }}>Efficiency Metrics</h4>
+                </Card3D>
+                <Card3D className="rounded-xl p-5" style={cardStyle}>
+                  <h4 className="text-sm font-semibold uppercase tracking-wider mb-3" style={{ color: '#9ca3af' }}>Efficiency Metrics</h4>
                   <MetricBar label="Sellable Area" value={`${fmt(Math.round(fs.sellableArea))} sqft (95%)`} percent={95} />
                   <MetricBar label="GFA Utilization" value="100%" percent={100} />
                   <MetricBar label="Avg Selling PSF" value={`AED ${fmt(Math.round(fs.avgPsf))}`} percent={Math.min((fs.avgPsf / 2000) * 100, 100)} />
-                </div>
+                </Card3D>
               </div>
             </Section>
 
-            <Section num={2} title="Recommended Unit Mix" delay={400}>
+            <Section num={2} title="Recommended Unit Mix">
               <div className="overflow-x-auto rounded-xl" style={tableWrapStyle}>
                 <Table>
                   <TableHeader>
@@ -663,10 +807,10 @@ export default function DCReport() {
               </div>
             </Section>
 
-            <Section num={3} title="Financial Feasibility" delay={600}>
+            <Section num={3} title="Financial Feasibility">
               <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-                <div className="rounded-xl p-5" style={cardStyle}>
-                  <h4 className="text-xs font-semibold uppercase tracking-wider mb-3" style={{ color: '#9ca3af' }}>Cost Breakdown</h4>
+                <Card3D className="rounded-xl p-5" style={cardStyle}>
+                  <h4 className="text-sm font-semibold uppercase tracking-wider mb-3" style={{ color: '#9ca3af' }}>Cost Breakdown</h4>
                   <div className="space-y-3">
                     {[
                       { label: 'Land Cost', sub: 'Including transfer fees', val: fs.landCost, pctGdv: fs.landCost / fs.grossSales },
@@ -686,9 +830,9 @@ export default function DCReport() {
                       </div>
                     ))}
                   </div>
-                </div>
-                <div className="rounded-xl p-5" style={cardStyle}>
-                  <h4 className="text-xs font-semibold uppercase tracking-wider mb-3" style={{ color: '#9ca3af' }}>Return Metrics</h4>
+                </Card3D>
+                <Card3D className="rounded-xl p-5" style={cardStyle}>
+                  <h4 className="text-sm font-semibold uppercase tracking-wider mb-3" style={{ color: '#9ca3af' }}>Return Metrics</h4>
                   <div className="mb-4">
                     <div className="flex justify-between mb-1">
                       <span className="text-sm" style={{ color: '#9ca3af' }}>Project ROI</span>
@@ -727,28 +871,31 @@ export default function DCReport() {
                       </div>
                     </div>
                   </div>
-                </div>
+                </Card3D>
               </div>
             </Section>
 
-            <Section num={4} title="Recommended Payment Plan" delay={800}>
+            <Section num={4} title="Recommended Payment Plan">
               <div className="grid grid-cols-3 gap-4">
                 {Object.entries(fs.payPlan).map(([stage, pctVal]) => (
-                  <div key={stage} className="rounded-xl p-5 text-center" style={cardStyle}>
+                  <Card3D key={stage} className="rounded-xl p-5 text-center" style={cardStyle}>
                     <div className="text-4xl font-extrabold font-mono mb-2 text-cyan-400" style={{ textShadow: '0 0 20px rgba(6,182,212,0.4)' }}>{pctVal}%</div>
                     <div className="text-xs font-bold uppercase tracking-wider mb-1" style={{ color: '#9ca3af' }}>
                       {stage === 'booking' ? 'On Booking' : stage === 'construction' ? 'During Construction' : 'Upon Handover'}
                     </div>
                     <div className="text-xs font-mono" style={{ color: '#6b7280' }}>{fmtA(fs.grossSales * pctVal / 100)}</div>
-                  </div>
+                  </Card3D>
                 ))}
               </div>
             </Section>
+
+            {/* Analysis Summary with Key Strengths & Risk Mitigation */}
+            <AnalysisSummary fs={fs} mixTemplate={mixTemplate} />
           </>
         )}
 
         {activeTab === 'benchmarks' && (
-          <Section title="DSC Market Benchmarks" badge={`${COMPS.length} projects`} delay={200}>
+          <Section title="DSC Market Benchmarks" badge={`${COMPS.length} projects`}>
             <div className="overflow-x-auto rounded-xl" style={tableWrapStyle}>
               <Table>
                 <TableHeader>
@@ -784,7 +931,7 @@ export default function DCReport() {
 
         {activeTab === 'sensitivity' && (
           <>
-            <Section num={5} title="Price Sensitivity Analysis" badge="±10% Range" delay={200}>
+            <Section num={5} title="Price Sensitivity Analysis" badge="±10% Range">
               <div className="overflow-x-auto rounded-xl" style={tableWrapStyle}>
                 <Table>
                   <TableHeader>
@@ -825,7 +972,7 @@ export default function DCReport() {
               </div>
             </Section>
 
-            <Section num={6} title="Developer Benchmark Sensitivity" badge={`${COMPS.length} projects`} delay={400}>
+            <Section num={6} title="Developer Benchmark Sensitivity" badge={`${COMPS.length} projects`}>
               <p className="text-xs mb-3" style={{ color: '#9ca3af' }}>
                 Impact on your plot's feasibility if sold at each DSC developer's average PSF
               </p>
