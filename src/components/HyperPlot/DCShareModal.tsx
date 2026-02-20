@@ -2,14 +2,15 @@ import { useState, useMemo } from 'react';
 import { X, Link2, Copy, Check, Calendar, Shield, Eye, Download, Clock, Trash2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
-import { Input } from '@/components/ui/input';
 import { toast } from 'sonner';
-import { DSCFeasibilityResult, MixKey, MIX_TEMPLATES, fmt, fmtM, pct } from '@/lib/dscFeasibility';
+import { DSCFeasibilityResult, DSCPlotInput, MixKey, MIX_TEMPLATES, fmt, fmtM, pct } from '@/lib/dscFeasibility';
 
-interface DCShareLink {
+export interface DCShareLink {
   id: string;
   plotId: string;
   mixStrategy: MixKey;
+  plotInput: DSCPlotInput;
+  overrides?: Record<string, number | string | undefined>;
   createdAt: string;
   expiresAt: string | null;
   views: number;
@@ -24,21 +25,23 @@ interface DCShareModalProps {
   plotId: string;
   activeMix: MixKey;
   fs: DSCFeasibilityResult;
+  plotInput?: DSCPlotInput;
+  overrides?: Record<string, number | string | undefined>;
 }
 
 const STORAGE_KEY = 'hyperplot_dc_share_links';
 
-function loadShareLinks(): DCShareLink[] {
+export function loadShareLinks(): DCShareLink[] {
   try {
     return JSON.parse(localStorage.getItem(STORAGE_KEY) || '[]');
   } catch { return []; }
 }
 
-function saveShareLinks(links: DCShareLink[]) {
+export function saveShareLinks(links: DCShareLink[]) {
   localStorage.setItem(STORAGE_KEY, JSON.stringify(links));
 }
 
-export function DCShareModal({ open, onClose, plotId, activeMix, fs }: DCShareModalProps) {
+export function DCShareModal({ open, onClose, plotId, activeMix, fs, plotInput, overrides }: DCShareModalProps) {
   const [links, setLinks] = useState<DCShareLink[]>(loadShareLinks);
   const [expiryDays, setExpiryDays] = useState(30);
   const [copiedId, setCopiedId] = useState<string | null>(null);
@@ -53,11 +56,13 @@ export function DCShareModal({ open, onClose, plotId, activeMix, fs }: DCShareMo
     const expiresAt = expiryDays > 0
       ? new Date(Date.now() + expiryDays * 86400000).toISOString()
       : null;
-    
+
     const newLink: DCShareLink = {
       id,
       plotId,
       mixStrategy: activeMix,
+      plotInput: plotInput || fs.plot,
+      overrides: overrides || {},
       createdAt: new Date().toISOString(),
       expiresAt,
       views: 0,
@@ -65,7 +70,7 @@ export function DCShareModal({ open, onClose, plotId, activeMix, fs }: DCShareMo
       isActive: true,
       url: `${window.location.origin}/dc/${id}`,
     };
-    
+
     const updated = [...links, newLink];
     setLinks(updated);
     saveShareLinks(updated);
@@ -154,7 +159,7 @@ export function DCShareModal({ open, onClose, plotId, activeMix, fs }: DCShareMo
               <Link2 className="w-4 h-4 text-primary" />
               <span className="text-sm font-bold text-foreground">Generate New Secure Link</span>
             </div>
-            
+
             <div className="grid grid-cols-2 gap-3 mb-3">
               <div>
                 <label className="text-xs text-muted-foreground font-medium">Plot</label>
@@ -165,7 +170,7 @@ export function DCShareModal({ open, onClose, plotId, activeMix, fs }: DCShareMo
                 <div className="text-sm font-bold text-foreground mt-0.5">{MIX_TEMPLATES[activeMix].label}</div>
               </div>
             </div>
-            
+
             <div className="grid grid-cols-3 gap-2 mb-3 text-xs">
               <div className="p-2 rounded-lg bg-muted/30 text-center">
                 <div className="text-muted-foreground">GDV</div>
@@ -213,7 +218,7 @@ export function DCShareModal({ open, onClose, plotId, activeMix, fs }: DCShareMo
                   <div
                     key={link.id}
                     className={`p-3 rounded-xl border transition-all ${
-                      link.isActive 
+                      link.isActive
                         ? 'border-border/50 bg-muted/20 hover:border-primary/30'
                         : 'border-border/30 bg-muted/10 opacity-60'
                     }`}
@@ -230,58 +235,31 @@ export function DCShareModal({ open, onClose, plotId, activeMix, fs }: DCShareMo
                       <div className="flex items-center gap-1">
                         {link.isActive && (
                           <>
-                            <Button
-                              variant="ghost"
-                              size="sm"
-                              className="h-7 w-7 p-0"
-                              onClick={() => copyLink(link)}
-                            >
+                            <Button variant="ghost" size="sm" className="h-7 w-7 p-0" onClick={() => copyLink(link)}>
                               {copiedId === link.id ? <Check className="w-3.5 h-3.5 text-success" /> : <Copy className="w-3.5 h-3.5" />}
                             </Button>
-                            <Button
-                              variant="ghost"
-                              size="sm"
-                              className="h-7 text-xs text-destructive hover:text-destructive"
-                              onClick={() => revokeLink(link.id)}
-                            >
+                            <Button variant="ghost" size="sm" className="h-7 text-xs text-destructive hover:text-destructive" onClick={() => revokeLink(link.id)}>
                               Revoke
                             </Button>
                           </>
                         )}
                         {!link.isActive && (
-                          <Button
-                            variant="ghost"
-                            size="sm"
-                            className="h-7 w-7 p-0 text-destructive"
-                            onClick={() => deleteLink(link.id)}
-                          >
+                          <Button variant="ghost" size="sm" className="h-7 w-7 p-0 text-destructive" onClick={() => deleteLink(link.id)}>
                             <Trash2 className="w-3.5 h-3.5" />
                           </Button>
                         )}
                       </div>
                     </div>
-                    
+
                     <div className="text-xs font-mono text-muted-foreground bg-muted/30 rounded-lg px-3 py-1.5 mb-2 truncate">
                       {link.url}
                     </div>
-                    
+
                     <div className="flex items-center gap-4 text-[10px] text-muted-foreground">
-                      <span className="flex items-center gap-1">
-                        <Calendar className="w-3 h-3" />
-                        Created: {new Date(link.createdAt).toLocaleDateString()}
-                      </span>
-                      <span className="flex items-center gap-1">
-                        <Clock className="w-3 h-3" />
-                        {link.expiresAt ? `Expires: ${new Date(link.expiresAt).toLocaleDateString()}` : 'Never expires'}
-                      </span>
-                      <span className="flex items-center gap-1">
-                        <Eye className="w-3 h-3" />
-                        {link.views} views
-                      </span>
-                      <span className="flex items-center gap-1">
-                        <Download className="w-3 h-3" />
-                        {link.downloads} downloads
-                      </span>
+                      <span className="flex items-center gap-1"><Calendar className="w-3 h-3" /> Created: {new Date(link.createdAt).toLocaleDateString()}</span>
+                      <span className="flex items-center gap-1"><Clock className="w-3 h-3" /> {link.expiresAt ? `Expires: ${new Date(link.expiresAt).toLocaleDateString()}` : 'Never expires'}</span>
+                      <span className="flex items-center gap-1"><Eye className="w-3 h-3" /> {link.views} views</span>
+                      <span className="flex items-center gap-1"><Download className="w-3 h-3" /> {link.downloads} downloads</span>
                     </div>
                   </div>
                 ))}
@@ -300,9 +278,7 @@ export function DCShareModal({ open, onClose, plotId, activeMix, fs }: DCShareMo
 
         {/* Footer */}
         <div className="flex items-center justify-between p-5 border-t border-border/50 shrink-0">
-          <p className="text-[10px] text-muted-foreground">
-            Links are encrypted and access-controlled. Revoke anytime.
-          </p>
+          <p className="text-[10px] text-muted-foreground">Links are encrypted and access-controlled. Revoke anytime.</p>
           <Button variant="ghost" size="sm" onClick={onClose}>Close</Button>
         </div>
       </div>
