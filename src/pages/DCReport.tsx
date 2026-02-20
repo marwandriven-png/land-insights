@@ -1,5 +1,5 @@
 import { useState, useMemo, useEffect } from 'react';
-import { useParams, useNavigate } from 'react-router-dom';
+import { useParams, useNavigate, useSearchParams } from 'react-router-dom';
 import { Shield, Lock, Eye, Calendar, Printer, Building2, TrendingUp, DollarSign, BarChart3, MapPin, Share2, ChevronRight, Check, FileText } from 'lucide-react';
 import xEstateLogo from '@/assets/X-Estate_Logo.svg';
 import { Button } from '@/components/ui/button';
@@ -196,6 +196,7 @@ function TeaserPage({ link, fs, onRequestAccess }: { link: DCShareLink; fs: DSCF
 
 export default function DCReport() {
   const { linkId } = useParams<{ linkId: string }>();
+  const [searchParams] = useSearchParams();
   const navigate = useNavigate();
   const [link, setLink] = useState<DCShareLink | null>(null);
   const [status, setStatus] = useState<'loading' | 'valid' | 'expired' | 'revoked' | 'not_found'>('loading');
@@ -203,6 +204,36 @@ export default function DCReport() {
   const [accessPhase, setAccessPhase] = useState<'teaser' | 'nda' | 'full'>('teaser');
 
   useEffect(() => {
+    // First try URL-encoded payload (works cross-browser)
+    const encoded = searchParams.get('d');
+    if (encoded) {
+      try {
+        const payload = JSON.parse(decodeURIComponent(atob(encoded)));
+        const linkData: DCShareLink = {
+          id: payload.id,
+          plotId: payload.plotId,
+          mixStrategy: payload.mix as MixKey,
+          plotInput: payload.input,
+          overrides: payload.overrides || {},
+          createdAt: payload.createdAt,
+          expiresAt: payload.expiresAt,
+          views: 0, downloads: 0, isActive: true,
+          url: window.location.href,
+        };
+        if (linkData.expiresAt && new Date(linkData.expiresAt) < new Date()) {
+          setLink(linkData);
+          setStatus('expired');
+          return;
+        }
+        setLink(linkData);
+        setStatus('valid');
+        return;
+      } catch (e) {
+        console.error('Failed to decode share link payload:', e);
+      }
+    }
+
+    // Fallback: check localStorage (same-browser only)
     const links = loadShareLinks();
     const found = links.find(l => l.id === linkId);
     if (!found) { setStatus('not_found'); return; }
@@ -212,7 +243,7 @@ export default function DCReport() {
     saveShareLinks(links.map(l => l.id === found.id ? found : l));
     setLink(found);
     setStatus('valid');
-  }, [linkId]);
+  }, [linkId, searchParams]);
 
   const fs = useMemo(() => {
     if (!link) return null;
