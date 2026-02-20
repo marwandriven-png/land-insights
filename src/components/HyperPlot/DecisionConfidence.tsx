@@ -1149,6 +1149,8 @@ export function DecisionConfidence({ plot, comparisonPlots = [], isFullscreen, o
         plotId={activePlot.id}
         activeMix={activeMix}
         fs={fs}
+        plotInput={dscInput}
+        overrides={overrides}
       />
     </div>
   );
