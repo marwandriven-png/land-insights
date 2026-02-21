@@ -69,23 +69,31 @@ serve(async (req) => {
       // First row = headers
       const headers = rows[0].map((h: string) => h?.toString().trim().toLowerCase() || '');
       
-      // Find the plot number column (try common names)
-      const plotColNames = ['plot number', 'plotnumber', 'plot_number', 'plot no', 'plot', 'land number', 'land_number'];
+      // Find the plot number column (try common names with flexible matching)
+      const plotColNames = ['plot number', 'plotnumber', 'plot_number', 'plot no', 'plot', 'land number', 'land_number', 'p-number', 'pnumber', 'p number'];
       let plotColIndex = headers.findIndex((h: string) => plotColNames.includes(h));
+      // Fallback: find column containing 'plot' or 'land'
+      if (plotColIndex === -1) plotColIndex = headers.findIndex((h: string) => h.includes('plot') || h.includes('land'));
       if (plotColIndex === -1) plotColIndex = 0; // default to first column
 
-      // Find owner reference column
-      const ownerColNames = ['owner reference', 'owner_reference', 'ownerreference', 'owner ref', 'owner id', 'owner_id', 'reference', 'ref'];
-      const ownerColIndex = headers.findIndex((h: string) => ownerColNames.includes(h));
+      // Find owner/name column (flexible)
+      const ownerColNames = ['owner reference', 'owner_reference', 'ownerreference', 'owner ref', 'owner id', 'owner_id', 'reference', 'ref', 'owner', 'owner name', 'name'];
+      let ownerColIndex = headers.findIndex((h: string) => ownerColNames.includes(h));
+      // Fallback: find column containing 'owner' or 'name'
+      if (ownerColIndex === -1) ownerColIndex = headers.findIndex((h: string) => h.includes('owner'));
+      if (ownerColIndex === -1) ownerColIndex = headers.findIndex((h: string) => h === 'name');
 
-      // Normalize plot numbers for comparison
-      const normalizedLookups = plotNumbers.map((pn: string) => pn.toString().replace(/[^0-9a-zA-Z_-]/g, '').toLowerCase());
+      // Normalize: strip everything except alphanumeric chars for comparison
+      const normalize = (v: string) => v.toString().replace(/[^0-9a-zA-Z]/g, '').toLowerCase();
+      const normalizedLookups = plotNumbers.map((pn: string) => normalize(pn));
+
+      console.log(`Plot column: "${headers[plotColIndex]}" (idx ${plotColIndex}), Owner column: "${ownerColIndex >= 0 ? headers[ownerColIndex] : 'none'}" (idx ${ownerColIndex})`);
 
       const matches: Record<string, Record<string, string>> = {};
 
       for (let i = 1; i < rows.length; i++) {
         const row = rows[i];
-        const cellValue = (row[plotColIndex] || '').toString().replace(/[^0-9a-zA-Z_-]/g, '').toLowerCase();
+        const cellValue = normalize((row[plotColIndex] || '').toString());
         
         const matchIndex = normalizedLookups.indexOf(cellValue);
         if (matchIndex !== -1) {

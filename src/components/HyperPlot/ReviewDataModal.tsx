@@ -1,4 +1,5 @@
 import { useState, useMemo } from 'react';
+import { createPortal } from 'react-dom';
 import { X, Send, Phone, Ban, ExternalLink, Maximize2, Minimize2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Checkbox } from '@/components/ui/checkbox';
@@ -155,11 +156,11 @@ export function ReviewDataModal({ isOpen, onClose, matches }: ReviewDataModalPro
 
   if (!isOpen) return null;
 
-  return (
-    <div className="fixed inset-0 z-[100] flex items-center justify-center">
+  const modalContent = (
+    <div className="fixed inset-0 z-[9999] flex items-center justify-center">
       <div className="fixed inset-0 bg-black/60 backdrop-blur-sm" onClick={onClose} />
-      <div className={`relative bg-card flex flex-col animate-in fade-in duration-200 ${
-        isMaximized ? 'w-full h-full' : 'w-[90%] h-[85%] rounded-xl shadow-2xl'
+      <div className={`relative bg-card flex flex-col animate-in fade-in duration-200 z-[10000] ${
+        isMaximized ? 'fixed inset-0' : 'w-[90vw] h-[85vh] rounded-xl shadow-2xl'
       }`}>
         {/* Header */}
         <div className="flex items-center justify-between p-5 border-b border-border/50">
@@ -336,4 +337,6 @@ export function ReviewDataModal({ isOpen, onClose, matches }: ReviewDataModalPro
       </div>
     </div>
   );
+
+  return createPortal(modalContent, document.body);
 }
