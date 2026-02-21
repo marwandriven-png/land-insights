@@ -255,6 +255,7 @@ export function ReviewDataModal({ isOpen, onClose, matches }: ReviewDataModalPro
                 <TableHead className="text-base font-bold">GFA (sqft)</TableHead>
                 <TableHead className="text-base font-bold">Zoning</TableHead>
                 <TableHead className="text-base font-bold">Status</TableHead>
+                <TableHead className="text-base font-bold">Contact</TableHead>
                 <TableHead className="text-base font-bold">Match %</TableHead>
                 <TableHead className="text-base font-bold">CRM</TableHead>
               </TableRow>
@@ -301,6 +302,11 @@ export function ReviewDataModal({ isOpen, onClose, matches }: ReviewDataModalPro
                     </TableCell>
                     <TableCell className="text-base">{m.matchedZoning}</TableCell>
                     <TableCell className="text-base">{m.matchedStatus}</TableCell>
+                    <TableCell className="text-base">
+                      {m.sheetMetadata?.['mobile'] || m.sheetMetadata?.['phone'] || m.sheetMetadata?.['contact'] || m.sheetMetadata?.['phone number'] || m.sheetMetadata?.['contact number'] || (
+                        <span className="text-muted-foreground">—</span>
+                      )}
+                    </TableCell>
                     <TableCell>
                       <span
                         className="px-3 py-1.5 rounded-full text-base font-bold"
