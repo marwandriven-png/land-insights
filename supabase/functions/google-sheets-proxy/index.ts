@@ -136,6 +136,17 @@ serve(async (req) => {
       if (!response.ok) {
         const errText = await response.text();
         console.error('Google Sheets test error:', response.status, errText);
+        
+        // Check if this is a non-native Google Sheet (e.g. uploaded Excel)
+        if (errText.includes('FAILED_PRECONDITION') || errText.includes('not supported for this document')) {
+          return new Response(JSON.stringify({ 
+            error: 'This file is not a native Google Sheet. Please open it in Google Drive, then go to File → Save as Google Sheets, and use the new URL instead.' 
+          }), {
+            status: 400,
+            headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+          });
+        }
+        
         throw new Error(`Google Sheets API returned ${response.status}: ${errText}`);
       }
 
