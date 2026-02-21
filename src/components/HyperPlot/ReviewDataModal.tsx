@@ -3,7 +3,7 @@ import { createPortal } from 'react-dom';
 import { X, Send, Phone, Ban, ExternalLink, Maximize2, Minimize2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Checkbox } from '@/components/ui/checkbox';
-import { ScrollArea } from '@/components/ui/scroll-area';
+import { ScrollArea, ScrollBar } from '@/components/ui/scroll-area';
 import { Badge } from '@/components/ui/badge';
 import {
   Select,
@@ -333,6 +333,7 @@ export function ReviewDataModal({ isOpen, onClose, matches }: ReviewDataModalPro
             </TableBody>
           </Table>
           </div>
+          <ScrollBar orientation="horizontal" />
         </ScrollArea>
       </div>
     </div>
