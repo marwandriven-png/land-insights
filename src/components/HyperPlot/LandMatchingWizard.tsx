@@ -128,6 +128,7 @@ export function LandMatchingWizard({
   );
 
   // Shared: cross-reference matched results with Google Sheet
+  // When sheet is connected, only return plots that exist in the sheet
   const crossCheckWithSheet = useCallback(async (results: MatchResult[]): Promise<MatchResult[]> => {
     if (!sheetConnected || !sheetId || results.length === 0) return results;
     try {
@@ -149,14 +150,19 @@ export function LandMatchingWizard({
       );
       if (response.ok) {
         const sheetData = await response.json();
-        if (sheetData.matches) {
+        if (sheetData.matches && Object.keys(sheetData.matches).length > 0) {
+          // Only keep results that exist in the Google Sheet
+          const filtered: MatchResult[] = [];
           for (const result of results) {
             const sheetMatch = sheetData.matches[result.matchedPlotId];
             if (sheetMatch) {
-              result.ownerReference = sheetMatch.owner_reference || sheetMatch['owner ref'] || undefined;
+              result.ownerReference = sheetMatch.owner_reference || sheetMatch['owner ref'] || sheetMatch['owner'] || sheetMatch['owner name'] || undefined;
               result.sheetMetadata = sheetMatch;
+              filtered.push(result);
             }
           }
+          console.log(`Sheet cross-check: ${results.length} GIS matches → ${filtered.length} found in sheet`);
+          return filtered;
         }
       }
     } catch (sheetErr) {

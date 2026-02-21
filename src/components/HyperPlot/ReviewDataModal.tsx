@@ -234,6 +234,7 @@ export function ReviewDataModal({ isOpen, onClose, matches }: ReviewDataModalPro
                   />
                 </TableHead>
                 <TableHead className="text-base font-bold">Land Number</TableHead>
+                <TableHead className="text-base font-bold">Owner</TableHead>
                 <TableHead className="text-base font-bold">Location</TableHead>
                 <TableHead className="text-base font-bold">Area (sqft)</TableHead>
                 <TableHead className="text-base font-bold">GFA (sqft)</TableHead>
@@ -260,6 +261,9 @@ export function ReviewDataModal({ isOpen, onClose, matches }: ReviewDataModalPro
                       />
                     </TableCell>
                     <TableCell className="font-bold text-lg">{m.matchedPlotId}</TableCell>
+                    <TableCell className="text-base">
+                      {m.ownerReference || m.sheetMetadata?.['owner'] || m.sheetMetadata?.['owner name'] || '—'}
+                    </TableCell>
                     <TableCell className="text-base">{m.matchedLocation || '—'}</TableCell>
                     <TableCell className="text-base font-mono">
                       {Math.round(m.matchedPlotArea * SQM_TO_SQFT).toLocaleString()}
