@@ -41,7 +41,8 @@ serve(async (req) => {
         });
       }
 
-      const range = sheetName ? `${sheetName}!A:Z` : 'Sheet1!A:Z';
+      const trimmedSheetName = sheetName?.trim();
+      const range = trimmedSheetName ? `'${trimmedSheetName}'!A:Z` : 'Sheet1!A:Z';
       const sheetsUrl = `https://sheets.googleapis.com/v4/spreadsheets/${spreadsheetId}/values/${encodeURIComponent(range)}?key=${GOOGLE_SHEETS_API_KEY}`;
 
       console.log(`Fetching Google Sheet: ${spreadsheetId}, range: ${range}`);
