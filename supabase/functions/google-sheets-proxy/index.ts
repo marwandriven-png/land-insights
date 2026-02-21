@@ -70,9 +70,11 @@ serve(async (req) => {
       const headers = rows[0].map((h: string) => h?.toString().trim().toLowerCase() || '');
       
       // Find the plot number column (try common names with flexible matching)
-      const plotColNames = ['municipality', 'plot number', 'plotnumber', 'plot_number', 'plot no', 'plot', 'land number', 'land_number', 'p-number', 'pnumber', 'p number'];
+      // Priority: 'land number' first since it contains the actual GIS plot IDs
+      const plotColNames = ['land number', 'land_number', 'municipality', 'plot number', 'plotnumber', 'plot_number', 'plot no', 'plot', 'p-number', 'pnumber', 'p number'];
       let plotColIndex = headers.findIndex((h: string) => plotColNames.includes(h.trim()));
-      // Fallback: find column containing 'plot' or 'land' or 'municipality'
+      // Fallback: find column containing 'land number' first, then 'municipality', 'plot'
+      if (plotColIndex === -1) plotColIndex = headers.findIndex((h: string) => h.includes('land number'));
       if (plotColIndex === -1) plotColIndex = headers.findIndex((h: string) => h.includes('municipality') || h.includes('plot') || h.includes('land'));
       if (plotColIndex === -1) plotColIndex = 0; // default to first column
 
@@ -97,7 +99,22 @@ serve(async (req) => {
         const row = rows[i];
         const cellValue = normalize((row[plotColIndex] || '').toString());
         
-        const matchIndex = normalizedLookups.indexOf(cellValue);
+        let matchIndex = normalizedLookups.indexOf(cellValue);
+        
+        // Fallback: search ALL columns in this row for a match
+        let actualMatchCol = plotColIndex;
+        if (matchIndex === -1) {
+          for (let c = 0; c < row.length; c++) {
+            if (c === plotColIndex) continue;
+            const altValue = normalize((row[c] || '').toString());
+            matchIndex = normalizedLookups.indexOf(altValue);
+            if (matchIndex !== -1) {
+              actualMatchCol = c;
+              break;
+            }
+          }
+        }
+
         if (matchIndex !== -1) {
           const plotNum = plotNumbers[matchIndex];
           const rowData: Record<string, string> = {};
@@ -110,6 +127,9 @@ serve(async (req) => {
             rowData['owner_reference'] = row[ownerColIndex].toString();
           }
           matches[plotNum] = rowData;
+          if (actualMatchCol !== plotColIndex) {
+            console.log(`Row ${i}: matched "${plotNum}" via column "${headers[actualMatchCol]}" (idx ${actualMatchCol}) instead of primary column`);
+          }
         }
       }
 

@@ -105,9 +105,9 @@ export function LandMatchingWizard({
   const [matchResults, setMatchResults] = useState<MatchResult[]>([]);
   const [isProcessing, setIsProcessing] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [sheetId, setSheetId] = useState('');
-  const [sheetName, setSheetName] = useState('');
-  const [sheetConnected, setSheetConnected] = useState(false);
+  const [sheetId, setSheetId] = useState(() => localStorage.getItem('hp_sheetId') || '');
+  const [sheetName, setSheetName] = useState(() => localStorage.getItem('hp_sheetName') || '');
+  const [sheetConnected, setSheetConnected] = useState(() => localStorage.getItem('hp_sheetConnected') === 'true');
   const [isConnectingSheet, setIsConnectingSheet] = useState(false);
   const [showReviewModal, setShowReviewModal] = useState(false);
   const [selectedMatchIds, setSelectedMatchIds] = useState<Set<string>>(new Set());
@@ -130,9 +130,11 @@ export function LandMatchingWizard({
   // Shared: cross-reference matched results with Google Sheet
   // Enriches results with owner data from sheet; keeps all GIS results
   const crossCheckWithSheet = useCallback(async (results: MatchResult[]): Promise<MatchResult[]> => {
+    console.log(`[SheetCrossCheck] sheetConnected=${sheetConnected}, sheetId=${sheetId}, results=${results.length}`);
     if (!sheetConnected || !sheetId || results.length === 0) return results;
     try {
       const plotNumbers = results.map(r => r.matchedPlotId);
+      console.log(`[SheetCrossCheck] Looking up plot numbers:`, plotNumbers);
       const response = await fetch(
         `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/google-sheets-proxy?action=lookup`,
         {
@@ -148,8 +150,10 @@ export function LandMatchingWizard({
           })
         }
       );
+      console.log(`[SheetCrossCheck] Response status: ${response.status}`);
       if (response.ok) {
         const sheetData = await response.json();
+        console.log(`[SheetCrossCheck] Sheet response:`, JSON.stringify(sheetData).slice(0, 500));
         if (sheetData.matches) {
           for (const result of results) {
             const sheetMatch = sheetData.matches[result.matchedPlotId];
@@ -159,11 +163,14 @@ export function LandMatchingWizard({
             }
           }
           const matched = results.filter(r => r.sheetMetadata).length;
-          console.log(`Sheet cross-check: ${results.length} GIS matches, ${matched} found in sheet`);
+          console.log(`[SheetCrossCheck] ${results.length} GIS matches, ${matched} found in sheet`);
         }
+      } else {
+        const errText = await response.text();
+        console.error(`[SheetCrossCheck] Error response: ${errText}`);
       }
     } catch (sheetErr) {
-      console.warn('Google Sheet cross-check failed:', sheetErr);
+      console.warn('[SheetCrossCheck] Failed:', sheetErr);
     }
     return results;
   }, [sheetConnected, sheetId, sheetName]);
@@ -456,6 +463,9 @@ export function LandMatchingWizard({
         const data = await response.json();
         if (data.connected) {
           setSheetConnected(true);
+          localStorage.setItem('hp_sheetConnected', 'true');
+          localStorage.setItem('hp_sheetId', sheetId);
+          localStorage.setItem('hp_sheetName', sheetName);
           setError(null);
         } else {
           setError('Could not connect to the spreadsheet');
