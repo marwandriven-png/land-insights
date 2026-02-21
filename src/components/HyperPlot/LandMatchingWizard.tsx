@@ -127,6 +127,44 @@ export function LandMatchingWizard({
     (formGfa.trim().length > 0 && parseFloat(formGfa) > 0)
   );
 
+  // Shared: cross-reference matched results with Google Sheet
+  const crossCheckWithSheet = useCallback(async (results: MatchResult[]): Promise<MatchResult[]> => {
+    if (!sheetConnected || !sheetId || results.length === 0) return results;
+    try {
+      const plotNumbers = results.map(r => r.matchedPlotId);
+      const response = await fetch(
+        `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/google-sheets-proxy?action=lookup`,
+        {
+          method: 'POST',
+          headers: {
+            'Authorization': `Bearer ${import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY}`,
+            'Content-Type': 'application/json'
+          },
+          body: JSON.stringify({
+            spreadsheetId: sheetId,
+            sheetName: sheetName || undefined,
+            plotNumbers
+          })
+        }
+      );
+      if (response.ok) {
+        const sheetData = await response.json();
+        if (sheetData.matches) {
+          for (const result of results) {
+            const sheetMatch = sheetData.matches[result.matchedPlotId];
+            if (sheetMatch) {
+              result.ownerReference = sheetMatch.owner_reference || sheetMatch['owner ref'] || undefined;
+              result.sheetMetadata = sheetMatch;
+            }
+          }
+        }
+      }
+    } catch (sheetErr) {
+      console.warn('Google Sheet cross-check failed:', sheetErr);
+    }
+    return results;
+  }, [sheetConnected, sheetId, sheetName]);
+
   const handleFileUpload = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
@@ -184,6 +222,9 @@ export function LandMatchingWizard({
           }
         } catch { /* continue */ }
       }
+
+      // Cross-check with Google Sheet if connected
+      results = await crossCheckWithSheet(results);
 
       setMatchResults(results);
       setSelectedMatchIds(new Set(results.map(r => r.matchedPlotId)));
@@ -288,6 +329,9 @@ export function LandMatchingWizard({
           }
         }
 
+        // Cross-check with Google Sheet if connected
+        results = await crossCheckWithSheet(results);
+
         setMatchResults(results);
         setSelectedMatchIds(new Set(results.map(r => r.matchedPlotId)));
         setStep('results');
@@ -375,41 +419,7 @@ export function LandMatchingWizard({
       }
 
       // Cross-check with Google Sheet if connected
-      if (sheetConnected && sheetId) {
-        try {
-          const plotNumbers = results.map(r => r.matchedPlotId);
-          const response = await fetch(
-            `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/google-sheets-proxy?action=lookup`,
-            {
-              method: 'POST',
-              headers: {
-                'Authorization': `Bearer ${import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY}`,
-                'Content-Type': 'application/json'
-              },
-              body: JSON.stringify({
-                spreadsheetId: sheetId,
-                sheetName: sheetName || undefined,
-                plotNumbers
-              })
-            }
-          );
-
-          if (response.ok) {
-            const sheetData = await response.json();
-            if (sheetData.matches) {
-              for (const result of results) {
-                const sheetMatch = sheetData.matches[result.matchedPlotId];
-                if (sheetMatch) {
-                  result.ownerReference = sheetMatch.owner_reference || sheetMatch['owner ref'] || undefined;
-                  result.sheetMetadata = sheetMatch;
-                }
-              }
-            }
-          }
-        } catch (sheetErr) {
-          console.warn('Google Sheet cross-check failed:', sheetErr);
-        }
-      }
+      results = await crossCheckWithSheet(results);
 
       setMatchResults(results);
       setStep('results');
@@ -420,7 +430,7 @@ export function LandMatchingWizard({
     } finally {
       setIsProcessing(false);
     }
-  }, [parsedInputs, plots, sheetConnected, sheetId, sheetName, onHighlightPlots]);
+  }, [parsedInputs, plots, crossCheckWithSheet, onHighlightPlots]);
 
   const handleConnectSheet = useCallback(async () => {
     if (!sheetId.trim()) return;
