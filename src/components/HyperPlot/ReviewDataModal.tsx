@@ -160,10 +160,10 @@ export function ReviewDataModal({ isOpen, onClose, matches }: ReviewDataModalPro
     <div className="fixed inset-0 z-[9999] flex items-center justify-center">
       <div className="fixed inset-0 bg-black/60 backdrop-blur-sm" onClick={onClose} />
       <div className={`relative bg-card flex flex-col animate-in fade-in duration-200 z-[10000] ${
-        isMaximized ? 'fixed inset-0' : 'w-[90vw] h-[85vh] rounded-xl shadow-2xl'
+        isMaximized ? 'fixed inset-0 h-screen max-h-screen' : 'w-[90vw] h-[85vh] max-h-[85vh] rounded-xl shadow-2xl'
       }`}>
         {/* Header */}
-        <div className="flex items-center justify-between p-5 border-b border-border/50">
+        <div className="flex-shrink-0 flex items-center justify-between p-5 border-b border-border/50">
           <div>
             <h2 className="text-lg font-bold">Review Land Matches</h2>
             <p className="text-sm text-muted-foreground">
@@ -188,7 +188,7 @@ export function ReviewDataModal({ isOpen, onClose, matches }: ReviewDataModalPro
         </div>
 
         {/* Campaign + Actions */}
-        <div className="px-5 py-3 border-b border-border/30 flex items-center gap-3 flex-wrap">
+        <div className="flex-shrink-0 px-5 py-3 border-b border-border/30 flex items-center gap-3 flex-wrap">
           <Select value={campaign} onValueChange={setCampaign}>
             <SelectTrigger className="w-48 text-sm">
               <SelectValue placeholder="Campaign" />
