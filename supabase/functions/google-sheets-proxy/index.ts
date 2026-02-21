@@ -87,7 +87,9 @@ serve(async (req) => {
       const normalize = (v: string) => v.toString().replace(/[^0-9a-zA-Z]/g, '').toLowerCase();
       const normalizedLookups = plotNumbers.map((pn: string) => normalize(pn));
 
+      console.log(`Headers found: [${headers.join(', ')}]`);
       console.log(`Plot column: "${headers[plotColIndex]}" (idx ${plotColIndex}), Owner column: "${ownerColIndex >= 0 ? headers[ownerColIndex] : 'none'}" (idx ${ownerColIndex})`);
+      console.log(`Looking up ${plotNumbers.length} plot numbers: ${plotNumbers.slice(0, 5).join(', ')}`);
 
       const matches: Record<string, Record<string, string>> = {};
 
