@@ -1,5 +1,5 @@
 import { useState, useMemo } from 'react';
-import { X, Send, Phone, Ban, ExternalLink } from 'lucide-react';
+import { X, Send, Phone, Ban, ExternalLink, Maximize2, Minimize2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Checkbox } from '@/components/ui/checkbox';
 import { ScrollArea } from '@/components/ui/scroll-area';
@@ -36,7 +36,7 @@ export function ReviewDataModal({ isOpen, onClose, matches }: ReviewDataModalPro
   );
   const [campaign, setCampaign] = useState('default');
   const [isExporting, setIsExporting] = useState(false);
-
+  const [isMaximized, setIsMaximized] = useState(true);
   const exportedIds = useMemo(() => getExportedPlotIds(), []);
 
   const selectedCount = selectedIds.size;
@@ -158,18 +158,32 @@ export function ReviewDataModal({ isOpen, onClose, matches }: ReviewDataModalPro
   return (
     <div className="fixed inset-0 z-[100] flex items-center justify-center">
       <div className="fixed inset-0 bg-black/60 backdrop-blur-sm" onClick={onClose} />
-      <div className="relative w-full h-full bg-card flex flex-col animate-in fade-in duration-200">
+      <div className={`relative bg-card flex flex-col animate-in fade-in duration-200 ${
+        isMaximized ? 'w-full h-full' : 'w-[90%] h-[85%] rounded-xl shadow-2xl'
+      }`}>
         {/* Header */}
         <div className="flex items-center justify-between p-5 border-b border-border/50">
           <div>
             <h2 className="text-lg font-bold">Review Land Matches</h2>
             <p className="text-sm text-muted-foreground">
               {totalCount} lands · {selectedCount} selected
+              {matches.some(m => m.sheetMetadata) && (
+                <span className="ml-2 text-primary">· Sheet linked</span>
+              )}
             </p>
           </div>
-          <button onClick={onClose} className="p-2 rounded-lg hover:bg-muted/50 transition-colors">
-            <X className="w-5 h-5" />
-          </button>
+          <div className="flex items-center gap-1">
+            <button
+              onClick={() => setIsMaximized(!isMaximized)}
+              className="p-2 rounded-lg hover:bg-muted/50 transition-colors"
+              title={isMaximized ? 'Minimize' : 'Maximize'}
+            >
+              {isMaximized ? <Minimize2 className="w-5 h-5" /> : <Maximize2 className="w-5 h-5" />}
+            </button>
+            <button onClick={onClose} className="p-2 rounded-lg hover:bg-muted/50 transition-colors">
+              <X className="w-5 h-5" />
+            </button>
+          </div>
         </div>
 
         {/* Campaign + Actions */}
@@ -262,7 +276,14 @@ export function ReviewDataModal({ isOpen, onClose, matches }: ReviewDataModalPro
                     </TableCell>
                     <TableCell className="font-bold text-lg">{m.matchedPlotId}</TableCell>
                     <TableCell className="text-base">
-                      {m.ownerReference || m.sheetMetadata?.['owner'] || m.sheetMetadata?.['owner name'] || '—'}
+                      {m.ownerReference || m.sheetMetadata?.['name'] || m.sheetMetadata?.['owner'] || m.sheetMetadata?.['owner name'] || m.sheetMetadata?.['owner_reference'] || (
+                        <span className="text-muted-foreground">—</span>
+                      )}
+                      {m.sheetMetadata && (
+                        <Badge variant="outline" className="ml-2 text-[10px] px-1.5 py-0 border-primary/30 text-primary">
+                          Sheet
+                        </Badge>
+                      )}
                     </TableCell>
                     <TableCell className="text-base">{m.matchedLocation || '—'}</TableCell>
                     <TableCell className="text-base font-mono">
