@@ -237,7 +237,7 @@ export function ReviewDataModal({ isOpen, onClose, matches }: ReviewDataModalPro
         </div>
 
         {/* Table */}
-        <ScrollArea className="flex-1 min-h-0">
+        <div className="flex-1 min-h-0 overflow-auto">
           <div className="min-w-[900px]">
           <Table>
             <TableHeader>
@@ -333,8 +333,7 @@ export function ReviewDataModal({ isOpen, onClose, matches }: ReviewDataModalPro
             </TableBody>
           </Table>
           </div>
-          <ScrollBar orientation="horizontal" />
-        </ScrollArea>
+        </div>
       </div>
     </div>
   );
