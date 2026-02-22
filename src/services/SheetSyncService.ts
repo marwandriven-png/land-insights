@@ -63,7 +63,8 @@ export async function syncListingToSheet(plotNumber: string, data: {
 
     const result = await response.json();
     if (result.error) {
-      console.error('Sheet update error:', result.error);
+      console.warn('Sheet sync warning (non-blocking):', result.error);
+      // Don't block the listing flow — just log the warning
       return false;
     }
 
