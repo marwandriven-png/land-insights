@@ -10,7 +10,7 @@ function getSheetConfig() {
 }
 
 // The LISTING sheet is where listings are written/synced
-const LISTING_SHEET_NAME = 'LISTING ';
+const LISTING_SHEET_NAME = 'DATA BASE';
 
 export async function syncListingToSheet(plotNumber: string, data: {
   owner?: string;
