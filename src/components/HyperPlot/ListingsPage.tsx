@@ -123,7 +123,7 @@ export function ListingsPage({ plots, onSelectPlot, onCreateListing, onSyncSheet
       return stored ? JSON.parse(stored) : {};
     } catch { return {}; }
   });
-  const [, forceUpdate] = useState(0);
+  const [internalKey, forceUpdate] = useState(0);
 
   // Re-read overrides from localStorage when refreshKey changes
   useEffect(() => {
@@ -202,7 +202,7 @@ export function ListingsPage({ plots, onSelectPlot, onCreateListing, onSyncSheet
     saveBuyers(updated);
   }, [buyers, saveBuyers]);
 
-  const listedPlotIds = useMemo(() => getListedPlotIds(), [refreshKey]);
+  const listedPlotIds = useMemo(() => getListedPlotIds(), [refreshKey, internalKey]);
 
   const listedPlots = useMemo(() => {
     return plots.filter(p => listedPlotIds.has(p.id));
@@ -298,6 +298,13 @@ export function ListingsPage({ plots, onSelectPlot, onCreateListing, onSyncSheet
     const newOverrides = { ...localOverrides };
     delete newOverrides[plotId];
     saveOverrides(newOverrides);
+    // Also clean up offers and buyers for deleted listing
+    const newOffers = { ...offers };
+    delete newOffers[plotId];
+    saveOffers(newOffers);
+    const newBuyers = { ...buyers };
+    delete newBuyers[plotId];
+    saveBuyers(newBuyers);
     forceUpdate(n => n + 1);
     onListingDeleted?.(plotId);
     toast({ title: 'Removed', description: `${plotId} removed from listings.` });
