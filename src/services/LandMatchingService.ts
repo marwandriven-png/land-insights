@@ -421,6 +421,8 @@ export function markPlotListed(plotId: string) {
   const existing = getListedPlots().filter(e => e.plotId !== plotId);
   existing.push({ plotId, listedAt: Date.now() });
   localStorage.setItem(CRM_LISTED_KEY, JSON.stringify(existing));
+  // Remove from blacklist since user is explicitly creating a new listing
+  removeFromDeletedBlacklist(plotId);
 }
 
 export function isPlotListed(plotId: string): boolean {
@@ -437,4 +439,29 @@ export function isNewListing(plotId: string): boolean {
 export function unlistPlot(plotId: string) {
   const existing = getListedPlots().filter(e => e.plotId !== plotId);
   localStorage.setItem(CRM_LISTED_KEY, JSON.stringify(existing));
+  // Add to deleted blacklist so sync won't re-list it
+  addToDeletedBlacklist(plotId);
+}
+
+// --- Deleted Listings Blacklist ---
+// Prevents Google Sheet sync from re-listing manually deleted plots
+const DELETED_BLACKLIST_KEY = 'hyperplot_deleted_listings';
+
+export function getDeletedBlacklist(): Set<string> {
+  try {
+    const stored = localStorage.getItem(DELETED_BLACKLIST_KEY);
+    return stored ? new Set(JSON.parse(stored)) : new Set();
+  } catch { return new Set(); }
+}
+
+export function addToDeletedBlacklist(plotId: string) {
+  const existing = getDeletedBlacklist();
+  existing.add(plotId);
+  localStorage.setItem(DELETED_BLACKLIST_KEY, JSON.stringify([...existing]));
+}
+
+export function removeFromDeletedBlacklist(plotId: string) {
+  const existing = getDeletedBlacklist();
+  existing.delete(plotId);
+  localStorage.setItem(DELETED_BLACKLIST_KEY, JSON.stringify([...existing]));
 }

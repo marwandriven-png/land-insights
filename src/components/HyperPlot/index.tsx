@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import { Map, Home, Brain, AlertCircle, X, RefreshCw, Wifi, WifiOff, Target, Clock, Settings, Shield, GitCompareArrows, Plus, Minimize2, Maximize2 } from 'lucide-react';
-import { isPlotListed, markPlotListed } from '@/services/LandMatchingService';
+import { isPlotListed, markPlotListed, getDeletedBlacklist } from '@/services/LandMatchingService';
 import { lookupOwnerFromSheet, importPlotsFromSheet } from '@/services/SheetSyncService';
 import { Badge } from '@/components/ui/badge';
 import { toast } from '@/hooks/use-toast';
@@ -623,9 +623,14 @@ export function HyperPlotAI() {
                     plots={plots}
                     onSelectPlot={(plot) => handlePlotClick(plot, true)}
                     onCreateListing={() => setShowQuickAdd(true)}
-                    onListingDeleted={() => {
+                    onListingDeleted={(plotId) => {
                       setLastSeen(getLastSeen());
                       setListingsRefreshKey(k => k + 1);
+                      // Close detail panel if deleted plot is currently shown
+                      if (selectedPlot?.id === plotId) {
+                        setShowDetailPanel(false);
+                        setSelectedPlot(null);
+                      }
                     }}
                     onSyncSheet={async () => {
                       toast({ title: 'Syncing...', description: 'Importing plots from Google Sheet...' });
@@ -636,9 +641,12 @@ export function HyperPlotAI() {
                           return;
                         }
                         let newCount = 0;
+                        const deletedBlacklist = getDeletedBlacklist();
                         const overridesRaw = localStorage.getItem('hyperplot_listing_overrides');
                         const overrides = overridesRaw ? JSON.parse(overridesRaw) : {};
                         for (const entry of imported) {
+                          // Skip plots that were explicitly deleted by the user
+                          if (deletedBlacklist.has(entry.plotNumber)) continue;
                           if (!isPlotListed(entry.plotNumber)) {
                             markPlotListed(entry.plotNumber);
                             newCount++;
