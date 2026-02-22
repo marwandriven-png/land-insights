@@ -7,6 +7,7 @@ import { toast } from '@/hooks/use-toast';
 import { markPlotListed } from '@/services/LandMatchingService';
 import { gisService, PlotData } from '@/services/DDAGISService';
 import { syncListingToSheet } from '@/services/SheetSyncService';
+import { saveManualLand, createDefaultManualLand } from '@/services/ManualLandService';
 
 interface SheetMatch {
   ownerName: string;
@@ -161,6 +162,21 @@ export function QuickAddLandModal({ open, onClose, onLandAdded }: QuickAddLandMo
       verificationSource: 'Manual' as const,
       verificationDate: new Date().toISOString(),
     };
+
+    // Persist as ManualLandEntry so the plot survives page refresh
+    // (GIS plots fetched individually may not be in the initial batch)
+    const manualEntry = createDefaultManualLand();
+    manualEntry.plotNumber = pid;
+    manualEntry.isDraft = false;
+    if (gisPlot) {
+      manualEntry.plotAreaSqm = gisPlot.area;
+      manualEntry.gfaSqm = gisPlot.gfa;
+      manualEntry.floors = gisPlot.floors;
+      manualEntry.zoning = gisPlot.zoning;
+      manualEntry.areaName = gisPlot.project || gisPlot.location || '';
+    }
+    saveManualLand(manualEntry);
+
     onLandAdded(pid, editedOwner, editedMobile, plotToPass);
     toast({ title: 'Listing Created', description: `${pid} has been added to your listings.` });
 
