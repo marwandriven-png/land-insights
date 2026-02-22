@@ -1,6 +1,7 @@
 import { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import { Map, Home, Brain, AlertCircle, X, RefreshCw, Wifi, WifiOff, Target, Clock, Settings, Shield, GitCompareArrows, Plus, Minimize2, Maximize2 } from 'lucide-react';
 import { isPlotListed, markPlotListed } from '@/services/LandMatchingService';
+import { lookupOwnerFromSheet } from '@/services/SheetSyncService';
 import { Badge } from '@/components/ui/badge';
 import { toast } from '@/hooks/use-toast';
 import xEstateLogo from '@/assets/X-Estate_Logo.svg';
@@ -273,6 +274,24 @@ export function HyperPlotAI() {
     setBottomPanel('listings');
     setListingsRefreshKey(k => k + 1);
     toast({ title: 'Listed', description: `${plot.id} added to listings.` });
+
+    // Look up owner/contact from Google Sheet in the background
+    lookupOwnerFromSheet(plot.id).then(result => {
+      if (result && (result.owner || result.mobile)) {
+        try {
+          const stored = localStorage.getItem('hyperplot_listing_overrides');
+          const overrides = stored ? JSON.parse(stored) : {};
+          overrides[plot.id] = {
+            ...(overrides[plot.id] || {}),
+            owner: result.owner || overrides[plot.id]?.owner,
+            contact: result.mobile || overrides[plot.id]?.contact,
+          };
+          localStorage.setItem('hyperplot_listing_overrides', JSON.stringify(overrides));
+          setListingsRefreshKey(k => k + 1);
+          toast({ title: 'Owner Found', description: `Owner details for ${plot.id} pulled from Google Sheet.` });
+        } catch {}
+      }
+    }).catch(() => {});
   }, []);
 
   // Recent entries as table data
