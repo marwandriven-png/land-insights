@@ -1,7 +1,7 @@
 import { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import { Map, Home, Brain, AlertCircle, X, RefreshCw, Wifi, WifiOff, Target, Clock, Settings, Shield, GitCompareArrows, Plus, Minimize2, Maximize2 } from 'lucide-react';
 import { isPlotListed, markPlotListed } from '@/services/LandMatchingService';
-import { lookupOwnerFromSheet } from '@/services/SheetSyncService';
+import { lookupOwnerFromSheet, importPlotsFromSheet } from '@/services/SheetSyncService';
 import { Badge } from '@/components/ui/badge';
 import { toast } from '@/hooks/use-toast';
 import xEstateLogo from '@/assets/X-Estate_Logo.svg';
@@ -620,7 +620,37 @@ export function HyperPlotAI() {
                     plots={plots}
                     onSelectPlot={(plot) => handlePlotClick(plot, true)}
                     onCreateListing={() => setShowQuickAdd(true)}
-                    onSyncSheet={() => setShowWizard(true)}
+                    onSyncSheet={async () => {
+                      toast({ title: 'Syncing...', description: 'Importing plots from Google Sheet...' });
+                      try {
+                        const imported = await importPlotsFromSheet();
+                        if (imported.length === 0) {
+                          toast({ title: 'No Data', description: 'No plots found in Google Sheet. Check your sheet URL in settings.' });
+                          return;
+                        }
+                        let newCount = 0;
+                        const overridesRaw = localStorage.getItem('hyperplot_listing_overrides');
+                        const overrides = overridesRaw ? JSON.parse(overridesRaw) : {};
+                        for (const entry of imported) {
+                          if (!isPlotListed(entry.plotNumber)) {
+                            markPlotListed(entry.plotNumber);
+                            newCount++;
+                          }
+                          // Always update owner/contact from sheet
+                          overrides[entry.plotNumber] = {
+                            ...(overrides[entry.plotNumber] || {}),
+                            owner: entry.owner || overrides[entry.plotNumber]?.owner,
+                            contact: entry.contact || overrides[entry.plotNumber]?.contact,
+                          };
+                        }
+                        localStorage.setItem('hyperplot_listing_overrides', JSON.stringify(overrides));
+                        setListingsRefreshKey(k => k + 1);
+                        toast({ title: 'Sync Complete', description: `${imported.length} plots synced (${newCount} new). Owner/contact data updated.` });
+                      } catch (err) {
+                        console.error('Import error:', err);
+                        toast({ title: 'Sync Failed', description: 'Could not import from Google Sheet.' });
+                      }
+                    }}
                     refreshKey={listingsRefreshKey}
                   />
                 )}

@@ -103,7 +103,7 @@ serve(async (req) => {
 
     if (action === 'lookup') {
       const body = await req.json();
-      const { spreadsheetId: rawSheetId, sheetName, plotNumbers } = body;
+      const { spreadsheetId: rawSheetId, sheetName, plotNumbers, returnAll } = body;
       const spreadsheetId = extractSpreadsheetId(rawSheetId);
 
       if (!spreadsheetId || !plotNumbers || !Array.isArray(plotNumbers)) {
@@ -177,6 +177,30 @@ serve(async (req) => {
 
       for (let i = 1; i < rows.length; i++) {
         const row = rows[i];
+        
+        if (returnAll) {
+          // Return all rows keyed by plot number column value or land number
+          const landNumColNames = ['land number', 'land_number'];
+          let landNumIdx = headers.findIndex((h: string) => landNumColNames.includes(h.trim()));
+          const plotKey = (landNumIdx !== -1 && row[landNumIdx]) 
+            ? row[landNumIdx].toString().trim()
+            : (row[plotColIndex] || '').toString().trim();
+          
+          if (plotKey) {
+            const rowData: Record<string, string> = {};
+            headers.forEach((header: string, colIdx: number) => {
+              if (row[colIdx] !== undefined && row[colIdx] !== null) {
+                rowData[header || `col_${colIdx}`] = row[colIdx].toString();
+              }
+            });
+            if (ownerColIndex !== -1 && row[ownerColIndex]) {
+              rowData['owner_reference'] = row[ownerColIndex].toString();
+            }
+            matches[plotKey] = rowData;
+          }
+          continue;
+        }
+
         const cellValue = normalize((row[plotColIndex] || '').toString());
         
         let matchIndex = normalizedLookups.indexOf(cellValue);
@@ -367,9 +391,29 @@ serve(async (req) => {
           }
 
           if (found) {
+            // Field alias mapping for fuzzy column matching
+            const fieldAliases: Record<string, string[]> = {
+              'owner': ['owner', 'owner name', 'name', 'owner reference', 'owner ref'],
+              'contact': ['contact', 'mobile', 'phone', 'phone number', 'mobile number', 'contact number'],
+              'status': ['status'],
+              'price': ['price', 'asking price', 'amount'],
+              'notes': ['notes', 'remarks', 'comment', 'actions'],
+              'area': ['area (sqft)', 'land size', 'area', 'area sqm'],
+            };
+
             // Update specific cells in this row
             for (const [key, value] of Object.entries(upd.data)) {
-              const colIdx = headers.indexOf(key.toLowerCase());
+              const keyLower = key.toLowerCase();
+              // Try exact match first
+              let colIdx = headers.indexOf(keyLower);
+              // Try alias matching
+              if (colIdx === -1) {
+                const aliases = fieldAliases[keyLower] || [];
+                for (const alias of aliases) {
+                  colIdx = headers.indexOf(alias);
+                  if (colIdx !== -1) break;
+                }
+              }
               if (colIdx !== -1) {
                 const colLetter = String.fromCharCode(65 + colIdx);
                 const rowNum = i + 1; // 1-indexed

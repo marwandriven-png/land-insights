@@ -249,3 +249,80 @@ export async function bulkSyncListingsToSheet(listings: Array<{
 
   return { synced, appended, errors };
 }
+
+/**
+ * Import all plots from the Google Sheet into the app.
+ * Returns plot entries with owner/contact data.
+ */
+export async function importPlotsFromSheet(): Promise<Array<{
+  plotNumber: string;
+  owner: string;
+  contact: string;
+  area: string;
+  rawData: Record<string, string>;
+}>> {
+  const { sheetUrl, dataSheetName } = getSheetConfig();
+  if (!sheetUrl) return [];
+
+  try {
+    // Fetch ALL rows from the sheet via lookup with a special flag
+    const response = await fetch(
+      `${SUPABASE_URL}/functions/v1/sheets-proxy?action=lookup`,
+      {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${SUPABASE_KEY}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          spreadsheetId: sheetUrl,
+          sheetName: dataSheetName || undefined,
+          plotNumbers: ['__all__'],
+          returnAll: true,
+        }),
+      }
+    );
+
+    const data = await response.json();
+    if (data.error) {
+      console.error('Sheet import error:', data.error);
+      return [];
+    }
+
+    const results: Array<{
+      plotNumber: string;
+      owner: string;
+      contact: string;
+      area: string;
+      rawData: Record<string, string>;
+    }> = [];
+
+    // The matches object contains plot numbers as keys
+    if (data.matches) {
+      for (const [plotNum, rowData] of Object.entries(data.matches)) {
+        const row = rowData as Record<string, string>;
+        const ownerKeys = ['owner', 'owner name', 'name', 'owner_reference', 'owner reference'];
+        const mobileKeys = ['mobile', 'phone', 'contact', 'phone number', 'contact number'];
+        const areaKeys = ['land size', 'area (sqft)', 'area', 'area sqm'];
+
+        let owner = '';
+        let contact = '';
+        let area = '';
+        for (const key of ownerKeys) { if (row[key]) { owner = row[key]; break; } }
+        for (const key of mobileKeys) { if (row[key]) { contact = row[key]; break; } }
+        for (const key of areaKeys) { if (row[key]) { area = row[key]; break; } }
+
+        // Only include entries with valid numeric plot numbers (DDA format: 5-10 digits)
+        const isValidPlotNum = /^\d{5,10}$/.test(plotNum.trim());
+        if (plotNum && plotNum !== '__all__' && isValidPlotNum) {
+          results.push({ plotNumber: plotNum.trim(), owner, contact, area, rawData: row });
+        }
+      }
+    }
+
+    return results;
+  } catch (err) {
+    console.error('Sheet import error:', err);
+    return [];
+  }
+}
