@@ -37,8 +37,9 @@ function AreaResearchUpload() {
     const newFiles: AreaFile[] = [];
     for (let i = 0; i < fileList.length; i++) {
       const f = fileList[i];
-      if (f.type !== 'application/pdf' && !f.name.endsWith('.pdf')) {
-        toast.error(`Only PDF files are supported: ${f.name}`);
+      const isWord = f.type === 'application/vnd.openxmlformats-officedocument.wordprocessingml.document' || f.type === 'application/msword' || f.name.endsWith('.docx') || f.name.endsWith('.doc');
+      if (!isWord) {
+        toast.error(`Only Word files (.doc, .docx) are supported: ${f.name}`);
         continue;
       }
       const areaGuess = f.name.replace(/[-_]/g, ' ').replace(/\.pdf$/i, '').replace(/report|research|data|area/gi, '').trim();
@@ -84,7 +85,7 @@ function AreaResearchUpload() {
           Area Research Files
         </h3>
         <p className="text-[11px] text-muted-foreground mb-3">
-          Upload PDF research files for each area. These will be used in feasibility analysis instead of a text prompt.
+          Upload Word research files (.doc, .docx) for each area. These will be used in feasibility analysis instead of a text prompt.
         </p>
       </div>
 
@@ -99,12 +100,12 @@ function AreaResearchUpload() {
         }`}
       >
         <Upload className="w-8 h-8 text-muted-foreground/40 mx-auto mb-2" />
-        <p className="text-sm text-muted-foreground font-medium">Drop PDF files here or click to browse</p>
-        <p className="text-[10px] text-muted-foreground/60 mt-1">Supports PDF files only</p>
+        <p className="text-sm text-muted-foreground font-medium">Drop Word files here or click to browse</p>
+        <p className="text-[10px] text-muted-foreground/60 mt-1">Supports .doc and .docx files only</p>
         <input
           ref={inputRef}
           type="file"
-          accept=".pdf"
+          accept=".doc,.docx"
           multiple
           className="hidden"
           onChange={e => handleFiles(e.target.files)}
