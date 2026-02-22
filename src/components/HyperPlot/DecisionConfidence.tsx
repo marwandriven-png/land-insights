@@ -92,13 +92,6 @@ function Viability({ pass, label }: { pass: boolean; label: string }) {
   );
 }
 
-// Check if plot is in Dubai Sports City
-function isDSCPlot(plot: PlotData): boolean {
-  const loc = (plot.location || '').toLowerCase();
-  const proj = (plot.project || '').toLowerCase();
-  const zone = (plot.zoning || '').toLowerCase();
-  return loc.includes('sport') || proj.includes('sport') || loc.includes('dsc') || proj.includes('dsc') || zone.includes('sport');
-}
 
 // Generate comparison insights
 function generateComparisonNotes(
@@ -169,9 +162,9 @@ export function DecisionConfidence({ plot, comparisonPlots = [], isFullscreen, o
 
   // All plots for tabbed navigation (primary + comparison)
   const allPlots = useMemo(() => {
-    const dscPlots = [plot, ...comparisonPlots].filter(p => isDSCPlot(p));
+    const allPlotsRaw = [plot, ...comparisonPlots];
     const seen = new Set<string>();
-    return dscPlots.filter(p => {
+    return allPlotsRaw.filter(p => {
       if (seen.has(p.id)) return false;
       seen.add(p.id);
       return true;
@@ -266,23 +259,6 @@ export function DecisionConfidence({ plot, comparisonPlots = [], isFullscreen, o
     );
   }
 
-  // DSC-only gate
-  if (!isDSCPlot(activePlot)) {
-    return (
-      <div className="h-full flex items-center justify-center glass-card glow-border">
-        <div className="text-center max-w-sm">
-          <Shield className="w-12 h-12 text-muted-foreground/30 mx-auto mb-3" />
-          <h3 className="text-lg font-bold mb-2">Dubai Sports City Only</h3>
-          <p className="text-sm text-muted-foreground">
-            Decision Confidence is currently calibrated for <strong>Dubai Sports City</strong> plots only, using 809 real transactions and 6 active benchmarks.
-          </p>
-          <p className="text-xs text-muted-foreground mt-2">
-            Plot "{activePlot.location || activePlot.id}" is not in DSC.
-          </p>
-        </div>
-      </div>
-    );
-  }
 
   return (
     <div className="h-full flex flex-col overflow-hidden glass-card glow-border">
