@@ -148,7 +148,11 @@ export function QuickAddLandModal({ open, onClose, onLandAdded }: QuickAddLandMo
     syncListingToSheet(pid, {
       owner: editedOwner,
       contact: editedMobile,
-      area: gisPlot ? gisPlot.area.toString() : undefined,
+      area: gisPlot ? Math.round(gisPlot.area * 10.7639).toString() : undefined,
+      location: gisPlot?.project || gisPlot?.location || undefined,
+      gfa: gisPlot ? Math.round(gisPlot.gfa * 10.7639).toString() : undefined,
+      zoning: gisPlot?.zoning || undefined,
+      status: 'Available',
     }).then(ok => {
       if (ok) toast({ title: 'Sheet Synced', description: `${pid} synced to Google Sheet.` });
     }).catch(() => {});

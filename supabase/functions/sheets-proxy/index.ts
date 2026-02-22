@@ -398,7 +398,13 @@ serve(async (req) => {
               'status': ['status'],
               'price': ['price', 'asking price', 'amount'],
               'notes': ['notes', 'remarks', 'comment', 'actions'],
+              'actions': ['actions', 'notes', 'remarks', 'comment'],
               'area': ['area (sqft)', 'land size', 'area', 'area sqm'],
+              'area (sqft)': ['area (sqft)', 'land size', 'area', 'area sqm'],
+              'location': ['location', 'project', 'community'],
+              'gfa (sqft)': ['gfa (sqft)', 'gfa', 'gfa sqft'],
+              'gfa': ['gfa (sqft)', 'gfa', 'gfa sqft'],
+              'zoning': ['zoning', 'land use', 'landuse', 'main landuse'],
             };
 
             // Update specific cells in this row
