@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback, useMemo, useRef } from 'react';
-import { Map, Home, Brain, AlertCircle, X, RefreshCw, Wifi, WifiOff, Target, Clock, Settings, Shield, GitCompareArrows, Plus, Minimize2, Maximize2, Pencil, Trash2 } from 'lucide-react';
+import { Map, Home, Brain, AlertCircle, X, RefreshCw, Wifi, WifiOff, Target, Clock, Settings, Shield, GitCompareArrows, Plus, Minimize2, Maximize2 } from 'lucide-react';
 import { isPlotListed, markPlotListed } from '@/services/LandMatchingService';
 import { Badge } from '@/components/ui/badge';
 import { toast } from '@/hooks/use-toast';
@@ -61,6 +61,8 @@ export function HyperPlotAI() {
   const [sharedFeasibilityParams, setSharedFeasibilityParams] = useState<FeasibilityParams>(DEFAULT_FEASIBILITY_PARAMS);
   const [bottomPanel, setBottomPanel] = useState<'recent' | 'listings'>('recent');
   const [bottomPanelMinimized, setBottomPanelMinimized] = useState(false);
+  const [bottomPanelMaximized, setBottomPanelMaximized] = useState(false);
+  const [listingsRefreshKey, setListingsRefreshKey] = useState(0);
   const plotsListRef = useRef<HTMLDivElement>(null);
   const [filters, setFilters] = useState<FilterState>({
     status: [],
@@ -253,6 +255,24 @@ export function HyperPlotAI() {
       });
     }
     setBottomPanel('listings');
+    // Trigger ListingsPage to re-read overrides from localStorage
+    setListingsRefreshKey(k => k + 1);
+  }, []);
+
+  const handleQuickAddFromPlot = useCallback((plot: PlotData) => {
+    markPlotListed(plot.id);
+    // Save override data from plot
+    try {
+      const stored = localStorage.getItem('hyperplot_listing_overrides');
+      const overrides = stored ? JSON.parse(stored) : {};
+      if (!overrides[plot.id]) {
+        overrides[plot.id] = {};
+      }
+      localStorage.setItem('hyperplot_listing_overrides', JSON.stringify(overrides));
+    } catch {}
+    setBottomPanel('listings');
+    setListingsRefreshKey(k => k + 1);
+    toast({ title: 'Listed', description: `${plot.id} added to listings.` });
   }, []);
 
   // Recent entries as table data
@@ -262,6 +282,10 @@ export function HyperPlotAI() {
       return { entry, plot: matchedPlot };
     });
   }, [lastSeen, plots]);
+
+  // Determine grid columns based on maximize state
+  const showRightSidebar = !bottomPanelMaximized;
+  const mainColSpan = showRightSidebar ? 'col-span-7' : 'col-span-11';
 
   return (
     <div className="h-screen bg-background text-foreground flex flex-col overflow-hidden">
@@ -397,7 +421,7 @@ export function HyperPlotAI() {
           </div>
 
           {/* Main Panel */}
-          <div className="col-span-7 relative h-full overflow-hidden flex flex-col gap-4">
+          <div className={`${mainColSpan} relative h-full overflow-hidden flex flex-col gap-4`}>
             {/* Top: Main content area */}
             <div className="flex-1 min-h-0 relative overflow-hidden">
               {activeTab === 'map' && (
@@ -445,7 +469,7 @@ export function HyperPlotAI() {
             </div>
 
             {/* Bottom: Recent / Listings toggle panel */}
-            <div className={`${bottomPanelMinimized ? 'h-[40px]' : 'h-[260px]'} shrink-0 glass-card glow-border overflow-hidden flex flex-col transition-all`}>
+            <div className={`${bottomPanelMinimized ? 'h-[40px]' : bottomPanelMaximized ? 'h-[500px]' : 'h-[260px]'} shrink-0 glass-card glow-border overflow-hidden flex flex-col transition-all`}>
               {/* Toggle tabs */}
               <div className="flex items-center border-b border-border/50 shrink-0">
                 <button
@@ -475,11 +499,32 @@ export function HyperPlotAI() {
                   </span>
                 </button>
                 <button
-                  onClick={() => setBottomPanelMinimized(!bottomPanelMinimized)}
+                  onClick={() => {
+                    if (bottomPanelMinimized) {
+                      setBottomPanelMinimized(false);
+                    } else {
+                      setBottomPanelMinimized(true);
+                      setBottomPanelMaximized(false);
+                    }
+                  }}
                   className="px-2.5 py-2.5 text-muted-foreground hover:text-foreground transition-colors"
-                  title={bottomPanelMinimized ? 'Maximize' : 'Minimize'}
+                  title={bottomPanelMinimized ? 'Restore' : 'Minimize'}
                 >
-                  {bottomPanelMinimized ? <Maximize2 className="w-3.5 h-3.5" /> : <Minimize2 className="w-3.5 h-3.5" />}
+                  <Minimize2 className="w-3.5 h-3.5" />
+                </button>
+                <button
+                  onClick={() => {
+                    if (bottomPanelMaximized) {
+                      setBottomPanelMaximized(false);
+                    } else {
+                      setBottomPanelMaximized(true);
+                      setBottomPanelMinimized(false);
+                    }
+                  }}
+                  className="px-2.5 py-2.5 text-muted-foreground hover:text-foreground transition-colors"
+                  title={bottomPanelMaximized ? 'Restore' : 'Maximize'}
+                >
+                  <Maximize2 className="w-3.5 h-3.5" />
                 </button>
               </div>
 
@@ -549,6 +594,7 @@ export function HyperPlotAI() {
                     onSelectPlot={(plot) => handlePlotClick(plot, true)}
                     onCreateListing={() => setShowQuickAdd(true)}
                     onSyncSheet={() => setShowWizard(true)}
+                    refreshKey={listingsRefreshKey}
                   />
                 )}
               </div>
@@ -556,7 +602,8 @@ export function HyperPlotAI() {
             </div>
           </div>
 
-          {/* Right Sidebar - Search & Plots List */}
+          {/* Right Sidebar - Search & Plots List (hidden when maximized) */}
+          {showRightSidebar && (
           <div className="col-span-4 glass-card glow-border p-4 flex flex-col h-full overflow-hidden">
             <div className="flex items-center justify-between mb-4">
               <div>
@@ -611,6 +658,7 @@ export function HyperPlotAI() {
                       onClick={() => handlePlotClick(plot, true)}
                       onEdit={plot.verificationSource === 'Manual' ? handleEditManualLand : undefined}
                       onDelete={plot.verificationSource === 'Manual' ? handleDeleteManualLand : undefined}
+                      onQuickAdd={isPlotListed(plot.id) ? undefined : () => handleQuickAddFromPlot(plot)}
                     />
                     <button
                       onClick={(e) => {
@@ -646,6 +694,7 @@ export function HyperPlotAI() {
               </div>
             </ScrollArea>
           </div>
+          )}
         </div>
       </div>
       )}
