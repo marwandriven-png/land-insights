@@ -13,21 +13,28 @@ async function getAccessToken(): Promise<string> {
   // Clean up common issues: BOM, leading/trailing whitespace, smart quotes
   saJson = saJson.trim().replace(/^\uFEFF/, '');
   
-  // If the value doesn't start with '{', wrap it — user may have pasted without outer braces
+  // Replace smart/curly quotes with standard quotes
+  saJson = saJson.replace(/[\u201C\u201D\u201E\u201F\u2033\u2036]/g, '"');
+  saJson = saJson.replace(/[\u2018\u2019\u201A\u201B\u2032\u2035]/g, "'");
+  
+  // If the value doesn't start with '{', find it or wrap
   if (!saJson.startsWith('{')) {
     const braceIdx = saJson.indexOf('{');
     if (braceIdx > 0) {
-      console.log(`Trimming ${braceIdx} leading chars from service account JSON`);
       saJson = saJson.substring(braceIdx);
     } else {
-      // No brace found at all — wrap the content in braces
-      console.log('No opening brace found, wrapping content in {}');
       saJson = '{' + saJson;
       if (!saJson.trimEnd().endsWith('}')) {
         saJson = saJson + '}';
       }
     }
   }
+
+  // Fix common pattern: {key" instead of {"key" (missing quote after opening brace)
+  saJson = saJson.replace(/^\{(\s*)([a-zA-Z_])/, '{$1"$2');
+  
+  // Fix unquoted keys: { key: "val" } -> { "key": "val" }
+  saJson = saJson.replace(/([{,])\s*([a-zA-Z_][a-zA-Z0-9_]*)\s*:/g, '$1"$2":');
 
   let sa;
   try {
