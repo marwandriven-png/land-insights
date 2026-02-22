@@ -5,7 +5,7 @@ import { lookupOwnerFromSheet, importPlotsFromSheet } from '@/services/SheetSync
 import { Badge } from '@/components/ui/badge';
 import { toast } from '@/hooks/use-toast';
 import xEstateLogo from '@/assets/X-Estate_Logo.svg';
-import { addLastSeen, getLastSeen, LastSeenEntry } from '@/services/LastSeenService';
+import { addLastSeen, getLastSeen, removeLastSeen, LastSeenEntry } from '@/services/LastSeenService';
 import { gisService, PlotData, generateDemoPlots, calculateFeasibility } from '@/services/DDAGISService';
 import { loadManualLands, manualLandToPlotData, deleteManualLand, ManualLandEntry } from '@/services/ManualLandService';
 import { Header } from './Header';
@@ -160,6 +160,8 @@ export function HyperPlotAI() {
     if (entry) {
       if (window.confirm(`Delete manual land "${entry.plotNumber || entry.id}"?`)) {
         deleteManualLand(entry.id);
+        removeLastSeen(plot.id);
+        setLastSeen(getLastSeen());
         setPlots(prev => prev.filter(p => p.id !== plot.id));
         if (selectedPlot?.id === plot.id) {
           setSelectedPlot(null);
