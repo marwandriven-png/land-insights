@@ -5,6 +5,7 @@ import { Checkbox } from '@/components/ui/checkbox';
 import { PlotData, AffectionPlanData, gisService } from '@/services/DDAGISService';
 import { FeasibilityParams, DEFAULT_FEASIBILITY_PARAMS } from './FeasibilityCalculator';
 import { calcDSCFeasibility, DSCPlotInput, DSCFeasibilityResult, MixKey, MIX_TEMPLATES, COMPS, UNIT_SIZES, RENT_PSF_YR, BENCHMARK_AVG_PSF, TXN_AVG_PSF, TXN_AVG_SIZE, TXN_AVG_PRICE, TXN_MEDIAN_PSF, TXN_COUNT, TXN_WEIGHTED_AVG_PSF, fmt, fmtM, fmtA, pct } from '@/lib/dscFeasibility';
+import { findReportForLocation } from '@/data/areaReports';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Table, TableHeader, TableBody, TableRow, TableHead, TableCell, TableFooter } from '@/components/ui/table';
 import { Badge } from '@/components/ui/badge';
@@ -247,6 +248,26 @@ export function DecisionConfidence({ plot, comparisonPlots = [], isFullscreen, o
     }
   }, [comparisonMode, allPlots.length]);
 
+  // Check if plot has area report or uploaded research file
+  const hasAreaData = useMemo(() => {
+    const location = activePlot.location || activePlot.project || '';
+    // Check hardcoded area reports
+    if (findReportForLocation(location)) return true;
+    // Check uploaded area research files from localStorage
+    try {
+      const stored = localStorage.getItem('hyperplot_area_research_files');
+      if (stored) {
+        const files = JSON.parse(stored) as Array<{ areaName: string }>;
+        const loc = location.toLowerCase();
+        return files.some(f => {
+          const area = f.areaName.toLowerCase();
+          return loc.includes(area) || area.includes(loc);
+        });
+      }
+    } catch {}
+    return false;
+  }, [activePlot]);
+
   if (loading) {
     return (
       <div className="h-full flex items-center justify-center glass-card glow-border">
@@ -259,8 +280,25 @@ export function DecisionConfidence({ plot, comparisonPlots = [], isFullscreen, o
     );
   }
 
+  if (!hasAreaData) {
+    return (
+      <div className="h-full flex items-center justify-center glass-card glow-border">
+        <div className="text-center max-w-sm">
+          <Shield className="w-12 h-12 text-muted-foreground/30 mx-auto mb-3" />
+          <h3 className="text-lg font-bold mb-2">No Area Report Available</h3>
+          <p className="text-sm text-muted-foreground">
+            Decision Confidence requires an <strong>area report or feasibility study</strong> to be attached for this location.
+          </p>
+          <p className="text-xs text-muted-foreground mt-2">
+            Upload an area research file in <strong>Settings → Area Research</strong> for "{activePlot.location || activePlot.id}".
+          </p>
+        </div>
+      </div>
+    );
+  }
 
-  return (
+
+
     <div className="h-full flex flex-col overflow-hidden glass-card glow-border">
       {/* ─── COMPARISON PLOT TABS ─── */}
       {comparisonMode && (
