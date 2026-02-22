@@ -136,7 +136,7 @@ export function LandMatchingWizard({
       const plotNumbers = results.map(r => r.matchedPlotId);
       console.log(`[SheetCrossCheck] Looking up plot numbers:`, plotNumbers);
       const response = await fetch(
-        `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/google-sheets-proxy?action=lookup`,
+        `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/sheets-proxy?action=lookup`,
         {
           method: 'POST',
           headers: {
@@ -448,7 +448,7 @@ export function LandMatchingWizard({
 
     try {
       const response = await fetch(
-        `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/google-sheets-proxy?action=test`,
+        `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/sheets-proxy?action=test`,
         {
           method: 'POST',
           headers: {
