@@ -3,8 +3,9 @@ import L from 'leaflet';
 import 'leaflet/dist/leaflet.css';
 import proj4 from 'proj4';
 import { PlotData } from '@/services/DDAGISService';
-import { Loader2, Home, Search, Layers, Printer, Mail, Share2 } from 'lucide-react';
+import { Loader2, Home } from 'lucide-react';
 import { CinematicPlotOverlay } from './CinematicPlotOverlay';
+import { MapMeasureTool } from './MapMeasureTool';
 
 proj4.defs('EPSG:3997', '+proj=tmerc +lat_0=0 +lon_0=55.33333333333334 +k=1 +x_0=500000 +y_0=0 +ellps=WGS84 +towgs84=0,0,0,0,0,0,0 +units=m +no_defs');
 
@@ -224,16 +225,8 @@ export function LeafletMap({ plots, selectedPlot, onPlotClick, highlightedPlots,
         </button>
       </div>
 
-      {/* Toolbar top-right */}
-      <div className="absolute top-2 right-2 z-[1000]">
-        <div className="flex flex-col gap-1">
-          <button className="dda-map-btn" title="Search"><Search className="w-4 h-4" /></button>
-          <button className="dda-map-btn" title="Layers"><Layers className="w-4 h-4" /></button>
-          <button className="dda-map-btn" title="Print"><Printer className="w-4 h-4" /></button>
-          <button className="dda-map-btn" title="Email"><Mail className="w-4 h-4" /></button>
-          <button className="dda-map-btn" title="Share"><Share2 className="w-4 h-4" /></button>
-        </div>
-      </div>
+      {/* Measurement Tool */}
+      <MapMeasureTool map={mapInstance} />
 
       {/* Scale Bar */}
       <div className="absolute bottom-3 left-3 z-[1000]">
