@@ -18,6 +18,7 @@ import { LandMatchingWizard } from './LandMatchingWizard';
 import { FeasibilitySettings } from './FeasibilitySettings';
 import { ManualLandForm } from './ManualLandForm';
 import { ListingsPage } from './ListingsPage';
+import { QuickAddLandModal } from './QuickAddLandModal';
 import { FeasibilityParams, DEFAULT_FEASIBILITY_PARAMS } from './FeasibilityCalculator';
 import { Button } from '@/components/ui/button';
 import { ScrollArea } from '@/components/ui/scroll-area';
@@ -43,11 +44,13 @@ export function HyperPlotAI() {
   const [showWizard, setShowWizard] = useState(false);
   const [showFeasibilitySettings, setShowFeasibilitySettings] = useState(false);
   const [showManualLandForm, setShowManualLandForm] = useState(false);
+  const [showQuickAdd, setShowQuickAdd] = useState(false);
   const [editingManualLand, setEditingManualLand] = useState<ManualLandEntry | null>(null);
   const [decisionFullscreen, setDecisionFullscreen] = useState(false);
   const [lastSeen, setLastSeen] = useState<LastSeenEntry[]>(getLastSeen());
   const [comparisonPlots, setComparisonPlots] = useState<PlotData[]>([]);
   const [sharedFeasibilityParams, setSharedFeasibilityParams] = useState<FeasibilityParams>(DEFAULT_FEASIBILITY_PARAMS);
+  const [bottomPanel, setBottomPanel] = useState<'recent' | 'listings'>('recent');
   const plotsListRef = useRef<HTMLDivElement>(null);
   const [filters, setFilters] = useState<FilterState>({
     status: [],
@@ -74,7 +77,6 @@ export function HyperPlotAI() {
   // Load manual lands from localStorage
   const mergeManualLands = useCallback((basePlots: PlotData[]) => {
     const manualLands = loadManualLands().map(manualLandToPlotData);
-    // Merge: manual lands added alongside GIS plots (avoid duplicates by id)
     const gisIds = new Set(basePlots.map(p => p.id));
     const newManual = manualLands.filter(m => !gisIds.has(m.id));
     return [...basePlots, ...newManual];
@@ -97,7 +99,6 @@ export function HyperPlotAI() {
         setLoadProgress(prev => Math.min(prev + 10, 90));
       }, 200);
 
-      // Fetch more plots for better coverage
       const gisPlots = await gisService.fetchPlots(500);
 
       clearInterval(progressInterval);
@@ -124,7 +125,6 @@ export function HyperPlotAI() {
 
   const handleManualLandSaved = useCallback((manualPlots: PlotData[]) => {
     setPlots(prev => {
-      // Remove old manual entries, add new ones
       const nonManual = prev.filter(p => p.verificationSource !== 'Manual');
       return [...nonManual, ...manualPlots];
     });
@@ -159,7 +159,6 @@ export function HyperPlotAI() {
   // Filter plots based on search and filters
   const filteredPlots = useMemo(() => {
     return plots.filter(plot => {
-      // Search query filter
       if (searchQuery) {
         const query = searchQuery.toLowerCase();
         const matchesSearch = 
@@ -170,18 +169,8 @@ export function HyperPlotAI() {
           (plot.location && plot.location.toLowerCase().includes(query));
         if (!matchesSearch) return false;
       }
-
-      // Status filter
-      if (filters.status.length > 0 && !filters.status.includes(plot.status)) {
-        return false;
-      }
-
-      // Zoning filter
-      if (filters.zoning.length > 0 && !filters.zoning.includes(plot.zoning)) {
-        return false;
-      }
-
-      // Area filters (with 2% tolerance)
+      if (filters.status.length > 0 && !filters.status.includes(plot.status)) return false;
+      if (filters.zoning.length > 0 && !filters.zoning.includes(plot.zoning)) return false;
       if (filters.minArea !== null) {
         const minWithTolerance = filters.minArea * 0.98;
         if (plot.area < minWithTolerance) return false;
@@ -190,16 +179,12 @@ export function HyperPlotAI() {
         const maxWithTolerance = filters.maxArea * 1.02;
         if (plot.area > maxWithTolerance) return false;
       }
-
-      // GFA filters
       if (filters.minGFA !== null && plot.gfa < filters.minGFA) return false;
       if (filters.maxGFA !== null && plot.gfa > filters.maxGFA) return false;
-
       return true;
     });
   }, [plots, searchQuery, filters]);
 
-  // Update highlighted plots: only the clicked plot glows (no community-wide glow)
   useEffect(() => {
     if (selectedPlot) {
       setHighlightedPlots([selectedPlot.id]);
@@ -211,7 +196,6 @@ export function HyperPlotAI() {
   }, [selectedPlot, searchQuery, filters, filteredPlots]);
 
   const saveLastSeen = useCallback((plot: PlotData) => {
-    // Only save if coordinates are valid (non-zero)
     if (plot.x === 0 && plot.y === 0) return;
     addLastSeen({
       plotId: plot.id,
@@ -236,7 +220,6 @@ export function HyperPlotAI() {
   }, [saveLastSeen]);
 
   const handlePlotFound = useCallback((plot: PlotData) => {
-    // If this plot isn't in the loaded plots array (e.g. live API lookup), add it
     setPlots(prev => {
       if (prev.find(p => p.id === plot.id)) return prev;
       return [...prev, plot];
@@ -249,6 +232,11 @@ export function HyperPlotAI() {
 
   const handleCloseDetailPanel = useCallback(() => {
     setShowDetailPanel(false);
+  }, []);
+
+  const handleQuickAddDone = useCallback((_plotId: string) => {
+    // Force re-render of listings
+    setBottomPanel('listings');
   }, []);
 
   return (
@@ -266,7 +254,6 @@ export function HyperPlotAI() {
             </div>
 
             <div className="flex items-center gap-3">
-
               {/* Connection Status */}
               <div className={`flex items-center gap-2 px-4 py-2 rounded-full text-sm font-medium ${
                 gisConnected 
@@ -285,6 +272,16 @@ export function HyperPlotAI() {
                   </>
                 )}
               </div>
+
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => setShowQuickAdd(true)}
+                className="gap-2"
+              >
+                <Plus className="w-4 h-4" />
+                Create Listing
+              </Button>
 
               <Button
                 variant="outline"
@@ -386,39 +383,146 @@ export function HyperPlotAI() {
           </div>
 
           {/* Main Panel */}
-          <div className="col-span-7 relative h-full overflow-hidden">
-            {activeTab === 'map' && (
-              <div className="h-full glass-card glow-border overflow-hidden">
-                <LeafletMap
-                  plots={filteredPlots}
-                  selectedPlot={selectedPlot}
-                  onPlotClick={handlePlotClick}
-                  highlightedPlots={highlightedPlots}
-                />
-              </div>
-            )}
-            {activeTab === 'feasibility' && selectedPlot ? (
-              <DecisionConfidence plot={selectedPlot} comparisonPlots={comparisonPlots} isFullscreen={false} onToggleFullscreen={() => setDecisionFullscreen(true)} onExitComparison={() => setComparisonPlots([])} sharedFeasibilityParams={sharedFeasibilityParams} onFeasibilityParamsChange={setSharedFeasibilityParams} />
-            ) : activeTab === 'feasibility' ? (
-              <div className="h-full flex items-center justify-center glass-card glow-border">
-                <div className="text-center">
-                  <Shield className="w-12 h-12 text-muted-foreground/30 mx-auto mb-3" />
-                  <h3 className="text-lg font-bold mb-1">Select a Plot</h3>
-                  <p className="text-sm text-muted-foreground">Choose a plot to view Decision Confidence</p>
+          <div className="col-span-7 relative h-full overflow-hidden flex flex-col gap-4">
+            {/* Top: Main content area */}
+            <div className="flex-1 min-h-0 relative overflow-hidden">
+              {activeTab === 'map' && (
+                <div className="h-full glass-card glow-border overflow-hidden">
+                  <LeafletMap
+                    plots={filteredPlots}
+                    selectedPlot={selectedPlot}
+                    onPlotClick={handlePlotClick}
+                    highlightedPlots={highlightedPlots}
+                  />
                 </div>
-              </div>
-            ) : null}
-            {activeTab === 'properties' && (
-              <div className="h-full glass-card glow-border p-4 flex flex-col overflow-hidden">
-                {/* Recent Section */}
-                {lastSeen.length > 0 && (
-                  <div className="mb-4 shrink-0">
-                    <div className="flex items-center gap-2 mb-3">
-                      <Clock className="w-5 h-5 text-primary" />
-                      <h2 className="text-lg font-bold">Recent ({lastSeen.length})</h2>
+              )}
+              {activeTab === 'feasibility' && selectedPlot ? (
+                <DecisionConfidence plot={selectedPlot} comparisonPlots={comparisonPlots} isFullscreen={false} onToggleFullscreen={() => setDecisionFullscreen(true)} onExitComparison={() => setComparisonPlots([])} sharedFeasibilityParams={sharedFeasibilityParams} onFeasibilityParamsChange={setSharedFeasibilityParams} />
+              ) : activeTab === 'feasibility' ? (
+                <div className="h-full flex items-center justify-center glass-card glow-border">
+                  <div className="text-center">
+                    <Shield className="w-12 h-12 text-muted-foreground/30 mx-auto mb-3" />
+                    <h3 className="text-lg font-bold mb-1">Select a Plot</h3>
+                    <p className="text-sm text-muted-foreground">Choose a plot to view Decision Confidence</p>
+                  </div>
+                </div>
+              ) : null}
+              {activeTab === 'properties' && (
+                <div className="h-full glass-card glow-border p-4 overflow-auto">
+                  <ScrollArea className="h-full">
+                    <div ref={plotsListRef} className="space-y-2 pr-2">
+                      {filteredPlots.slice(0, 50).map(plot => (
+                        <div key={plot.id} className="relative group">
+                          <PlotListItem
+                            plot={plot}
+                            isSelected={selectedPlot?.id === plot.id}
+                            isHighlighted={highlightedPlots.includes(plot.id)}
+                            onClick={() => handlePlotClick(plot, true)}
+                            onEdit={plot.verificationSource === 'Manual' ? handleEditManualLand : undefined}
+                            onDelete={plot.verificationSource === 'Manual' ? handleDeleteManualLand : undefined}
+                          />
+                          <button
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              setComparisonPlots(prev => {
+                                if (prev.find(p => p.id === plot.id)) return prev.filter(p => p.id !== plot.id);
+                                if (prev.length >= 3) return prev;
+                                return [...prev, plot];
+                              });
+                            }}
+                            className={`absolute top-2 right-2 p-1.5 rounded-md transition-all ${
+                              comparisonPlots.find(p => p.id === plot.id)
+                                ? 'bg-primary text-primary-foreground shadow-md'
+                                : 'bg-muted/90 text-muted-foreground opacity-100 hover:bg-primary/20 hover:text-primary'
+                            }`}
+                            title={comparisonPlots.find(p => p.id === plot.id) ? 'Remove from comparison' : 'Add to comparison'}
+                          >
+                            <GitCompareArrows className="w-4 h-4" />
+                          </button>
+                        </div>
+                      ))}
+                      {filteredPlots.length > 50 && (
+                        <div className="text-center py-4 text-sm text-muted-foreground">
+                          Showing 50 of {filteredPlots.length} plots. Use filters to narrow down.
+                        </div>
+                      )}
+                      {filteredPlots.length === 0 && (
+                        <div className="text-center py-8 text-muted-foreground">
+                          <Map className="w-8 h-8 mx-auto mb-2 opacity-50" />
+                          <p className="text-sm">No plots match your criteria</p>
+                        </div>
+                      )}
                     </div>
-                    <div className="space-y-2 max-h-48 overflow-y-auto pr-1">
-                      {lastSeen.slice(0, 5).map(entry => {
+                  </ScrollArea>
+                </div>
+              )}
+              {activeTab === 'ai' && (
+                <AIAssistant plots={filteredPlots} selectedPlot={selectedPlot} onSelectPlot={handlePlotClick} />
+              )}
+
+              {/* Floating Detail Panel */}
+              {showDetailPanel && selectedPlot && (
+                <PlotDetailPanel
+                  plot={selectedPlot}
+                  onClose={handleCloseDetailPanel}
+                  onSelectPlot={handlePlotFound}
+                  sharedFeasibilityParams={sharedFeasibilityParams}
+                  onFeasibilityParamsChange={setSharedFeasibilityParams}
+                  onGoToLocation={(plot) => {
+                    setActiveTab('map');
+                    setSelectedPlot(null);
+                    setTimeout(() => {
+                      setSelectedPlot(plot);
+                    }, 50);
+                  }}
+                />
+              )}
+            </div>
+
+            {/* Bottom: Recent / Listings toggle panel */}
+            <div className="h-[260px] shrink-0 glass-card glow-border overflow-hidden flex flex-col">
+              {/* Toggle tabs */}
+              <div className="flex items-center border-b border-border/50 shrink-0">
+                <button
+                  onClick={() => setBottomPanel('recent')}
+                  className={`flex-1 px-4 py-2.5 text-xs font-semibold uppercase tracking-wide transition-colors ${
+                    bottomPanel === 'recent'
+                      ? 'text-primary border-b-2 border-primary'
+                      : 'text-muted-foreground hover:text-foreground'
+                  }`}
+                >
+                  <span className="flex items-center justify-center gap-1.5">
+                    <Clock className="w-3.5 h-3.5" />
+                    Recent ({lastSeen.length})
+                  </span>
+                </button>
+                <button
+                  onClick={() => setBottomPanel('listings')}
+                  className={`flex-1 px-4 py-2.5 text-xs font-semibold uppercase tracking-wide transition-colors ${
+                    bottomPanel === 'listings'
+                      ? 'text-primary border-b-2 border-primary'
+                      : 'text-muted-foreground hover:text-foreground'
+                  }`}
+                >
+                  <span className="flex items-center justify-center gap-1.5">
+                    <Home className="w-3.5 h-3.5" />
+                    Listings
+                  </span>
+                </button>
+              </div>
+
+              {/* Panel content */}
+              <div className="flex-1 min-h-0 overflow-hidden p-3">
+                {bottomPanel === 'recent' && (
+                  <ScrollArea className="h-full">
+                    <div className="space-y-1.5 pr-1">
+                      {lastSeen.length === 0 && (
+                        <div className="text-center py-6 text-muted-foreground">
+                          <Clock className="w-6 h-6 mx-auto mb-2 opacity-30" />
+                          <p className="text-xs">No recent plots</p>
+                        </div>
+                      )}
+                      {lastSeen.map(entry => {
                         const matchedPlot = plots.find(p => p.id === entry.plotId);
                         return (
                           <button
@@ -460,6 +564,7 @@ export function HyperPlotAI() {
                                   e.stopPropagation();
                                   markPlotListed(entry.plotId);
                                   toast({ title: 'Added to Listing', description: `Plot ${entry.plotId} added to listings.` });
+                                  setBottomPanel('listings');
                                 }}
                                 className="mt-1.5 w-full flex items-center justify-center gap-1.5 py-1 rounded-lg border border-dashed border-border/60 text-xs text-muted-foreground hover:text-primary hover:border-primary/50 hover:bg-primary/5 transition-colors"
                               >
@@ -471,42 +576,19 @@ export function HyperPlotAI() {
                         );
                       })}
                     </div>
-                    <div className="border-b border-border/30 mt-3" />
-                  </div>
+                  </ScrollArea>
                 )}
 
-                {/* Listings Table */}
-                <div className="flex-1 min-h-0 overflow-hidden">
+                {bottomPanel === 'listings' && (
                   <ListingsPage
                     plots={plots}
                     onSelectPlot={(plot) => handlePlotClick(plot, true)}
-                    onAddLand={() => setShowManualLandForm(true)}
+                    onCreateListing={() => setShowQuickAdd(true)}
                     onSyncSheet={() => setShowWizard(true)}
                   />
-                </div>
+                )}
               </div>
-            )}
-            {activeTab === 'ai' && (
-              <AIAssistant plots={filteredPlots} selectedPlot={selectedPlot} onSelectPlot={handlePlotClick} />
-            )}
-
-            {/* Floating Detail Panel */}
-            {showDetailPanel && selectedPlot && (
-              <PlotDetailPanel
-                plot={selectedPlot}
-                onClose={handleCloseDetailPanel}
-                onSelectPlot={handlePlotFound}
-                sharedFeasibilityParams={sharedFeasibilityParams}
-                onFeasibilityParamsChange={setSharedFeasibilityParams}
-                onGoToLocation={(plot) => {
-                  setActiveTab('map');
-                  setSelectedPlot(null);
-                  setTimeout(() => {
-                    setSelectedPlot(plot);
-                  }, 50);
-                }}
-              />
-            )}
+            </div>
           </div>
 
           {/* Right Sidebar - Search & Plots List */}
@@ -554,7 +636,7 @@ export function HyperPlotAI() {
 
             {/* Plots List */}
             <ScrollArea className="flex-1 mt-4">
-              <div ref={plotsListRef} className="space-y-2 pr-2">
+              <div className="space-y-2 pr-2">
                 {/* Last Seen Section */}
                 {lastSeen.length > 0 && !searchQuery && filters.status.length === 0 && filters.zoning.length === 0 && (
                   <div className="mb-3">
@@ -571,7 +653,6 @@ export function HyperPlotAI() {
                             if (matchedPlot) {
                               handlePlotClick(matchedPlot, true);
                             } else {
-                              // Fetch from API if not in local plots
                               const fetched = await gisService.fetchPlotById(entry.plotId);
                               if (fetched) handlePlotFound(fetched);
                             }
@@ -608,7 +689,6 @@ export function HyperPlotAI() {
                       onEdit={plot.verificationSource === 'Manual' ? handleEditManualLand : undefined}
                       onDelete={plot.verificationSource === 'Manual' ? handleDeleteManualLand : undefined}
                     />
-                    {/* Compare toggle button */}
                     <button
                       onClick={(e) => {
                         e.stopPropagation();
@@ -654,7 +734,6 @@ export function HyperPlotAI() {
         plots={plots}
         onHighlightPlots={setHighlightedPlots}
         onSelectPlot={(plot) => {
-          // Add to plots array if not present (live API result)
           setPlots(prev => {
             if (prev.find(p => p.id === plot.id)) return prev;
             return [...prev, plot];
@@ -679,6 +758,13 @@ export function HyperPlotAI() {
         onClose={() => { setShowManualLandForm(false); setEditingManualLand(null); }}
         onLandSaved={handleManualLandSaved}
         editEntry={editingManualLand}
+      />
+
+      {/* Quick Add Land Modal */}
+      <QuickAddLandModal
+        open={showQuickAdd}
+        onClose={() => setShowQuickAdd(false)}
+        onLandAdded={handleQuickAddDone}
       />
     </div>
   );
