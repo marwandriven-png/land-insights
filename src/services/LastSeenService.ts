@@ -55,6 +55,15 @@ export function addLastSeen(entry: Omit<LastSeenEntry, 'timestamp'>): void {
   }
 }
 
+export function removeLastSeen(plotId: string): void {
+  const existing = getLastSeen().filter(e => e.plotId !== plotId);
+  try {
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(existing));
+  } catch {
+    // silently fail
+  }
+}
+
 export function clearLastSeen(): void {
   localStorage.removeItem(STORAGE_KEY);
 }
