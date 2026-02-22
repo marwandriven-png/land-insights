@@ -498,34 +498,44 @@ export function HyperPlotAI() {
                     Listings
                   </span>
                 </button>
-                <button
-                  onClick={() => {
-                    if (bottomPanelMinimized) {
-                      setBottomPanelMinimized(false);
-                    } else {
-                      setBottomPanelMinimized(true);
-                      setBottomPanelMaximized(false);
-                    }
-                  }}
-                  className="px-2.5 py-2.5 text-muted-foreground hover:text-foreground transition-colors"
-                  title={bottomPanelMinimized ? 'Restore' : 'Minimize'}
-                >
-                  <Minimize2 className="w-3.5 h-3.5" />
-                </button>
-                <button
-                  onClick={() => {
-                    if (bottomPanelMaximized) {
-                      setBottomPanelMaximized(false);
-                    } else {
-                      setBottomPanelMaximized(true);
-                      setBottomPanelMinimized(false);
-                    }
-                  }}
-                  className="px-2.5 py-2.5 text-muted-foreground hover:text-foreground transition-colors"
-                  title={bottomPanelMaximized ? 'Restore' : 'Maximize'}
-                >
-                  <Maximize2 className="w-3.5 h-3.5" />
-                </button>
+                <div className="flex items-center gap-1 px-2">
+                  <button
+                    onClick={() => {
+                      if (bottomPanelMinimized) {
+                        setBottomPanelMinimized(false);
+                      } else {
+                        setBottomPanelMinimized(true);
+                        setBottomPanelMaximized(false);
+                      }
+                    }}
+                    className={`p-1.5 rounded-md transition-all ${
+                      bottomPanelMinimized
+                        ? 'bg-primary/20 text-primary'
+                        : 'text-muted-foreground hover:text-foreground hover:bg-muted/50'
+                    }`}
+                    title={bottomPanelMinimized ? 'Restore' : 'Minimize'}
+                  >
+                    <Minimize2 className="w-3.5 h-3.5" />
+                  </button>
+                  <button
+                    onClick={() => {
+                      if (bottomPanelMaximized) {
+                        setBottomPanelMaximized(false);
+                      } else {
+                        setBottomPanelMaximized(true);
+                        setBottomPanelMinimized(false);
+                      }
+                    }}
+                    className={`p-1.5 rounded-md transition-all ${
+                      bottomPanelMaximized
+                        ? 'bg-primary/20 text-primary'
+                        : 'text-muted-foreground hover:text-foreground hover:bg-muted/50'
+                    }`}
+                    title={bottomPanelMaximized ? 'Restore' : 'Maximize'}
+                  >
+                    <Maximize2 className="w-3.5 h-3.5" />
+                  </button>
+                </div>
               </div>
 
               {/* Panel content */}
@@ -609,11 +619,11 @@ export function HyperPlotAI() {
               <div>
                 <h3 className="font-bold text-base">Available Plots</h3>
                 <p className="text-sm text-muted-foreground">
-                  {gisConnected ? 'Live DDA GIS Data' : 'Demo Mode'} • {filteredPlots.length} plots
+                  {gisConnected ? 'Live DDA GIS Data' : 'Demo Mode'} • Last 3
                 </p>
               </div>
               <div className="px-2.5 py-1 bg-primary/20 rounded text-sm font-bold text-primary">
-                {filteredPlots.length}
+                {Math.min(filteredPlots.length, 3)}
               </div>
             </div>
 
@@ -649,7 +659,7 @@ export function HyperPlotAI() {
             {/* Plots List */}
             <ScrollArea className="flex-1 mt-4">
               <div ref={plotsListRef} className="space-y-2 pr-2">
-                {filteredPlots.slice(0, 50).map(plot => (
+                {filteredPlots.slice(-3).reverse().map(plot => (
                   <div key={plot.id} className="relative group">
                     <PlotListItem
                       plot={plot}
@@ -680,11 +690,6 @@ export function HyperPlotAI() {
                     </button>
                   </div>
                 ))}
-                {filteredPlots.length > 50 && (
-                  <div className="text-center py-4 text-sm text-muted-foreground">
-                    Showing 50 of {filteredPlots.length} plots. Use filters to narrow down.
-                  </div>
-                )}
                 {filteredPlots.length === 0 && (
                   <div className="text-center py-8 text-muted-foreground">
                     <Map className="w-8 h-8 mx-auto mb-2 opacity-50" />
