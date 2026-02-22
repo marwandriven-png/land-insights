@@ -3,6 +3,7 @@ import { Search, Plus, Link2, Pencil, Trash2, Check, X, DollarSign, FileText, Ch
 import { PlotData, calculateFeasibility } from '@/services/DDAGISService';
 import { isPlotListed, isNewListing, getListedPlotIds, unlistPlot } from '@/services/LandMatchingService';
 import { removeLastSeen } from '@/services/LastSeenService';
+import { deleteListingFromSheet } from '@/services/SheetSyncService';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
@@ -308,6 +309,13 @@ export function ListingsPage({ plots, onSelectPlot, onCreateListing, onSyncSheet
     forceUpdate(n => n + 1);
     onListingDeleted?.(plotId);
     toast({ title: 'Removed', description: `${plotId} removed from listings.` });
+
+    // Also delete from Google Sheet in background so it won't be restored on sync
+    deleteListingFromSheet(plotId)
+      .then(ok => {
+        if (ok) toast({ title: 'Sheet Synced', description: `${plotId} removed from Google Sheet.` });
+      })
+      .catch(() => {});
   }
 
   function handleInlineStatusChange(plotId: string, newStatus: string) {

@@ -215,6 +215,45 @@ export async function appendListingToSheet(plotNumber: string, data: {
   }
 }
 
+/**
+ * Delete a listing row from the Google Sheet by plot number.
+ * Fire-and-forget safe — never throws.
+ */
+export async function deleteListingFromSheet(plotNumber: string): Promise<boolean> {
+  const { sheetUrl } = getSheetConfig();
+  if (!sheetUrl) return false;
+
+  try {
+    const response = await fetch(
+      `${SUPABASE_URL}/functions/v1/sheets-proxy?action=delete`,
+      {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${SUPABASE_KEY}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          spreadsheetId: sheetUrl,
+          sheetName: LISTING_SHEET_NAME,
+          plotNumber,
+        }),
+      }
+    );
+
+    const result = await response.json();
+    if (result.deleted) {
+      console.log(`Sheet delete: removed row ${result.row} for plot ${plotNumber}`);
+      return true;
+    } else {
+      console.log(`Sheet delete: ${result.reason || 'not found'}`);
+      return false;
+    }
+  } catch (err) {
+    console.error('Sheet delete error:', err);
+    return false;
+  }
+}
+
 export async function lookupOwnerFromSheet(plotNumber: string): Promise<{ owner: string; mobile: string } | null> {
   const { sheetUrl, dataSheetName } = getDataSheetConfig();
   if (!sheetUrl) return null;
