@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback, useMemo, useRef } from 'react';
-import { Map, Home, BarChart3, Brain, AlertCircle, X, RefreshCw, Wifi, WifiOff, Target, Clock, Settings, Shield, GitCompareArrows, Plus } from 'lucide-react';
+import { Map, Home, Brain, AlertCircle, X, RefreshCw, Wifi, WifiOff, Target, Clock, Settings, Shield, GitCompareArrows, Plus } from 'lucide-react';
 import { isPlotListed, isNewListing, markPlotListed } from '@/services/LandMatchingService';
 import { Badge } from '@/components/ui/badge';
 import { toast } from '@/hooks/use-toast';
@@ -26,7 +26,6 @@ const TABS = [
   { id: 'map', icon: Map, label: 'Map' },
   { id: 'feasibility', icon: Shield, label: 'Decision' },
   { id: 'properties', icon: Home, label: 'List' },
-  { id: 'listings', icon: BarChart3, label: 'Listings' },
   { id: 'ai', icon: Brain, label: 'AI' },
 ];
 
@@ -410,26 +409,21 @@ export function HyperPlotAI() {
               </div>
             ) : null}
             {activeTab === 'properties' && (
-              <div className="h-full glass-card glow-border p-4">
-                <div className="flex items-center gap-2 mb-4">
-                  <Clock className="w-5 h-5 text-primary" />
-                  <h2 className="text-lg font-bold">Recent ({lastSeen.length})</h2>
-                </div>
-                {lastSeen.length === 0 ? (
-                  <div className="text-center py-12 text-muted-foreground">
-                    <Clock className="w-10 h-10 mx-auto mb-3 opacity-30" />
-                    <p className="text-sm font-medium">No plots viewed yet</p>
-                    <p className="text-xs mt-1">Search and select plots to build your history</p>
-                  </div>
-                ) : (
-                  <ScrollArea className="h-[calc(100%-3rem)]">
-                    <div className="space-y-2 pr-2">
-                      {lastSeen.map(entry => {
+              <div className="h-full glass-card glow-border p-4 flex flex-col overflow-hidden">
+                {/* Recent Section */}
+                {lastSeen.length > 0 && (
+                  <div className="mb-4 shrink-0">
+                    <div className="flex items-center gap-2 mb-3">
+                      <Clock className="w-5 h-5 text-primary" />
+                      <h2 className="text-lg font-bold">Recent ({lastSeen.length})</h2>
+                    </div>
+                    <div className="space-y-2 max-h-48 overflow-y-auto pr-1">
+                      {lastSeen.slice(0, 5).map(entry => {
                         const matchedPlot = plots.find(p => p.id === entry.plotId);
                         return (
                           <button
                             key={entry.plotId}
-                          onClick={async () => {
+                            onClick={async () => {
                               if (matchedPlot) {
                                 handlePlotClick(matchedPlot, true);
                               } else {
@@ -437,15 +431,15 @@ export function HyperPlotAI() {
                                 if (fetched) handlePlotFound(fetched);
                               }
                             }}
-                            className={`w-full text-left px-4 py-3 rounded-xl border transition-all cursor-pointer ${
+                            className={`w-full text-left px-3 py-2 rounded-lg border transition-all cursor-pointer text-sm ${
                               selectedPlot?.id === entry.plotId
                                 ? 'ring-2 ring-primary border-primary/50 bg-primary/10'
                                 : 'border-border/50 bg-muted/20 hover:bg-muted/40'
                             }`}
                           >
-                            <div className="flex items-center justify-between mb-1">
+                            <div className="flex items-center justify-between">
                               <div className="flex items-center gap-1.5">
-                                <span className="font-bold text-base text-foreground">{entry.plotId}</span>
+                                <span className="font-bold text-foreground">{entry.plotId}</span>
                                 {isPlotListed(entry.plotId) && (
                                   <Badge className="bg-success/20 text-success border-success/30 text-[10px] px-1.5 py-0">Listing</Badge>
                                 )}
@@ -457,11 +451,8 @@ export function HyperPlotAI() {
                                 {new Date(entry.timestamp).toLocaleDateString()}
                               </span>
                             </div>
-                            <div className="text-sm text-muted-foreground">{entry.location}</div>
-                            <div className="flex gap-4 mt-1.5 text-sm">
-                              <span className="text-muted-foreground">Area: <span className="text-foreground font-medium">{entry.area.toLocaleString()} m²</span></span>
-                              <span className="text-muted-foreground">GFA: <span className="text-foreground font-medium">{entry.gfa.toLocaleString()} m²</span></span>
-                              <span className={`font-medium ${entry.status === 'Available' ? 'text-success' : entry.status === 'Frozen' ? 'text-destructive' : 'text-warning'}`}>{entry.status}</span>
+                            <div className="text-muted-foreground text-xs mt-0.5">
+                              {entry.location} • {entry.area.toLocaleString()} m²
                             </div>
                             {!isPlotListed(entry.plotId) && (
                               <button
@@ -470,7 +461,7 @@ export function HyperPlotAI() {
                                   markPlotListed(entry.plotId);
                                   toast({ title: 'Added to Listing', description: `Plot ${entry.plotId} added to listings.` });
                                 }}
-                                className="mt-2 w-full flex items-center justify-center gap-1.5 py-1.5 rounded-lg border border-dashed border-border/60 text-xs text-muted-foreground hover:text-primary hover:border-primary/50 hover:bg-primary/5 transition-colors"
+                                className="mt-1.5 w-full flex items-center justify-center gap-1.5 py-1 rounded-lg border border-dashed border-border/60 text-xs text-muted-foreground hover:text-primary hover:border-primary/50 hover:bg-primary/5 transition-colors"
                               >
                                 <Plus className="w-3 h-3" />
                                 Quick Add to Listing
@@ -480,22 +471,23 @@ export function HyperPlotAI() {
                         );
                       })}
                     </div>
-                  </ScrollArea>
+                    <div className="border-b border-border/30 mt-3" />
+                  </div>
                 )}
+
+                {/* Listings Table */}
+                <div className="flex-1 min-h-0 overflow-hidden">
+                  <ListingsPage
+                    plots={plots}
+                    onSelectPlot={(plot) => handlePlotClick(plot, true)}
+                    onAddLand={() => setShowManualLandForm(true)}
+                    onSyncSheet={() => setShowWizard(true)}
+                  />
+                </div>
               </div>
             )}
             {activeTab === 'ai' && (
               <AIAssistant plots={filteredPlots} selectedPlot={selectedPlot} onSelectPlot={handlePlotClick} />
-            )}
-            {activeTab === 'listings' && (
-              <div className="h-full glass-card glow-border p-4">
-                <ListingsPage
-                  plots={plots}
-                  onSelectPlot={(plot) => handlePlotClick(plot, true)}
-                  onAddLand={() => setShowManualLandForm(true)}
-                  onSyncSheet={() => setShowWizard(true)}
-                />
-              </div>
             )}
 
             {/* Floating Detail Panel */}
