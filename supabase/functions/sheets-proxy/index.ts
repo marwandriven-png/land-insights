@@ -17,6 +17,15 @@ async function getAccessToken(): Promise<string> {
   saJson = saJson.replace(/[\u201C\u201D\u201E\u201F\u2033\u2036]/g, '"');
   saJson = saJson.replace(/[\u2018\u2019\u201A\u201B\u2032\u2035]/g, "'");
   
+  // CRITICAL: Fix literal newlines inside JSON string values (e.g. private_key contains \n)
+  // When pasted into secret forms, \n sequences may become actual newlines, breaking JSON strings.
+  // Replace actual newlines/carriage returns inside the string with escaped versions.
+  saJson = saJson.replace(/\r\n/g, '\\n').replace(/\r/g, '\\n');
+  // Only replace bare newlines that are NOT already preceded by a backslash
+  saJson = saJson.replace(/([^\\])\n/g, '$1\\n');
+  // Handle newline at the very start
+  saJson = saJson.replace(/^\n/, '\\n');
+  
   // If the value doesn't start with '{', find it or wrap
   if (!saJson.startsWith('{')) {
     const braceIdx = saJson.indexOf('{');
@@ -42,7 +51,8 @@ async function getAccessToken(): Promise<string> {
   } catch (parseErr) {
     console.error('Failed to parse GOOGLE_SERVICE_ACCOUNT_JSON:', (parseErr as Error).message);
     console.error('First 100 chars:', saJson.substring(0, 100));
-    throw new Error(`Invalid GOOGLE_SERVICE_ACCOUNT_JSON: ${(parseErr as Error).message}. Please re-enter the secret value.`);
+    console.error('Chars around pos 2345:', saJson.substring(2340, 2360));
+    throw new Error(`Invalid GOOGLE_SERVICE_ACCOUNT_JSON: ${(parseErr as Error).message}. Check that the full JSON was pasted without truncation.`);
   }
   const now = Math.floor(Date.now() / 1000);
   const header = { alg: 'RS256', typ: 'JWT' };
