@@ -323,7 +323,7 @@ export function ListingsPage({ plots, onSelectPlot, onCreateListing, onSyncSheet
   return (
     <div className="h-full flex flex-col">
       {/* Header - sticky */}
-      <div className="flex items-center justify-between mb-3 shrink-0 sticky top-0 z-10 bg-card/95 backdrop-blur-sm pb-2">
+      <div className="flex items-center justify-between mb-3 shrink-0 pb-2">
         <div>
           <h2 className="text-lg font-bold text-foreground">Listings</h2>
           <p className="text-xs text-muted-foreground">{listedPlots.length} total</p>
