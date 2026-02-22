@@ -141,7 +141,27 @@ export function QuickAddLandModal({ open, onClose, onLandAdded }: QuickAddLandMo
       localStorage.setItem('hyperplot_listing_overrides', JSON.stringify(overrides));
     } catch {}
 
-    onLandAdded(pid, editedOwner, editedMobile, gisPlot || undefined);
+    // Always provide a PlotData object – use GIS data if available, otherwise create a minimal fallback
+    const plotToPass: PlotData = gisPlot || {
+      id: pid,
+      area: 0,
+      gfa: 0,
+      floors: 'N/A',
+      zoning: 'N/A',
+      location: '',
+      x: 0,
+      y: 0,
+      color: '#8b5cf6',
+      status: 'Available',
+      constructionCost: 800,
+      salePrice: 1500,
+      project: '',
+      entity: '',
+      isFrozen: false,
+      verificationSource: 'Manual' as const,
+      verificationDate: new Date().toISOString(),
+    };
+    onLandAdded(pid, editedOwner, editedMobile, plotToPass);
     toast({ title: 'Listing Created', description: `${pid} has been added to your listings.` });
 
     // Sync new listing to Google Sheet (append if not found)
