@@ -1,12 +1,150 @@
-import { useState, useEffect } from 'react';
-import { Settings, Save, RotateCcw, FileText, Plus, Link2 } from 'lucide-react';
+import { useState, useEffect, useRef } from 'react';
+import { Settings, Save, RotateCcw, FileText, Plus, Link2, Upload, X, File } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
-import { Textarea } from '@/components/ui/textarea';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { toast } from 'sonner';
 
 const STORAGE_KEY = 'hyperplot_feasibility_settings';
+const AREA_FILES_KEY = 'hyperplot_area_research_files';
+
+interface AreaFile {
+  id: string;
+  name: string;
+  size: number;
+  areaName: string;
+  uploadedAt: string;
+}
+
+function loadAreaFiles(): AreaFile[] {
+  try {
+    const stored = localStorage.getItem(AREA_FILES_KEY);
+    return stored ? JSON.parse(stored) : [];
+  } catch { return []; }
+}
+
+function saveAreaFiles(files: AreaFile[]) {
+  localStorage.setItem(AREA_FILES_KEY, JSON.stringify(files));
+}
+
+function AreaResearchUpload() {
+  const [files, setFiles] = useState<AreaFile[]>(loadAreaFiles);
+  const [dragOver, setDragOver] = useState(false);
+  const inputRef = useRef<HTMLInputElement>(null);
+
+  const handleFiles = (fileList: FileList | null) => {
+    if (!fileList) return;
+    const newFiles: AreaFile[] = [];
+    for (let i = 0; i < fileList.length; i++) {
+      const f = fileList[i];
+      if (f.type !== 'application/pdf' && !f.name.endsWith('.pdf')) {
+        toast.error(`Only PDF files are supported: ${f.name}`);
+        continue;
+      }
+      const areaGuess = f.name.replace(/[-_]/g, ' ').replace(/\.pdf$/i, '').replace(/report|research|data|area/gi, '').trim();
+      newFiles.push({
+        id: `AF_${Date.now()}_${Math.random().toString(36).slice(2, 5)}`,
+        name: f.name,
+        size: f.size,
+        areaName: areaGuess || 'Unknown Area',
+        uploadedAt: new Date().toISOString(),
+      });
+    }
+    if (newFiles.length) {
+      const updated = [...files, ...newFiles];
+      setFiles(updated);
+      saveAreaFiles(updated);
+      toast.success(`${newFiles.length} file(s) added`);
+    }
+  };
+
+  const removeFile = (id: string) => {
+    const updated = files.filter(f => f.id !== id);
+    setFiles(updated);
+    saveAreaFiles(updated);
+  };
+
+  const updateAreaName = (id: string, name: string) => {
+    const updated = files.map(f => f.id === id ? { ...f, areaName: name } : f);
+    setFiles(updated);
+    saveAreaFiles(updated);
+  };
+
+  const formatSize = (bytes: number) => {
+    if (bytes < 1024) return `${bytes} B`;
+    if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
+    return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
+  };
+
+  return (
+    <div className="space-y-4">
+      <div>
+        <h3 className="text-sm font-semibold text-foreground mb-1 flex items-center gap-1.5">
+          <Upload className="w-4 h-4 text-primary" />
+          Area Research Files
+        </h3>
+        <p className="text-[11px] text-muted-foreground mb-3">
+          Upload PDF research files for each area. These will be used in feasibility analysis instead of a text prompt.
+        </p>
+      </div>
+
+      {/* Drop zone */}
+      <div
+        onDragOver={e => { e.preventDefault(); setDragOver(true); }}
+        onDragLeave={() => setDragOver(false)}
+        onDrop={e => { e.preventDefault(); setDragOver(false); handleFiles(e.dataTransfer.files); }}
+        onClick={() => inputRef.current?.click()}
+        className={`border-2 border-dashed rounded-xl p-8 text-center cursor-pointer transition-colors ${
+          dragOver ? 'border-primary bg-primary/5' : 'border-border/50 hover:border-primary/50 hover:bg-muted/20'
+        }`}
+      >
+        <Upload className="w-8 h-8 text-muted-foreground/40 mx-auto mb-2" />
+        <p className="text-sm text-muted-foreground font-medium">Drop PDF files here or click to browse</p>
+        <p className="text-[10px] text-muted-foreground/60 mt-1">Supports PDF files only</p>
+        <input
+          ref={inputRef}
+          type="file"
+          accept=".pdf"
+          multiple
+          className="hidden"
+          onChange={e => handleFiles(e.target.files)}
+        />
+      </div>
+
+      {/* File list */}
+      {files.length > 0 && (
+        <div className="space-y-2">
+          <div className="text-xs font-semibold text-muted-foreground">
+            {files.length} file{files.length > 1 ? 's' : ''} uploaded
+          </div>
+          {files.map(f => (
+            <div key={f.id} className="flex items-center gap-3 p-3 rounded-lg bg-muted/30 border border-border/50 group">
+              <File className="w-5 h-5 text-primary flex-shrink-0" />
+              <div className="flex-1 min-w-0">
+                <p className="text-xs font-medium text-foreground truncate">{f.name}</p>
+                <div className="flex items-center gap-2 mt-1">
+                  <Input
+                    value={f.areaName}
+                    onChange={e => updateAreaName(f.id, e.target.value)}
+                    className="h-6 text-[10px] px-2 py-0 w-32"
+                    placeholder="Area name..."
+                  />
+                  <span className="text-[10px] text-muted-foreground">{formatSize(f.size)}</span>
+                </div>
+              </div>
+              <button
+                onClick={e => { e.stopPropagation(); removeFile(f.id); }}
+                className="opacity-0 group-hover:opacity-100 p-1 rounded hover:bg-destructive/10 text-muted-foreground hover:text-destructive transition-all"
+              >
+                <X className="w-3.5 h-3.5" />
+              </button>
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
 
 export interface FeasibilitySettingsData {
   prompt: string;
@@ -118,8 +256,8 @@ export function FeasibilitySettings({ open, onClose, onSettingsChange, onOpenAdd
           <div className="px-5 pt-3">
             <TabsList className="w-full">
               <TabsTrigger value="prompt" className="flex-1 gap-1.5">
-                <FileText className="w-3.5 h-3.5" />
-                AI Prompt
+                <Upload className="w-3.5 h-3.5" />
+                Area Research
               </TabsTrigger>
               <TabsTrigger value="addland" className="flex-1 gap-1.5">
                 <Plus className="w-3.5 h-3.5" />
@@ -132,23 +270,9 @@ export function FeasibilitySettings({ open, onClose, onSettingsChange, onOpenAdd
             </TabsList>
           </div>
 
-          {/* AI Prompt Tab */}
+          {/* Area Research Tab */}
           <TabsContent value="prompt" className="flex-1 overflow-y-auto px-5 pb-3 mt-3">
-            <div>
-              <h3 className="text-sm font-semibold text-foreground mb-2 flex items-center gap-1.5">
-                <FileText className="w-4 h-4 text-primary" />
-                Analysis Prompt (Markdown)
-              </h3>
-              <p className="text-[11px] text-muted-foreground mb-2">
-                Use {"{{paramName}}"} placeholders. Parameters are configured per land in the detail panel.
-              </p>
-              <Textarea
-                value={settings.prompt}
-                onChange={(e) => setSettings(prev => ({ ...prev, prompt: e.target.value }))}
-                className="min-h-[320px] font-mono text-xs leading-relaxed"
-                placeholder="Enter your feasibility analysis prompt in Markdown..."
-              />
-            </div>
+            <AreaResearchUpload />
           </TabsContent>
 
           {/* Add Land Tab */}
