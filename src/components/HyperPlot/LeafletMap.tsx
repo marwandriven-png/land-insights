@@ -65,9 +65,18 @@ export function LeafletMap({ plots, selectedPlot, onPlotClick, highlightedPlots,
     setMapInstance(map);
     setIsLoading(false);
 
+    // Invalidate size after render to fix gray gap at bottom
+    setTimeout(() => map.invalidateSize(), 100);
+    setTimeout(() => map.invalidateSize(), 500);
+
     if (onMapReady) onMapReady(map);
 
+    // ResizeObserver to handle container size changes
+    const ro = new ResizeObserver(() => map.invalidateSize());
+    ro.observe(mapContainerRef.current);
+
     return () => {
+      ro.disconnect();
       map.remove();
       mapRef.current = null;
     };
