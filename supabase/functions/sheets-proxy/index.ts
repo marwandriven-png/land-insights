@@ -12,14 +12,21 @@ async function getAccessToken(): Promise<string> {
 
   // Clean up common issues: BOM, leading/trailing whitespace, smart quotes
   saJson = saJson.trim().replace(/^\uFEFF/, '');
-  // If the value doesn't start with '{', try to find the first '{' 
-  const braceIdx = saJson.indexOf('{');
-  if (braceIdx > 0) {
-    console.log(`Trimming ${braceIdx} leading chars from service account JSON`);
-    saJson = saJson.substring(braceIdx);
-  }
-  if (braceIdx === -1) {
-    throw new Error('GOOGLE_SERVICE_ACCOUNT_JSON does not contain valid JSON (no { found). Please re-enter the secret.');
+  
+  // If the value doesn't start with '{', wrap it — user may have pasted without outer braces
+  if (!saJson.startsWith('{')) {
+    const braceIdx = saJson.indexOf('{');
+    if (braceIdx > 0) {
+      console.log(`Trimming ${braceIdx} leading chars from service account JSON`);
+      saJson = saJson.substring(braceIdx);
+    } else {
+      // No brace found at all — wrap the content in braces
+      console.log('No opening brace found, wrapping content in {}');
+      saJson = '{' + saJson;
+      if (!saJson.trimEnd().endsWith('}')) {
+        saJson = saJson + '}';
+      }
+    }
   }
 
   let sa;
