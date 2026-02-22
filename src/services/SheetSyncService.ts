@@ -275,13 +275,17 @@ export async function importPlotsFromSheet(): Promise<Array<{
   owner: string;
   contact: string;
   area: string;
+  price: string;
+  status: string;
+  notes: string;
+  offer: string;
+  interestedBuyer: string;
   rawData: Record<string, string>;
 }>> {
   const { sheetUrl, dataSheetName } = getSheetConfig();
   if (!sheetUrl) return [];
 
   try {
-    // Fetch ALL rows from the sheet via lookup with a special flag
     const response = await fetch(
       `${SUPABASE_URL}/functions/v1/sheets-proxy?action=lookup`,
       {
@@ -310,28 +314,39 @@ export async function importPlotsFromSheet(): Promise<Array<{
       owner: string;
       contact: string;
       area: string;
+      price: string;
+      status: string;
+      notes: string;
+      offer: string;
+      interestedBuyer: string;
       rawData: Record<string, string>;
     }> = [];
 
-    // The matches object contains plot numbers as keys
     if (data.matches) {
       for (const [plotNum, rowData] of Object.entries(data.matches)) {
         const row = rowData as Record<string, string>;
         const ownerKeys = ['owner', 'owner name', 'name', 'owner_reference', 'owner reference'];
         const mobileKeys = ['mobile', 'phone', 'contact', 'phone number', 'contact number'];
         const areaKeys = ['land size', 'area (sqft)', 'area', 'area sqm'];
+        const priceKeys = ['price', 'asking price', 'amount'];
+        const statusKeys = ['status'];
+        const notesKeys = ['actions', 'notes', 'remarks', 'comment'];
+        const offerKeys = ['offer', 'offers'];
+        const buyerKeys = ['interested buyer', 'interested buyers', 'buyer', 'buyers'];
 
-        let owner = '';
-        let contact = '';
-        let area = '';
+        let owner = '', contact = '', area = '', price = '', status = '', notes = '', offer = '', interestedBuyer = '';
         for (const key of ownerKeys) { if (row[key]) { owner = row[key]; break; } }
         for (const key of mobileKeys) { if (row[key]) { contact = row[key]; break; } }
         for (const key of areaKeys) { if (row[key]) { area = row[key]; break; } }
+        for (const key of priceKeys) { if (row[key]) { price = row[key]; break; } }
+        for (const key of statusKeys) { if (row[key]) { status = row[key]; break; } }
+        for (const key of notesKeys) { if (row[key]) { notes = row[key]; break; } }
+        for (const key of offerKeys) { if (row[key]) { offer = row[key]; break; } }
+        for (const key of buyerKeys) { if (row[key]) { interestedBuyer = row[key]; break; } }
 
-        // Only include entries with valid numeric plot numbers (DDA format: 5-10 digits)
         const isValidPlotNum = /^\d{5,10}$/.test(plotNum.trim());
         if (plotNum && plotNum !== '__all__' && isValidPlotNum) {
-          results.push({ plotNumber: plotNum.trim(), owner, contact, area, rawData: row });
+          results.push({ plotNumber: plotNum.trim(), owner, contact, area, price, status, notes, offer, interestedBuyer, rawData: row });
         }
       }
     }

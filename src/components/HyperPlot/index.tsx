@@ -636,11 +636,14 @@ export function HyperPlotAI() {
                             markPlotListed(entry.plotNumber);
                             newCount++;
                           }
-                          // Always update owner/contact from sheet
+                          // Always update all fields from sheet
                           overrides[entry.plotNumber] = {
                             ...(overrides[entry.plotNumber] || {}),
                             owner: entry.owner || overrides[entry.plotNumber]?.owner,
                             contact: entry.contact || overrides[entry.plotNumber]?.contact,
+                            price: entry.price || overrides[entry.plotNumber]?.price,
+                            status: entry.status || overrides[entry.plotNumber]?.status,
+                            notes: entry.notes || overrides[entry.plotNumber]?.notes,
                           };
                         }
                         localStorage.setItem('hyperplot_listing_overrides', JSON.stringify(overrides));
