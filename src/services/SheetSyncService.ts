@@ -19,6 +19,9 @@ export async function syncListingToSheet(plotNumber: string, data: {
   price?: string;
   notes?: string;
   area?: string;
+  location?: string;
+  gfa?: string;
+  zoning?: string;
 }): Promise<boolean> {
   const { sheetUrl } = getSheetConfig();
   if (!sheetUrl) {
@@ -27,13 +30,17 @@ export async function syncListingToSheet(plotNumber: string, data: {
   }
 
   try {
-    // Map fields to LISTING sheet column names
+    // Map fields to sheet column names (matching new listing sheet headers)
     const updateData: Record<string, string> = {};
     if (data.owner) updateData['owner'] = data.owner;
     if (data.contact) updateData['contact'] = data.contact;
     if (data.status) updateData['status'] = data.status;
     if (data.price) updateData['price'] = data.price;
-    if (data.notes) updateData['notes'] = data.notes;
+    if (data.notes) updateData['actions'] = data.notes;
+    if (data.location) updateData['location'] = data.location;
+    if (data.area) updateData['area (sqft)'] = data.area;
+    if (data.gfa) updateData['gfa (sqft)'] = data.gfa;
+    if (data.zoning) updateData['zoning'] = data.zoning;
 
     if (Object.keys(updateData).length === 0) return false;
 
@@ -81,6 +88,9 @@ export async function appendListingToSheet(plotNumber: string, data: {
   price?: string;
   notes?: string;
   area?: string;
+  location?: string;
+  gfa?: string;
+  zoning?: string;
 }): Promise<boolean> {
   const { sheetUrl } = getSheetConfig();
   if (!sheetUrl) return false;
@@ -124,6 +134,9 @@ export async function appendListingToSheet(plotNumber: string, data: {
       'price': ['price', 'asking price', 'amount'],
       'notes': ['notes', 'remarks', 'comment', 'actions'],
       'area': ['area (sqft)', 'land size', 'area', 'area sqm'],
+      'location': ['location', 'project', 'community'],
+      'gfa': ['gfa (sqft)', 'gfa', 'gfa sqft'],
+      'zoning': ['zoning', 'land use', 'landuse'],
     };
 
     const values: Record<string, string> = {
@@ -134,6 +147,9 @@ export async function appendListingToSheet(plotNumber: string, data: {
       price: data.price || '',
       notes: data.notes || '',
       area: data.area || '',
+      location: data.location || '',
+      gfa: data.gfa || '',
+      zoning: data.zoning || '',
     };
 
     for (const [field, possibleHeaders] of Object.entries(mappings)) {
