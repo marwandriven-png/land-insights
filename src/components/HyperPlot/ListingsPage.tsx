@@ -1,5 +1,5 @@
 import { useState, useMemo, useCallback } from 'react';
-import { Search, Plus, Link2, Pencil, Trash2, Check, X, DollarSign, FileText, ChevronDown, ChevronUp } from 'lucide-react';
+import { Search, Plus, Link2, Pencil, Trash2, Check, X, DollarSign, FileText, ChevronDown, ChevronUp, HandCoins } from 'lucide-react';
 import { PlotData, calculateFeasibility } from '@/services/DDAGISService';
 import { isPlotListed, isNewListing, getListedPlotIds, unlistPlot } from '@/services/LandMatchingService';
 import { Button } from '@/components/ui/button';
@@ -22,6 +22,12 @@ import {
   TableHeader,
   TableRow,
 } from '@/components/ui/table';
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+} from '@/components/ui/dialog';
 import { toast } from '@/hooks/use-toast';
 
 interface ListingsPageProps {
@@ -56,6 +62,15 @@ interface ListingOverride {
   notes?: string;
 }
 
+interface Offer {
+  id: string;
+  name: string;
+  amount: string;
+  phone: string;
+  status: 'pending' | 'accepted' | 'rejected';
+  date: string;
+}
+
 interface EditingState {
   plotId: string;
   owner: string;
@@ -70,9 +85,19 @@ export function ListingsPage({ plots, onSelectPlot, onCreateListing, onSyncSheet
   const [statusFilter, setStatusFilter] = useState('all');
   const [editing, setEditing] = useState<EditingState | null>(null);
   const [expandedPlotId, setExpandedPlotId] = useState<string | null>(null);
+  const [offersPlotId, setOffersPlotId] = useState<string | null>(null);
+  const [newOfferName, setNewOfferName] = useState('');
+  const [newOfferAmount, setNewOfferAmount] = useState('');
+  const [newOfferPhone, setNewOfferPhone] = useState('');
   const [localOverrides, setLocalOverrides] = useState<Record<string, ListingOverride>>(() => {
     try {
       const stored = localStorage.getItem('hyperplot_listing_overrides');
+      return stored ? JSON.parse(stored) : {};
+    } catch { return {}; }
+  });
+  const [offers, setOffers] = useState<Record<string, Offer[]>>(() => {
+    try {
+      const stored = localStorage.getItem('hyperplot_listing_offers');
       return stored ? JSON.parse(stored) : {};
     } catch { return {}; }
   });
@@ -82,6 +107,29 @@ export function ListingsPage({ plots, onSelectPlot, onCreateListing, onSyncSheet
     setLocalOverrides(overrides);
     localStorage.setItem('hyperplot_listing_overrides', JSON.stringify(overrides));
   }, []);
+
+  const saveOffers = useCallback((allOffers: typeof offers) => {
+    setOffers(allOffers);
+    localStorage.setItem('hyperplot_listing_offers', JSON.stringify(allOffers));
+  }, []);
+
+  const addOffer = useCallback(() => {
+    if (!offersPlotId || !newOfferName || !newOfferAmount) return;
+    const newOffer: Offer = {
+      id: Date.now().toString(),
+      name: newOfferName,
+      amount: newOfferAmount,
+      phone: newOfferPhone,
+      status: 'pending',
+      date: new Date().toLocaleDateString(),
+    };
+    const updated = { ...offers, [offersPlotId]: [...(offers[offersPlotId] || []), newOffer] };
+    saveOffers(updated);
+    setNewOfferName('');
+    setNewOfferAmount('');
+    setNewOfferPhone('');
+    toast({ title: 'Offer Added', description: `Offer from ${newOfferName} added.` });
+  }, [offersPlotId, newOfferName, newOfferAmount, newOfferPhone, offers, saveOffers]);
 
   const listedPlotIds = useMemo(() => getListedPlotIds(), []);
 
@@ -372,6 +420,9 @@ export function ListingsPage({ plots, onSelectPlot, onCreateListing, onSyncSheet
                                 <Button variant="ghost" size="icon" className="h-6 w-6" onClick={() => startEdit(plot)}>
                                   <Pencil className="w-3.5 h-3.5" />
                                 </Button>
+                                <Button variant="ghost" size="icon" className="h-6 w-6" onClick={() => setOffersPlotId(plot.id)}>
+                                  <HandCoins className="w-3.5 h-3.5 text-primary" />
+                                </Button>
                                 <Button variant="ghost" size="icon" className="h-6 w-6" onClick={() => handleDelete(plot.id)}>
                                   <Trash2 className="w-3.5 h-3.5 text-destructive" />
                                 </Button>
@@ -472,6 +523,64 @@ export function ListingsPage({ plots, onSelectPlot, onCreateListing, onSyncSheet
           </div>
         </ScrollArea>
       )}
+
+      {/* Offers Dialog */}
+      <Dialog open={!!offersPlotId} onOpenChange={(open) => { if (!open) setOffersPlotId(null); }}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <HandCoins className="w-4 h-4 text-primary" />
+              Offers for {offersPlotId}
+            </DialogTitle>
+          </DialogHeader>
+          <div className="space-y-3">
+            {(offers[offersPlotId || ''] || []).length === 0 && (
+              <p className="text-xs text-muted-foreground text-center py-3">No offers yet</p>
+            )}
+            {(offers[offersPlotId || ''] || []).map(offer => (
+              <div key={offer.id} className="p-3 rounded-lg border border-border/50 bg-muted/20">
+                <div className="flex items-center justify-between mb-1">
+                  <span className="font-semibold text-sm">{offer.name}</span>
+                  <Badge className={`text-[10px] ${
+                    offer.status === 'pending' ? 'bg-warning/20 text-warning border-warning/30' :
+                    offer.status === 'accepted' ? 'bg-success/20 text-success border-success/30' :
+                    'bg-destructive/20 text-destructive border-destructive/30'
+                  }`}>{offer.status}</Badge>
+                </div>
+                <p className="text-sm font-bold">{offer.amount}</p>
+                {offer.phone && <p className="text-xs text-muted-foreground">{offer.phone}</p>}
+                <p className="text-xs text-muted-foreground">{offer.date}</p>
+              </div>
+            ))}
+
+            {/* Add new offer */}
+            <div className="border-t border-border/50 pt-3 space-y-2">
+              <Input
+                value={newOfferName}
+                onChange={e => setNewOfferName(e.target.value)}
+                placeholder="Name"
+                className="h-8 text-xs"
+              />
+              <Input
+                value={newOfferAmount}
+                onChange={e => setNewOfferAmount(e.target.value)}
+                placeholder="AED 500K"
+                className="h-8 text-xs"
+              />
+              <Input
+                value={newOfferPhone}
+                onChange={e => setNewOfferPhone(e.target.value)}
+                placeholder="+971..."
+                className="h-8 text-xs"
+              />
+              <Button onClick={addOffer} disabled={!newOfferName || !newOfferAmount} className="w-full gap-1.5" size="sm">
+                <Plus className="w-3.5 h-3.5" />
+                Add Offer
+              </Button>
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

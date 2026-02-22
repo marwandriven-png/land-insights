@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback, useMemo, useRef } from 'react';
-import { Map, Home, Brain, AlertCircle, X, RefreshCw, Wifi, WifiOff, Target, Clock, Settings, Shield, GitCompareArrows, Plus } from 'lucide-react';
-import { isPlotListed, isNewListing, markPlotListed } from '@/services/LandMatchingService';
+import { Map, Home, Brain, AlertCircle, X, RefreshCw, Wifi, WifiOff, Target, Clock, Settings, Shield, GitCompareArrows, Plus, Minimize2, Maximize2 } from 'lucide-react';
+import { isPlotListed, markPlotListed } from '@/services/LandMatchingService';
 import { Badge } from '@/components/ui/badge';
 import { toast } from '@/hooks/use-toast';
 import xEstateLogo from '@/assets/X-Estate_Logo.svg';
@@ -51,6 +51,7 @@ export function HyperPlotAI() {
   const [comparisonPlots, setComparisonPlots] = useState<PlotData[]>([]);
   const [sharedFeasibilityParams, setSharedFeasibilityParams] = useState<FeasibilityParams>(DEFAULT_FEASIBILITY_PARAMS);
   const [bottomPanel, setBottomPanel] = useState<'recent' | 'listings'>('recent');
+  const [bottomPanelMinimized, setBottomPanelMinimized] = useState(false);
   const plotsListRef = useRef<HTMLDivElement>(null);
   const [filters, setFilters] = useState<FilterState>({
     status: [],
@@ -480,7 +481,7 @@ export function HyperPlotAI() {
             </div>
 
             {/* Bottom: Recent / Listings toggle panel */}
-            <div className="h-[260px] shrink-0 glass-card glow-border overflow-hidden flex flex-col">
+            <div className={`${bottomPanelMinimized ? 'h-[40px]' : 'h-[260px]'} shrink-0 glass-card glow-border overflow-hidden flex flex-col transition-all`}>
               {/* Toggle tabs */}
               <div className="flex items-center border-b border-border/50 shrink-0">
                 <button
@@ -509,9 +510,17 @@ export function HyperPlotAI() {
                     Listings
                   </span>
                 </button>
+                <button
+                  onClick={() => setBottomPanelMinimized(!bottomPanelMinimized)}
+                  className="px-2.5 py-2.5 text-muted-foreground hover:text-foreground transition-colors"
+                  title={bottomPanelMinimized ? 'Maximize' : 'Minimize'}
+                >
+                  {bottomPanelMinimized ? <Maximize2 className="w-3.5 h-3.5" /> : <Minimize2 className="w-3.5 h-3.5" />}
+                </button>
               </div>
 
               {/* Panel content */}
+              {!bottomPanelMinimized && (
               <div className="flex-1 min-h-0 overflow-hidden p-3">
                 {bottomPanel === 'recent' && (
                   <ScrollArea className="h-full">
@@ -542,15 +551,7 @@ export function HyperPlotAI() {
                             }`}
                           >
                             <div className="flex items-center justify-between">
-                              <div className="flex items-center gap-1.5">
-                                <span className="font-bold text-foreground">{entry.plotId}</span>
-                                {isPlotListed(entry.plotId) && (
-                                  <Badge className="bg-success/20 text-success border-success/30 text-[10px] px-1.5 py-0">Listing</Badge>
-                                )}
-                                {isNewListing(entry.plotId) && (
-                                  <Badge className="bg-primary/20 text-primary border-primary/30 text-[10px] px-1.5 py-0">New</Badge>
-                                )}
-                              </div>
+                              <span className="font-bold text-foreground">{entry.plotId}</span>
                               <span className="text-xs text-muted-foreground">
                                 {new Date(entry.timestamp).toLocaleDateString()}
                               </span>
@@ -558,20 +559,6 @@ export function HyperPlotAI() {
                             <div className="text-muted-foreground text-xs mt-0.5">
                               {entry.location} • {entry.area.toLocaleString()} m²
                             </div>
-                            {!isPlotListed(entry.plotId) && (
-                              <button
-                                onClick={(e) => {
-                                  e.stopPropagation();
-                                  markPlotListed(entry.plotId);
-                                  toast({ title: 'Added to Listing', description: `Plot ${entry.plotId} added to listings.` });
-                                  setBottomPanel('listings');
-                                }}
-                                className="mt-1.5 w-full flex items-center justify-center gap-1.5 py-1 rounded-lg border border-dashed border-border/60 text-xs text-muted-foreground hover:text-primary hover:border-primary/50 hover:bg-primary/5 transition-colors"
-                              >
-                                <Plus className="w-3 h-3" />
-                                Quick Add to Listing
-                              </button>
-                            )}
                           </button>
                         );
                       })}
@@ -588,6 +575,7 @@ export function HyperPlotAI() {
                   />
                 )}
               </div>
+              )}
             </div>
           </div>
 
