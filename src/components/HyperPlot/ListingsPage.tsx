@@ -265,31 +265,28 @@ export function ListingsPage({ plots, onSelectPlot, onCreateListing, onSyncSheet
 
   function saveEdit() {
     if (!editing) return;
+    const { plotId, owner, contact, status, price, notes } = editing;
     const newOverrides = {
       ...localOverrides,
-      [editing.plotId]: {
-        ...(localOverrides[editing.plotId] || {}),
-        owner: editing.owner || undefined,
-        contact: editing.contact || undefined,
-        status: editing.status,
-        price: editing.price || undefined,
-        notes: editing.notes || undefined,
+      [plotId]: {
+        ...(localOverrides[plotId] || {}),
+        owner: owner || undefined,
+        contact: contact || undefined,
+        status,
+        price: price || undefined,
+        notes: notes || undefined,
       },
     };
     saveOverrides(newOverrides);
     setEditing(null);
-    toast({ title: 'Updated', description: `Listing ${editing.plotId} updated.` });
+    toast({ title: 'Updated', description: `Listing ${plotId} updated.` });
 
-    // Sync to Google Sheet in background
-    syncListingToSheet(editing.plotId, {
-      owner: editing.owner,
-      contact: editing.contact,
-      status: editing.status,
-      price: editing.price,
-      notes: editing.notes,
-    }).then(ok => {
-      if (ok) toast({ title: 'Sheet Synced', description: `${editing.plotId} synced to Google Sheet.` });
-    }).catch(() => {});
+    // Sync to Google Sheet in background (fire-and-forget, never crashes)
+    syncListingToSheet(plotId, { owner, contact, status, price, notes })
+      .then(ok => {
+        if (ok) toast({ title: 'Sheet Synced', description: `${plotId} synced to Google Sheet.` });
+      })
+      .catch(() => {});
   }
 
   function handleDelete(plotId: string) {

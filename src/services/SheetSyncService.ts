@@ -45,26 +45,38 @@ export async function syncListingToSheet(plotNumber: string, data: {
     if (Object.keys(updateData).length === 0) return false;
 
     // Try to update existing row in LISTING sheet
-    const response = await fetch(
-      `${SUPABASE_URL}/functions/v1/sheets-proxy?action=update`,
-      {
-        method: 'POST',
-        headers: {
-          'Authorization': `Bearer ${SUPABASE_KEY}`,
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          spreadsheetId: sheetUrl,
-          sheetName: LISTING_SHEET_NAME,
-          updates: [{ plotNumber, data: updateData }],
-        }),
-      }
-    );
+    let response: Response;
+    try {
+      response = await fetch(
+        `${SUPABASE_URL}/functions/v1/sheets-proxy?action=update`,
+        {
+          method: 'POST',
+          headers: {
+            'Authorization': `Bearer ${SUPABASE_KEY}`,
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({
+            spreadsheetId: sheetUrl,
+            sheetName: LISTING_SHEET_NAME,
+            updates: [{ plotNumber, data: updateData }],
+          }),
+        }
+      );
+    } catch {
+      console.warn('Sheet sync: network error (non-blocking)');
+      return false;
+    }
 
-    const result = await response.json();
-    if (result.error) {
-      console.warn('Sheet sync warning (non-blocking):', result.error);
-      // Don't block the listing flow — just log the warning
+    let result: any;
+    try {
+      result = await response.json();
+    } catch {
+      console.warn('Sheet sync: invalid response (non-blocking)');
+      return false;
+    }
+
+    if (!response.ok || result.error) {
+      console.warn('Sheet sync: write failed (non-blocking)', result?.error || response.status);
       return false;
     }
 
