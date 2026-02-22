@@ -17,6 +17,7 @@ import { PlotListItem } from './PlotListItem';
 import { LandMatchingWizard } from './LandMatchingWizard';
 import { FeasibilitySettings } from './FeasibilitySettings';
 import { ManualLandForm } from './ManualLandForm';
+import { ListingsPage } from './ListingsPage';
 import { FeasibilityParams, DEFAULT_FEASIBILITY_PARAMS } from './FeasibilityCalculator';
 import { Button } from '@/components/ui/button';
 import { ScrollArea } from '@/components/ui/scroll-area';
@@ -25,6 +26,7 @@ const TABS = [
   { id: 'map', icon: Map, label: 'Map' },
   { id: 'feasibility', icon: Shield, label: 'Decision' },
   { id: 'properties', icon: Home, label: 'List' },
+  { id: 'listings', icon: BarChart3, label: 'Listings' },
   { id: 'ai', icon: Brain, label: 'AI' },
 ];
 
@@ -288,21 +290,11 @@ export function HyperPlotAI() {
               <Button
                 variant="outline"
                 size="sm"
-                onClick={() => setShowManualLandForm(true)}
-                className="gap-2"
-              >
-                <Plus className="w-4 h-4" />
-                Add Land
-              </Button>
-
-              <Button
-                variant="outline"
-                size="sm"
                 onClick={() => setShowFeasibilitySettings(true)}
                 className="gap-2"
               >
                 <Settings className="w-4 h-4" />
-                Settings
+                Settings Wizard
               </Button>
 
               <Button
@@ -495,6 +487,16 @@ export function HyperPlotAI() {
             {activeTab === 'ai' && (
               <AIAssistant plots={filteredPlots} selectedPlot={selectedPlot} onSelectPlot={handlePlotClick} />
             )}
+            {activeTab === 'listings' && (
+              <div className="h-full glass-card glow-border p-4">
+                <ListingsPage
+                  plots={plots}
+                  onSelectPlot={(plot) => handlePlotClick(plot, true)}
+                  onAddLand={() => setShowManualLandForm(true)}
+                  onSyncSheet={() => setShowWizard(true)}
+                />
+              </div>
+            )}
 
             {/* Floating Detail Panel */}
             {showDetailPanel && selectedPlot && (
@@ -676,6 +678,7 @@ export function HyperPlotAI() {
       <FeasibilitySettings
         open={showFeasibilitySettings}
         onClose={() => setShowFeasibilitySettings(false)}
+        onOpenAddLand={() => setShowManualLandForm(true)}
       />
 
       {/* Manual Land Entry Form */}
