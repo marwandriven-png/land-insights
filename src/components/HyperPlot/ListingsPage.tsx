@@ -1,11 +1,10 @@
-import { useState, useMemo, useCallback } from 'react';
-import { Search, Plus, Link2, Pencil, Trash2, Check, X, DollarSign, FileText, ChevronDown, ChevronUp, HandCoins } from 'lucide-react';
+import { useState, useMemo, useCallback, useEffect } from 'react';
+import { Search, Plus, Link2, Pencil, Trash2, Check, X, DollarSign, FileText, ChevronDown, ChevronUp, HandCoins, UserPlus, MessageCircle } from 'lucide-react';
 import { PlotData, calculateFeasibility } from '@/services/DDAGISService';
 import { isPlotListed, isNewListing, getListedPlotIds, unlistPlot } from '@/services/LandMatchingService';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
-import { ScrollArea } from '@/components/ui/scroll-area';
 import { Textarea } from '@/components/ui/textarea';
 import {
   Select,
@@ -35,6 +34,7 @@ interface ListingsPageProps {
   onSelectPlot?: (plot: PlotData) => void;
   onCreateListing?: () => void;
   onSyncSheet?: () => void;
+  refreshKey?: number;
 }
 
 const SQM_TO_SQFT = 10.7639;
@@ -67,7 +67,16 @@ interface Offer {
   name: string;
   amount: string;
   phone: string;
-  status: 'pending' | 'accepted' | 'rejected';
+  status: 'pending' | 'accepted' | 'rejected' | 'withdrawn';
+  date: string;
+}
+
+interface InterestedBuyer {
+  id: string;
+  name: string;
+  phone: string;
+  email: string;
+  notes: string;
   date: string;
 }
 
@@ -80,15 +89,20 @@ interface EditingState {
   notes: string;
 }
 
-export function ListingsPage({ plots, onSelectPlot, onCreateListing, onSyncSheet }: ListingsPageProps) {
+export function ListingsPage({ plots, onSelectPlot, onCreateListing, onSyncSheet, refreshKey }: ListingsPageProps) {
   const [searchQuery, setSearchQuery] = useState('');
   const [statusFilter, setStatusFilter] = useState('all');
   const [editing, setEditing] = useState<EditingState | null>(null);
   const [expandedPlotId, setExpandedPlotId] = useState<string | null>(null);
   const [offersPlotId, setOffersPlotId] = useState<string | null>(null);
+  const [buyersPlotId, setBuyersPlotId] = useState<string | null>(null);
   const [newOfferName, setNewOfferName] = useState('');
   const [newOfferAmount, setNewOfferAmount] = useState('');
   const [newOfferPhone, setNewOfferPhone] = useState('');
+  const [newBuyerName, setNewBuyerName] = useState('');
+  const [newBuyerPhone, setNewBuyerPhone] = useState('');
+  const [newBuyerEmail, setNewBuyerEmail] = useState('');
+  const [newBuyerNotes, setNewBuyerNotes] = useState('');
   const [localOverrides, setLocalOverrides] = useState<Record<string, ListingOverride>>(() => {
     try {
       const stored = localStorage.getItem('hyperplot_listing_overrides');
@@ -101,7 +115,22 @@ export function ListingsPage({ plots, onSelectPlot, onCreateListing, onSyncSheet
       return stored ? JSON.parse(stored) : {};
     } catch { return {}; }
   });
+  const [buyers, setBuyers] = useState<Record<string, InterestedBuyer[]>>(() => {
+    try {
+      const stored = localStorage.getItem('hyperplot_listing_buyers');
+      return stored ? JSON.parse(stored) : {};
+    } catch { return {}; }
+  });
   const [, forceUpdate] = useState(0);
+
+  // Re-read overrides from localStorage when refreshKey changes
+  useEffect(() => {
+    try {
+      const stored = localStorage.getItem('hyperplot_listing_overrides');
+      setLocalOverrides(stored ? JSON.parse(stored) : {});
+    } catch {}
+    forceUpdate(n => n + 1);
+  }, [refreshKey]);
 
   const saveOverrides = useCallback((overrides: typeof localOverrides) => {
     setLocalOverrides(overrides);
@@ -111,6 +140,11 @@ export function ListingsPage({ plots, onSelectPlot, onCreateListing, onSyncSheet
   const saveOffers = useCallback((allOffers: typeof offers) => {
     setOffers(allOffers);
     localStorage.setItem('hyperplot_listing_offers', JSON.stringify(allOffers));
+  }, []);
+
+  const saveBuyers = useCallback((allBuyers: typeof buyers) => {
+    setBuyers(allBuyers);
+    localStorage.setItem('hyperplot_listing_buyers', JSON.stringify(allBuyers));
   }, []);
 
   const addOffer = useCallback(() => {
@@ -131,7 +165,44 @@ export function ListingsPage({ plots, onSelectPlot, onCreateListing, onSyncSheet
     toast({ title: 'Offer Added', description: `Offer from ${newOfferName} added.` });
   }, [offersPlotId, newOfferName, newOfferAmount, newOfferPhone, offers, saveOffers]);
 
-  const listedPlotIds = useMemo(() => getListedPlotIds(), []);
+  const deleteOffer = useCallback((plotId: string, offerId: string) => {
+    const updated = { ...offers, [plotId]: (offers[plotId] || []).filter(o => o.id !== offerId) };
+    saveOffers(updated);
+  }, [offers, saveOffers]);
+
+  const updateOfferStatus = useCallback((plotId: string, offerId: string, status: Offer['status']) => {
+    const updated = {
+      ...offers,
+      [plotId]: (offers[plotId] || []).map(o => o.id === offerId ? { ...o, status } : o),
+    };
+    saveOffers(updated);
+  }, [offers, saveOffers]);
+
+  const addBuyer = useCallback(() => {
+    if (!buyersPlotId || !newBuyerName) return;
+    const newBuyer: InterestedBuyer = {
+      id: Date.now().toString(),
+      name: newBuyerName,
+      phone: newBuyerPhone,
+      email: newBuyerEmail,
+      notes: newBuyerNotes,
+      date: new Date().toLocaleDateString(),
+    };
+    const updated = { ...buyers, [buyersPlotId]: [...(buyers[buyersPlotId] || []), newBuyer] };
+    saveBuyers(updated);
+    setNewBuyerName('');
+    setNewBuyerPhone('');
+    setNewBuyerEmail('');
+    setNewBuyerNotes('');
+    toast({ title: 'Buyer Added', description: `${newBuyerName} added as interested buyer.` });
+  }, [buyersPlotId, newBuyerName, newBuyerPhone, newBuyerEmail, newBuyerNotes, buyers, saveBuyers]);
+
+  const deleteBuyer = useCallback((plotId: string, buyerId: string) => {
+    const updated = { ...buyers, [plotId]: (buyers[plotId] || []).filter(b => b.id !== buyerId) };
+    saveBuyers(updated);
+  }, [buyers, saveBuyers]);
+
+  const listedPlotIds = useMemo(() => getListedPlotIds(), [refreshKey]);
 
   const listedPlots = useMemo(() => {
     return plots.filter(p => listedPlotIds.has(p.id));
@@ -222,6 +293,18 @@ export function ListingsPage({ plots, onSelectPlot, onCreateListing, onSyncSheet
     toast({ title: 'Removed', description: `${plotId} removed from listings.` });
   }
 
+  function handleInlineStatusChange(plotId: string, newStatus: string) {
+    const newOverrides = {
+      ...localOverrides,
+      [plotId]: {
+        ...(localOverrides[plotId] || {}),
+        status: newStatus,
+      },
+    };
+    saveOverrides(newOverrides);
+    toast({ title: 'Status Updated', description: `${plotId} → ${newStatus}` });
+  }
+
   function getAffectionData(plot: PlotData) {
     const raw = plot.rawAttributes as Record<string, any> | undefined;
     const ap = raw?._affectionPlan;
@@ -237,14 +320,13 @@ export function ListingsPage({ plots, onSelectPlot, onCreateListing, onSyncSheet
   }
 
   function getFeasibilityData(plot: PlotData) {
-    const f = calculateFeasibility(plot);
-    return f;
+    return calculateFeasibility(plot);
   }
 
   return (
     <div className="h-full flex flex-col">
-      {/* Header */}
-      <div className="flex items-center justify-between mb-3">
+      {/* Header - sticky */}
+      <div className="flex items-center justify-between mb-3 shrink-0 sticky top-0 z-10 bg-card/95 backdrop-blur-sm pb-2">
         <div>
           <h2 className="text-lg font-bold text-foreground">Listings</h2>
           <p className="text-xs text-muted-foreground">{listedPlots.length} total</p>
@@ -266,7 +348,7 @@ export function ListingsPage({ plots, onSelectPlot, onCreateListing, onSyncSheet
       </div>
 
       {/* Search & Filters */}
-      <div className="flex items-center gap-2 mb-3">
+      <div className="flex items-center gap-2 mb-3 shrink-0">
         <div className="flex-1 relative">
           <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-muted-foreground" />
           <Input
@@ -295,14 +377,14 @@ export function ListingsPage({ plots, onSelectPlot, onCreateListing, onSyncSheet
           <div>
             <Search className="w-8 h-8 mx-auto mb-2 text-muted-foreground/30" />
             <p className="text-xs font-medium text-muted-foreground">No listings yet</p>
-            <p className="text-[10px] text-muted-foreground mt-1">Use "Create Listing" or "Quick Add" on any plot</p>
+            <p className="text-[10px] text-muted-foreground mt-1">Use "Create Listing" to add plots</p>
           </div>
         </div>
       ) : (
-        <ScrollArea className="flex-1">
+        <div className="flex-1 min-h-0 overflow-auto">
           <div className="min-w-[700px]">
             <Table>
-              <TableHeader>
+              <TableHeader className="sticky top-0 z-10 bg-card">
                 <TableRow>
                   <TableHead className="font-bold text-xs">Land Number</TableHead>
                   <TableHead className="font-bold text-xs">Owner</TableHead>
@@ -328,6 +410,8 @@ export function ListingsPage({ plots, onSelectPlot, onCreateListing, onSyncSheet
                   const isExpanded = expandedPlotId === plot.id;
                   const affection = getAffectionData(plot);
                   const feasibility = getFeasibilityData(plot);
+                  const plotOffers = offers[plot.id] || [];
+                  const plotBuyers = buyers[plot.id] || [];
 
                   return (
                     <>
@@ -379,7 +463,16 @@ export function ListingsPage({ plots, onSelectPlot, onCreateListing, onSyncSheet
                               </SelectContent>
                             </Select>
                           ) : (
-                            <Badge className={`text-[10px] ${getStatusColor(status)}`}>{status}</Badge>
+                            <Select value={status} onValueChange={val => handleInlineStatusChange(plot.id, val)}>
+                              <SelectTrigger className="h-7 w-32 text-xs border-0 bg-transparent p-0 shadow-none">
+                                <Badge className={`text-[10px] ${getStatusColor(status)}`}>{status}</Badge>
+                              </SelectTrigger>
+                              <SelectContent>
+                                {STATUS_OPTIONS.map(s => (
+                                  <SelectItem key={s} value={s}>{s}</SelectItem>
+                                ))}
+                              </SelectContent>
+                            </Select>
                           )}
                         </TableCell>
                         <TableCell className="text-xs">
@@ -417,13 +510,22 @@ export function ListingsPage({ plots, onSelectPlot, onCreateListing, onSyncSheet
                               </>
                             ) : (
                               <>
-                                <Button variant="ghost" size="icon" className="h-6 w-6" onClick={() => startEdit(plot)}>
+                                <Button variant="ghost" size="icon" className="h-6 w-6" onClick={() => startEdit(plot)} title="Edit">
                                   <Pencil className="w-3.5 h-3.5" />
                                 </Button>
-                                <Button variant="ghost" size="icon" className="h-6 w-6" onClick={() => setOffersPlotId(plot.id)}>
-                                  <HandCoins className="w-3.5 h-3.5 text-primary" />
+                                <Button variant="ghost" size="icon" className="h-6 w-6" onClick={() => setOffersPlotId(plot.id)} title="Offers">
+                                  <MessageCircle className="w-3.5 h-3.5 text-primary" />
+                                  {plotOffers.length > 0 && (
+                                    <span className="absolute -top-0.5 -right-0.5 w-3 h-3 bg-primary rounded-full text-[8px] text-primary-foreground flex items-center justify-center">{plotOffers.length}</span>
+                                  )}
                                 </Button>
-                                <Button variant="ghost" size="icon" className="h-6 w-6" onClick={() => handleDelete(plot.id)}>
+                                <Button variant="ghost" size="icon" className="h-6 w-6" onClick={() => setBuyersPlotId(plot.id)} title="Interested Buyers">
+                                  <UserPlus className="w-3.5 h-3.5 text-accent-foreground" />
+                                  {plotBuyers.length > 0 && (
+                                    <span className="absolute -top-0.5 -right-0.5 w-3 h-3 bg-accent rounded-full text-[8px] text-accent-foreground flex items-center justify-center">{plotBuyers.length}</span>
+                                  )}
+                                </Button>
+                                <Button variant="ghost" size="icon" className="h-6 w-6" onClick={() => handleDelete(plot.id)} title="Delete">
                                   <Trash2 className="w-3.5 h-3.5 text-destructive" />
                                 </Button>
                               </>
@@ -521,7 +623,7 @@ export function ListingsPage({ plots, onSelectPlot, onCreateListing, onSyncSheet
               </TableBody>
             </Table>
           </div>
-        </ScrollArea>
+        </div>
       )}
 
       {/* Offers Dialog */}
@@ -529,7 +631,7 @@ export function ListingsPage({ plots, onSelectPlot, onCreateListing, onSyncSheet
         <DialogContent className="sm:max-w-md">
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2">
-              <HandCoins className="w-4 h-4 text-primary" />
+              <MessageCircle className="w-4 h-4 text-primary" />
               Offers for {offersPlotId}
             </DialogTitle>
           </DialogHeader>
@@ -541,11 +643,27 @@ export function ListingsPage({ plots, onSelectPlot, onCreateListing, onSyncSheet
               <div key={offer.id} className="p-3 rounded-lg border border-border/50 bg-muted/20">
                 <div className="flex items-center justify-between mb-1">
                   <span className="font-semibold text-sm">{offer.name}</span>
-                  <Badge className={`text-[10px] ${
-                    offer.status === 'pending' ? 'bg-warning/20 text-warning border-warning/30' :
-                    offer.status === 'accepted' ? 'bg-success/20 text-success border-success/30' :
-                    'bg-destructive/20 text-destructive border-destructive/30'
-                  }`}>{offer.status}</Badge>
+                  <div className="flex items-center gap-1.5">
+                    <Select value={offer.status} onValueChange={(val) => updateOfferStatus(offersPlotId!, offer.id, val as Offer['status'])}>
+                      <SelectTrigger className="h-6 w-24 text-[10px] border-0 bg-transparent p-0 shadow-none">
+                        <Badge className={`text-[10px] ${
+                          offer.status === 'pending' ? 'bg-warning/20 text-warning border-warning/30' :
+                          offer.status === 'accepted' ? 'bg-success/20 text-success border-success/30' :
+                          offer.status === 'withdrawn' ? 'bg-muted/50 text-muted-foreground border-border/50' :
+                          'bg-destructive/20 text-destructive border-destructive/30'
+                        }`}>{offer.status}</Badge>
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="pending">Pending</SelectItem>
+                        <SelectItem value="accepted">Accepted</SelectItem>
+                        <SelectItem value="rejected">Rejected</SelectItem>
+                        <SelectItem value="withdrawn">Withdrawn</SelectItem>
+                      </SelectContent>
+                    </Select>
+                    <Button variant="ghost" size="icon" className="h-5 w-5" onClick={() => deleteOffer(offersPlotId!, offer.id)}>
+                      <Trash2 className="w-3 h-3 text-destructive" />
+                    </Button>
+                  </div>
                 </div>
                 <p className="text-sm font-bold">{offer.amount}</p>
                 {offer.phone && <p className="text-xs text-muted-foreground">{offer.phone}</p>}
@@ -555,27 +673,55 @@ export function ListingsPage({ plots, onSelectPlot, onCreateListing, onSyncSheet
 
             {/* Add new offer */}
             <div className="border-t border-border/50 pt-3 space-y-2">
-              <Input
-                value={newOfferName}
-                onChange={e => setNewOfferName(e.target.value)}
-                placeholder="Name"
-                className="h-8 text-xs"
-              />
-              <Input
-                value={newOfferAmount}
-                onChange={e => setNewOfferAmount(e.target.value)}
-                placeholder="AED 500K"
-                className="h-8 text-xs"
-              />
-              <Input
-                value={newOfferPhone}
-                onChange={e => setNewOfferPhone(e.target.value)}
-                placeholder="+971..."
-                className="h-8 text-xs"
-              />
+              <Input value={newOfferName} onChange={e => setNewOfferName(e.target.value)} placeholder="Name" className="h-8 text-xs" />
+              <Input value={newOfferAmount} onChange={e => setNewOfferAmount(e.target.value)} placeholder="AED 500K" className="h-8 text-xs" />
+              <Input value={newOfferPhone} onChange={e => setNewOfferPhone(e.target.value)} placeholder="+971..." className="h-8 text-xs" />
               <Button onClick={addOffer} disabled={!newOfferName || !newOfferAmount} className="w-full gap-1.5" size="sm">
                 <Plus className="w-3.5 h-3.5" />
                 Add Offer
+              </Button>
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* Interested Buyers Dialog */}
+      <Dialog open={!!buyersPlotId} onOpenChange={(open) => { if (!open) setBuyersPlotId(null); }}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <UserPlus className="w-4 h-4 text-primary" />
+              Interested Buyers for {buyersPlotId}
+            </DialogTitle>
+          </DialogHeader>
+          <div className="space-y-3">
+            {(buyers[buyersPlotId || ''] || []).length === 0 && (
+              <p className="text-xs text-muted-foreground text-center py-3">No interested buyers yet</p>
+            )}
+            {(buyers[buyersPlotId || ''] || []).map(buyer => (
+              <div key={buyer.id} className="p-3 rounded-lg border border-border/50 bg-muted/20">
+                <div className="flex items-center justify-between mb-1">
+                  <span className="font-semibold text-sm">{buyer.name}</span>
+                  <Button variant="ghost" size="icon" className="h-5 w-5" onClick={() => deleteBuyer(buyersPlotId!, buyer.id)}>
+                    <Trash2 className="w-3 h-3 text-destructive" />
+                  </Button>
+                </div>
+                {buyer.phone && <p className="text-xs text-muted-foreground">📱 {buyer.phone}</p>}
+                {buyer.email && <p className="text-xs text-muted-foreground">✉️ {buyer.email}</p>}
+                {buyer.notes && <p className="text-xs text-muted-foreground italic mt-1">{buyer.notes}</p>}
+                <p className="text-xs text-muted-foreground mt-1">{buyer.date}</p>
+              </div>
+            ))}
+
+            {/* Add new buyer */}
+            <div className="border-t border-border/50 pt-3 space-y-2">
+              <Input value={newBuyerName} onChange={e => setNewBuyerName(e.target.value)} placeholder="Buyer name" className="h-8 text-xs" />
+              <Input value={newBuyerPhone} onChange={e => setNewBuyerPhone(e.target.value)} placeholder="+971..." className="h-8 text-xs" />
+              <Input value={newBuyerEmail} onChange={e => setNewBuyerEmail(e.target.value)} placeholder="email@..." className="h-8 text-xs" />
+              <Input value={newBuyerNotes} onChange={e => setNewBuyerNotes(e.target.value)} placeholder="Notes..." className="h-8 text-xs" />
+              <Button onClick={addBuyer} disabled={!newBuyerName} className="w-full gap-1.5" size="sm">
+                <UserPlus className="w-3.5 h-3.5" />
+                Add Buyer
               </Button>
             </div>
           </div>
