@@ -4,6 +4,14 @@ const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL;
 const SUPABASE_KEY = import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY;
 
 function getSheetConfig() {
+  // For listing sync, prefer the Settings Wizard URL (listings sheet)
+  const sheetUrl = localStorage.getItem('hyperplot_sheet_url') || '';
+  const dataSheetName = localStorage.getItem('hp_sheetName') || '';
+  return { sheetUrl, dataSheetName };
+}
+
+function getDataSheetConfig() {
+  // For owner lookup (land matching), prefer the Matching Wizard URL (database sheet)
   const sheetUrl = localStorage.getItem('hp_sheetId') || localStorage.getItem('hyperplot_sheet_url') || '';
   const dataSheetName = localStorage.getItem('hp_sheetName') || '';
   return { sheetUrl, dataSheetName };
@@ -208,7 +216,7 @@ export async function appendListingToSheet(plotNumber: string, data: {
 }
 
 export async function lookupOwnerFromSheet(plotNumber: string): Promise<{ owner: string; mobile: string } | null> {
-  const { sheetUrl, dataSheetName } = getSheetConfig();
+  const { sheetUrl, dataSheetName } = getDataSheetConfig();
   if (!sheetUrl) return null;
 
   try {
