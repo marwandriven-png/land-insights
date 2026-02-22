@@ -1,11 +1,11 @@
 import { useState, useEffect, useCallback, useMemo, useRef } from 'react';
-import { Map, Home, Brain, AlertCircle, X, RefreshCw, Wifi, WifiOff, Target, Clock, Settings, Shield, GitCompareArrows, Plus, Minimize2, Maximize2 } from 'lucide-react';
+import { Map, Home, Brain, AlertCircle, X, RefreshCw, Wifi, WifiOff, Target, Clock, Settings, Shield, GitCompareArrows, Plus, Minimize2, Maximize2, Pencil, Trash2 } from 'lucide-react';
 import { isPlotListed, markPlotListed } from '@/services/LandMatchingService';
 import { Badge } from '@/components/ui/badge';
 import { toast } from '@/hooks/use-toast';
 import xEstateLogo from '@/assets/X-Estate_Logo.svg';
 import { addLastSeen, getLastSeen, LastSeenEntry } from '@/services/LastSeenService';
-import { gisService, PlotData, generateDemoPlots } from '@/services/DDAGISService';
+import { gisService, PlotData, generateDemoPlots, calculateFeasibility } from '@/services/DDAGISService';
 import { loadManualLands, manualLandToPlotData, deleteManualLand, ManualLandEntry } from '@/services/ManualLandService';
 import { Header } from './Header';
 import { LeafletMap } from './LeafletMap';
@@ -22,11 +22,20 @@ import { QuickAddLandModal } from './QuickAddLandModal';
 import { FeasibilityParams, DEFAULT_FEASIBILITY_PARAMS } from './FeasibilityCalculator';
 import { Button } from '@/components/ui/button';
 import { ScrollArea } from '@/components/ui/scroll-area';
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from '@/components/ui/table';
+
+const SQM_TO_SQFT = 10.7639;
 
 const TABS = [
   { id: 'map', icon: Map, label: 'Map' },
   { id: 'feasibility', icon: Shield, label: 'Decision' },
-  { id: 'properties', icon: Home, label: 'List' },
   { id: 'ai', icon: Brain, label: 'AI' },
 ];
 
@@ -235,10 +244,24 @@ export function HyperPlotAI() {
     setShowDetailPanel(false);
   }, []);
 
-  const handleQuickAddDone = useCallback((_plotId: string) => {
-    // Force re-render of listings
+  const handleQuickAddDone = useCallback((_plotId: string, _ownerName?: string, _mobile?: string, plot?: PlotData) => {
+    // If GIS plot was fetched, add it to plots array
+    if (plot) {
+      setPlots(prev => {
+        if (prev.find(p => p.id === plot.id)) return prev;
+        return [...prev, plot];
+      });
+    }
     setBottomPanel('listings');
   }, []);
+
+  // Recent entries as table data
+  const recentWithPlots = useMemo(() => {
+    return lastSeen.map(entry => {
+      const matchedPlot = plots.find(p => p.id === entry.plotId);
+      return { entry, plot: matchedPlot };
+    });
+  }, [lastSeen, plots]);
 
   return (
     <div className="h-screen bg-background text-foreground flex flex-col overflow-hidden">
@@ -273,16 +296,6 @@ export function HyperPlotAI() {
                   </>
                 )}
               </div>
-
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={() => setShowQuickAdd(true)}
-                className="gap-2"
-              >
-                <Plus className="w-4 h-4" />
-                Create Listing
-              </Button>
 
               <Button
                 variant="outline"
@@ -408,55 +421,6 @@ export function HyperPlotAI() {
                   </div>
                 </div>
               ) : null}
-              {activeTab === 'properties' && (
-                <div className="h-full glass-card glow-border p-4 overflow-auto">
-                  <ScrollArea className="h-full">
-                    <div ref={plotsListRef} className="space-y-2 pr-2">
-                      {filteredPlots.slice(0, 50).map(plot => (
-                        <div key={plot.id} className="relative group">
-                          <PlotListItem
-                            plot={plot}
-                            isSelected={selectedPlot?.id === plot.id}
-                            isHighlighted={highlightedPlots.includes(plot.id)}
-                            onClick={() => handlePlotClick(plot, true)}
-                            onEdit={plot.verificationSource === 'Manual' ? handleEditManualLand : undefined}
-                            onDelete={plot.verificationSource === 'Manual' ? handleDeleteManualLand : undefined}
-                          />
-                          <button
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              setComparisonPlots(prev => {
-                                if (prev.find(p => p.id === plot.id)) return prev.filter(p => p.id !== plot.id);
-                                if (prev.length >= 3) return prev;
-                                return [...prev, plot];
-                              });
-                            }}
-                            className={`absolute top-2 right-2 p-1.5 rounded-md transition-all ${
-                              comparisonPlots.find(p => p.id === plot.id)
-                                ? 'bg-primary text-primary-foreground shadow-md'
-                                : 'bg-muted/90 text-muted-foreground opacity-100 hover:bg-primary/20 hover:text-primary'
-                            }`}
-                            title={comparisonPlots.find(p => p.id === plot.id) ? 'Remove from comparison' : 'Add to comparison'}
-                          >
-                            <GitCompareArrows className="w-4 h-4" />
-                          </button>
-                        </div>
-                      ))}
-                      {filteredPlots.length > 50 && (
-                        <div className="text-center py-4 text-sm text-muted-foreground">
-                          Showing 50 of {filteredPlots.length} plots. Use filters to narrow down.
-                        </div>
-                      )}
-                      {filteredPlots.length === 0 && (
-                        <div className="text-center py-8 text-muted-foreground">
-                          <Map className="w-8 h-8 mx-auto mb-2 opacity-50" />
-                          <p className="text-sm">No plots match your criteria</p>
-                        </div>
-                      )}
-                    </div>
-                  </ScrollArea>
-                </div>
-              )}
               {activeTab === 'ai' && (
                 <AIAssistant plots={filteredPlots} selectedPlot={selectedPlot} onSelectPlot={handlePlotClick} />
               )}
@@ -524,45 +488,58 @@ export function HyperPlotAI() {
               <div className="flex-1 min-h-0 overflow-hidden p-3">
                 {bottomPanel === 'recent' && (
                   <ScrollArea className="h-full">
-                    <div className="space-y-1.5 pr-1">
-                      {lastSeen.length === 0 && (
-                        <div className="text-center py-6 text-muted-foreground">
-                          <Clock className="w-6 h-6 mx-auto mb-2 opacity-30" />
-                          <p className="text-xs">No recent plots</p>
-                        </div>
-                      )}
-                      {lastSeen.map(entry => {
-                        const matchedPlot = plots.find(p => p.id === entry.plotId);
-                        return (
-                          <button
-                            key={entry.plotId}
-                            onClick={async () => {
-                              if (matchedPlot) {
-                                handlePlotClick(matchedPlot, true);
-                              } else {
-                                const fetched = await gisService.fetchPlotById(entry.plotId);
-                                if (fetched) handlePlotFound(fetched);
-                              }
-                            }}
-                            className={`w-full text-left px-3 py-2 rounded-lg border transition-all cursor-pointer text-sm ${
-                              selectedPlot?.id === entry.plotId
-                                ? 'ring-2 ring-primary border-primary/50 bg-primary/10'
-                                : 'border-border/50 bg-muted/20 hover:bg-muted/40'
-                            }`}
-                          >
-                            <div className="flex items-center justify-between">
-                              <span className="font-bold text-foreground">{entry.plotId}</span>
-                              <span className="text-xs text-muted-foreground">
-                                {new Date(entry.timestamp).toLocaleDateString()}
-                              </span>
-                            </div>
-                            <div className="text-muted-foreground text-xs mt-0.5">
-                              {entry.location} • {entry.area.toLocaleString()} m²
-                            </div>
-                          </button>
-                        );
-                      })}
-                    </div>
+                    {lastSeen.length === 0 ? (
+                      <div className="text-center py-6 text-muted-foreground">
+                        <Clock className="w-6 h-6 mx-auto mb-2 opacity-30" />
+                        <p className="text-xs">No recent plots</p>
+                      </div>
+                    ) : (
+                      <div className="min-w-[600px]">
+                        <Table>
+                          <TableHeader>
+                            <TableRow>
+                              <TableHead className="font-bold text-xs">Land Number</TableHead>
+                              <TableHead className="font-bold text-xs">Location</TableHead>
+                              <TableHead className="font-bold text-xs">Area (sqft)</TableHead>
+                              <TableHead className="font-bold text-xs">GFA (sqft)</TableHead>
+                              <TableHead className="font-bold text-xs">Zoning</TableHead>
+                              <TableHead className="font-bold text-xs">Status</TableHead>
+                              <TableHead className="font-bold text-xs">Viewed</TableHead>
+                            </TableRow>
+                          </TableHeader>
+                          <TableBody>
+                            {recentWithPlots.map(({ entry, plot: matchedPlot }) => (
+                              <TableRow
+                                key={entry.plotId}
+                                className="cursor-pointer hover:bg-muted/30 transition-colors"
+                                onClick={async () => {
+                                  if (matchedPlot) {
+                                    handlePlotClick(matchedPlot, true);
+                                  } else {
+                                    const fetched = await gisService.fetchPlotById(entry.plotId);
+                                    if (fetched) handlePlotFound(fetched);
+                                  }
+                                }}
+                              >
+                                <TableCell className="font-bold text-sm">{entry.plotId}</TableCell>
+                                <TableCell className="text-xs">{entry.location || '—'}</TableCell>
+                                <TableCell className="font-mono text-xs">{Math.round(entry.area * SQM_TO_SQFT).toLocaleString()}</TableCell>
+                                <TableCell className="font-mono text-xs">{Math.round(entry.gfa * SQM_TO_SQFT).toLocaleString()}</TableCell>
+                                <TableCell>
+                                  <Badge variant="outline" className="text-[10px]">{entry.zoning}</Badge>
+                                </TableCell>
+                                <TableCell>
+                                  <Badge variant="outline" className="text-[10px]">{entry.status}</Badge>
+                                </TableCell>
+                                <TableCell className="text-xs text-muted-foreground">
+                                  {new Date(entry.timestamp).toLocaleDateString()}
+                                </TableCell>
+                              </TableRow>
+                            ))}
+                          </TableBody>
+                        </Table>
+                      </div>
+                    )}
                   </ScrollArea>
                 )}
 
@@ -624,49 +601,7 @@ export function HyperPlotAI() {
 
             {/* Plots List */}
             <ScrollArea className="flex-1 mt-4">
-              <div className="space-y-2 pr-2">
-                {/* Last Seen Section */}
-                {lastSeen.length > 0 && !searchQuery && filters.status.length === 0 && filters.zoning.length === 0 && (
-                  <div className="mb-3">
-                    <div className="flex items-center gap-1.5 mb-2">
-                      <Clock className="w-3.5 h-3.5 text-muted-foreground" />
-                      <span className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">Recent</span>
-                    </div>
-                    {lastSeen.slice(0, 5).map(entry => {
-                      const matchedPlot = plots.find(p => p.id === entry.plotId);
-                      return (
-                        <button
-                          key={entry.plotId}
-                          onClick={async () => {
-                            if (matchedPlot) {
-                              handlePlotClick(matchedPlot, true);
-                            } else {
-                              const fetched = await gisService.fetchPlotById(entry.plotId);
-                              if (fetched) handlePlotFound(fetched);
-                            }
-                          }}
-                          className={`w-full text-left mb-1.5 px-3 py-2.5 rounded-lg border transition-all text-sm cursor-pointer ${
-                            selectedPlot?.id === entry.plotId
-                              ? 'ring-2 ring-primary border-primary/50 bg-primary/10'
-                              : 'border-border/50 bg-muted/20 hover:bg-muted/40'
-                          }`}
-                        >
-                          <div className="flex items-center justify-between">
-                            <span className="font-semibold text-foreground">{entry.plotId}</span>
-                            <span className="text-xs text-muted-foreground">
-                              {new Date(entry.timestamp).toLocaleDateString()}
-                            </span>
-                          </div>
-                          <div className="text-muted-foreground text-xs mt-0.5">
-                            {entry.location} • {entry.area.toLocaleString()} m²
-                          </div>
-                        </button>
-                      );
-                    })}
-                    <div className="border-b border-border/30 mt-2 mb-1" />
-                  </div>
-                )}
-
+              <div ref={plotsListRef} className="space-y-2 pr-2">
                 {filteredPlots.slice(0, 50).map(plot => (
                   <div key={plot.id} className="relative group">
                     <PlotListItem
