@@ -395,19 +395,41 @@ export function markPlotsExported(plotIds: string[]) {
   localStorage.setItem(CRM_EXPORT_KEY, JSON.stringify([...existing]));
 }
 
-export function getListedPlotIds(): Set<string> {
+export interface ListedPlotEntry {
+  plotId: string;
+  listedAt: number; // timestamp
+}
+
+export function getListedPlots(): ListedPlotEntry[] {
   try {
     const stored = localStorage.getItem(CRM_LISTED_KEY);
-    return stored ? new Set(JSON.parse(stored)) : new Set();
-  } catch { return new Set(); }
+    if (!stored) return [];
+    const parsed = JSON.parse(stored);
+    // Migrate from old format (string[]) to new format (ListedPlotEntry[])
+    if (Array.isArray(parsed) && parsed.length > 0 && typeof parsed[0] === 'string') {
+      return (parsed as string[]).map(id => ({ plotId: id, listedAt: Date.now() }));
+    }
+    return parsed as ListedPlotEntry[];
+  } catch { return []; }
+}
+
+export function getListedPlotIds(): Set<string> {
+  return new Set(getListedPlots().map(e => e.plotId));
 }
 
 export function markPlotListed(plotId: string) {
-  const existing = getListedPlotIds();
-  existing.add(plotId);
-  localStorage.setItem(CRM_LISTED_KEY, JSON.stringify([...existing]));
+  const existing = getListedPlots().filter(e => e.plotId !== plotId);
+  existing.push({ plotId, listedAt: Date.now() });
+  localStorage.setItem(CRM_LISTED_KEY, JSON.stringify(existing));
 }
 
 export function isPlotListed(plotId: string): boolean {
   return getListedPlotIds().has(plotId);
+}
+
+export function isNewListing(plotId: string): boolean {
+  const entry = getListedPlots().find(e => e.plotId === plotId);
+  if (!entry) return false;
+  const thirtyDaysMs = 30 * 24 * 60 * 60 * 1000;
+  return (Date.now() - entry.listedAt) < thirtyDaysMs;
 }

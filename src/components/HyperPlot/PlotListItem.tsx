@@ -1,6 +1,8 @@
-import { MapPin, Building2, Layers, Pencil, Trash2 } from 'lucide-react';
+import { MapPin, Building2, Layers, Pencil, Trash2, Plus } from 'lucide-react';
 import { PlotData, calculateFeasibility } from '@/services/DDAGISService';
 import { Badge } from '@/components/ui/badge';
+import { isPlotListed, isNewListing, markPlotListed } from '@/services/LandMatchingService';
+import { toast } from '@/hooks/use-toast';
 
 interface PlotListItemProps {
   plot: PlotData;
@@ -46,6 +48,17 @@ function getZoningColor(zoning: string): string {
 export function PlotListItem({ plot, isSelected, isHighlighted, onClick, onEdit, onDelete }: PlotListItemProps) {
   const isManual = plot.verificationSource === 'Manual';
   const feasibility = calculateFeasibility(plot);
+  const listed = isPlotListed(plot.id);
+  const newListing = isNewListing(plot.id);
+
+  const handleQuickAdd = (e: React.MouseEvent) => {
+    e.stopPropagation();
+    markPlotListed(plot.id);
+    toast({
+      title: 'Added to Listing',
+      description: `Plot ${plot.id} has been added to your listings.`,
+    });
+  };
 
   return (
     <div
@@ -66,6 +79,16 @@ export function PlotListItem({ plot, isSelected, isHighlighted, onClick, onEdit,
             style={{ backgroundColor: getZoningColor(plot.zoning) }}
           />
           <span className="font-bold text-base text-foreground">{plot.id}</span>
+          {listed && (
+            <Badge className="bg-success/20 text-success border-success/30 text-[10px] px-1.5 py-0">
+              Listing
+            </Badge>
+          )}
+          {newListing && (
+            <Badge className="bg-primary/20 text-primary border-primary/30 text-[10px] px-1.5 py-0">
+              New
+            </Badge>
+          )}
         </div>
         <span className={`text-sm font-medium ${getStatusColor(plot.status)}`}>
           {plot.status}
@@ -117,6 +140,17 @@ export function PlotListItem({ plot, isSelected, isHighlighted, onClick, onEdit,
           </div>
         )}
       </div>
+
+      {/* Quick Add to Listing */}
+      {!listed && (
+        <button
+          onClick={handleQuickAdd}
+          className="mt-2 w-full flex items-center justify-center gap-1.5 py-1.5 rounded-lg border border-dashed border-border/60 text-xs text-muted-foreground hover:text-primary hover:border-primary/50 hover:bg-primary/5 transition-colors"
+        >
+          <Plus className="w-3 h-3" />
+          Quick Add to Listing
+        </button>
+      )}
     </div>
   );
 }
