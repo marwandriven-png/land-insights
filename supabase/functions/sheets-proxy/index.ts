@@ -526,7 +526,111 @@ serve(async (req) => {
       });
     }
 
-    return new Response(JSON.stringify({ error: 'Invalid action. Use: lookup, test, append, or update' }), {
+    if (action === 'delete') {
+      // Delete a row by plot number
+      const body = await req.json();
+      const { spreadsheetId: rawSheetId, sheetName, plotNumber } = body;
+      const spreadsheetId = extractSpreadsheetId(rawSheetId);
+
+      if (!spreadsheetId || !plotNumber) {
+        return new Response(JSON.stringify({ error: 'spreadsheetId and plotNumber required' }), {
+          status: 400,
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+        });
+      }
+
+      const accessToken = await getAccessToken();
+      const trimmedSheetName = sheetName?.trim() || 'Sheet1';
+      const readRange = `'${trimmedSheetName}'!A:Z`;
+
+      // Read existing data to find the row
+      const readUrl = `https://sheets.googleapis.com/v4/spreadsheets/${spreadsheetId}/values/${encodeURIComponent(readRange)}?key=${GOOGLE_SHEETS_API_KEY}`;
+      const readRes = await fetch(readUrl, { headers: { 'Accept': 'application/json' } });
+      if (!readRes.ok) throw new Error(`Failed to read sheet: ${await readRes.text()}`);
+
+      const readData = await readRes.json();
+      const allRows = readData.values || [];
+      if (allRows.length === 0) {
+        return new Response(JSON.stringify({ deleted: false, reason: 'Sheet is empty' }), {
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+        });
+      }
+
+      const headers = allRows[0].map((h: string) => h?.toString().trim().toLowerCase() || '');
+      const normalize = (v: string) => v.toString().replace(/[^0-9a-zA-Z]/g, '').toLowerCase();
+      const normPlot = normalize(plotNumber);
+
+      const plotColNames = ['land number', 'land_number', 'plot number', 'plotnumber', 'plot_number', 'plot no', 'plot', 'p-number', 'land'];
+      let plotColIndex = headers.findIndex((h: string) => plotColNames.includes(h.trim()));
+      if (plotColIndex === -1) plotColIndex = 0;
+
+      // Find the row index (0-based in allRows, but sheet rows are 1-indexed)
+      let rowIndex = -1;
+      for (let i = 1; i < allRows.length; i++) {
+        const row = allRows[i];
+        if (normalize((row[plotColIndex] || '').toString()) === normPlot) {
+          rowIndex = i;
+          break;
+        }
+        // Fallback: check all columns
+        for (let c = 0; c < row.length; c++) {
+          if (normalize((row[c] || '').toString()) === normPlot) {
+            rowIndex = i;
+            break;
+          }
+        }
+        if (rowIndex !== -1) break;
+      }
+
+      if (rowIndex === -1) {
+        return new Response(JSON.stringify({ deleted: false, reason: 'Plot not found in sheet' }), {
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+        });
+      }
+
+      // Get the sheet ID (gid) for batchUpdate
+      const metaUrl = `https://sheets.googleapis.com/v4/spreadsheets/${spreadsheetId}?key=${GOOGLE_SHEETS_API_KEY}&fields=sheets.properties`;
+      const metaRes = await fetch(metaUrl, { headers: { 'Accept': 'application/json' } });
+      const metaData = await metaRes.json();
+      const sheetMeta = metaData.sheets?.find((s: any) => s.properties?.title === trimmedSheetName);
+      const sheetId = sheetMeta?.properties?.sheetId ?? 0;
+
+      // Delete the row using batchUpdate
+      const deleteUrl = `https://sheets.googleapis.com/v4/spreadsheets/${spreadsheetId}:batchUpdate`;
+      const deleteRes = await fetch(deleteUrl, {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${accessToken}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          requests: [{
+            deleteDimension: {
+              range: {
+                sheetId,
+                dimension: 'ROWS',
+                startIndex: rowIndex,
+                endIndex: rowIndex + 1,
+              }
+            }
+          }]
+        }),
+      });
+
+      if (!deleteRes.ok) {
+        const errText = await deleteRes.text();
+        console.error('Row delete error:', errText);
+        throw new Error(`Row delete failed: ${errText}`);
+      }
+
+      console.log(`Deleted row ${rowIndex + 1} for plot ${plotNumber}`);
+
+      return new Response(JSON.stringify({ deleted: true, row: rowIndex + 1 }), {
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+      });
+    }
+
+    return new Response(JSON.stringify({ error: 'Invalid action. Use: lookup, test, append, update, or delete' }), {
       status: 400,
       headers: { ...corsHeaders, 'Content-Type': 'application/json' }
     });
