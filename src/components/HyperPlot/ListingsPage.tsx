@@ -1,5 +1,5 @@
 import { useState, useMemo, useCallback, useEffect } from 'react';
-import { Search, Plus, Link2, Pencil, Trash2, Check, X, DollarSign, FileText, ChevronDown, ChevronUp, HandCoins, UserPlus, MessageCircle } from 'lucide-react';
+import { Search, Plus, Link2, Pencil, Trash2, Check, X, DollarSign, FileText, ChevronDown, ChevronUp, HandCoins, UserPlus } from 'lucide-react';
 import { PlotData, calculateFeasibility } from '@/services/DDAGISService';
 import { isPlotListed, isNewListing, getListedPlotIds, unlistPlot } from '@/services/LandMatchingService';
 import { Button } from '@/components/ui/button';
@@ -75,7 +75,6 @@ interface InterestedBuyer {
   id: string;
   name: string;
   phone: string;
-  email: string;
   notes: string;
   date: string;
 }
@@ -101,7 +100,7 @@ export function ListingsPage({ plots, onSelectPlot, onCreateListing, onSyncSheet
   const [newOfferPhone, setNewOfferPhone] = useState('');
   const [newBuyerName, setNewBuyerName] = useState('');
   const [newBuyerPhone, setNewBuyerPhone] = useState('');
-  const [newBuyerEmail, setNewBuyerEmail] = useState('');
+  
   const [newBuyerNotes, setNewBuyerNotes] = useState('');
   const [localOverrides, setLocalOverrides] = useState<Record<string, ListingOverride>>(() => {
     try {
@@ -184,7 +183,6 @@ export function ListingsPage({ plots, onSelectPlot, onCreateListing, onSyncSheet
       id: Date.now().toString(),
       name: newBuyerName,
       phone: newBuyerPhone,
-      email: newBuyerEmail,
       notes: newBuyerNotes,
       date: new Date().toLocaleDateString(),
     };
@@ -192,10 +190,9 @@ export function ListingsPage({ plots, onSelectPlot, onCreateListing, onSyncSheet
     saveBuyers(updated);
     setNewBuyerName('');
     setNewBuyerPhone('');
-    setNewBuyerEmail('');
     setNewBuyerNotes('');
     toast({ title: 'Buyer Added', description: `${newBuyerName} added as interested buyer.` });
-  }, [buyersPlotId, newBuyerName, newBuyerPhone, newBuyerEmail, newBuyerNotes, buyers, saveBuyers]);
+  }, [buyersPlotId, newBuyerName, newBuyerPhone, newBuyerNotes, buyers, saveBuyers]);
 
   const deleteBuyer = useCallback((plotId: string, buyerId: string) => {
     const updated = { ...buyers, [plotId]: (buyers[plotId] || []).filter(b => b.id !== buyerId) };
@@ -514,7 +511,7 @@ export function ListingsPage({ plots, onSelectPlot, onCreateListing, onSyncSheet
                                   <Pencil className="w-3.5 h-3.5" />
                                 </Button>
                                 <Button variant="ghost" size="icon" className="h-6 w-6" onClick={() => setOffersPlotId(plot.id)} title="Offers">
-                                  <MessageCircle className="w-3.5 h-3.5 text-primary" />
+                                   <DollarSign className="w-3.5 h-3.5 text-primary" />
                                   {plotOffers.length > 0 && (
                                     <span className="absolute -top-0.5 -right-0.5 w-3 h-3 bg-primary rounded-full text-[8px] text-primary-foreground flex items-center justify-center">{plotOffers.length}</span>
                                   )}
@@ -631,7 +628,7 @@ export function ListingsPage({ plots, onSelectPlot, onCreateListing, onSyncSheet
         <DialogContent className="sm:max-w-md">
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2">
-              <MessageCircle className="w-4 h-4 text-primary" />
+              <DollarSign className="w-4 h-4 text-primary" />
               Offers for {offersPlotId}
             </DialogTitle>
           </DialogHeader>
@@ -707,7 +704,6 @@ export function ListingsPage({ plots, onSelectPlot, onCreateListing, onSyncSheet
                   </Button>
                 </div>
                 {buyer.phone && <p className="text-xs text-muted-foreground">📱 {buyer.phone}</p>}
-                {buyer.email && <p className="text-xs text-muted-foreground">✉️ {buyer.email}</p>}
                 {buyer.notes && <p className="text-xs text-muted-foreground italic mt-1">{buyer.notes}</p>}
                 <p className="text-xs text-muted-foreground mt-1">{buyer.date}</p>
               </div>
@@ -717,7 +713,6 @@ export function ListingsPage({ plots, onSelectPlot, onCreateListing, onSyncSheet
             <div className="border-t border-border/50 pt-3 space-y-2">
               <Input value={newBuyerName} onChange={e => setNewBuyerName(e.target.value)} placeholder="Buyer name" className="h-8 text-xs" />
               <Input value={newBuyerPhone} onChange={e => setNewBuyerPhone(e.target.value)} placeholder="+971..." className="h-8 text-xs" />
-              <Input value={newBuyerEmail} onChange={e => setNewBuyerEmail(e.target.value)} placeholder="email@..." className="h-8 text-xs" />
               <Input value={newBuyerNotes} onChange={e => setNewBuyerNotes(e.target.value)} placeholder="Notes..." className="h-8 text-xs" />
               <Button onClick={addBuyer} disabled={!newBuyerName} className="w-full gap-1.5" size="sm">
                 <UserPlus className="w-3.5 h-3.5" />

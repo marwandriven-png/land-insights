@@ -121,10 +121,11 @@ export function PlotListItem({ plot, isSelected, isHighlighted, onClick, onEdit,
           {onQuickAdd && (
             <button
               onClick={(e) => { e.stopPropagation(); onQuickAdd(); }}
-              className="p-1 rounded hover:bg-primary/20 text-muted-foreground hover:text-primary transition-colors"
+              className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-primary/15 text-primary text-[10px] font-semibold hover:bg-primary/25 transition-colors"
               title="Quick Add to Listing"
             >
-              <Plus className="w-3.5 h-3.5" />
+              <Plus className="w-3 h-3" />
+              List
             </button>
           )}
         </div>
