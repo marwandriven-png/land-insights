@@ -48,11 +48,53 @@ async function getAccessToken(): Promise<string> {
   let sa;
   try {
     sa = JSON.parse(saJson);
-  } catch (parseErr) {
-    console.error('Failed to parse GOOGLE_SERVICE_ACCOUNT_JSON:', (parseErr as Error).message);
-    console.error('First 100 chars:', saJson.substring(0, 100));
-    console.error('Chars around pos 2345:', saJson.substring(2340, 2360));
-    throw new Error(`Invalid GOOGLE_SERVICE_ACCOUNT_JSON: ${(parseErr as Error).message}. Check that the full JSON was pasted without truncation.`);
+  } catch (_parseErr1) {
+    // Attempt repair: fix unterminated strings at the end (common truncation issue)
+    // Pattern: JSON ends with ...value.com} or ...value.com\n} — missing closing quote
+    let repaired = saJson;
+    
+    // Remove trailing whitespace
+    repaired = repaired.trimEnd();
+    
+    // If it ends with } but there's an unterminated string, try to close it
+    if (repaired.endsWith('}')) {
+      // Remove the trailing }
+      let inner = repaired.slice(0, -1).trimEnd();
+      
+      // Check if it ends without a closing quote for a string value
+      // e.g. ...gserviceaccount.com  (missing the closing ")
+      if (!inner.endsWith('"') && !inner.endsWith('null') && !inner.endsWith('true') && !inner.endsWith('false') && !/\d$/.test(inner)) {
+        inner = inner + '"';
+      }
+      
+      // Also check if we might be missing the universe_domain field
+      // Typical SA JSON ends with: ..."universe_domain": "googleapis.com"}
+      repaired = inner + '}';
+    }
+    
+    try {
+      sa = JSON.parse(repaired);
+      console.log('Successfully parsed GOOGLE_SERVICE_ACCOUNT_JSON after repair');
+    } catch (parseErr2) {
+      // Last resort: try to extract just the required fields using regex
+      console.error('Failed to parse GOOGLE_SERVICE_ACCOUNT_JSON even after repair:', (parseErr2 as Error).message);
+      console.error('First 100 chars:', saJson.substring(0, 100));
+      console.error('Last 50 chars:', saJson.substring(saJson.length - 50));
+      
+      // Try to extract client_email and private_key directly
+      const emailMatch = saJson.match(/"client_email"\s*:\s*"([^"]+)"/);
+      const keyMatch = saJson.match(/"private_key"\s*:\s*"(-----BEGIN PRIVATE KEY-----[^"]*-----END PRIVATE KEY-----(?:\\n)?)"/);
+      
+      if (emailMatch && keyMatch) {
+        console.log('Extracted credentials via regex fallback');
+        sa = {
+          client_email: emailMatch[1],
+          private_key: keyMatch[1].replace(/\\n/g, '\n'),
+        };
+      } else {
+        throw new Error(`Invalid GOOGLE_SERVICE_ACCOUNT_JSON: ${(parseErr2 as Error).message}. The value appears truncated. Try pasting the JSON as a single line.`);
+      }
+    }
   }
   const now = Math.floor(Date.now() / 1000);
   const header = { alg: 'RS256', typ: 'JWT' };
