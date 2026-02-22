@@ -6,6 +6,7 @@ import { Label } from '@/components/ui/label';
 import { toast } from '@/hooks/use-toast';
 import { markPlotListed } from '@/services/LandMatchingService';
 import { gisService, PlotData } from '@/services/DDAGISService';
+import { syncListingToSheet } from '@/services/SheetSyncService';
 
 interface SheetMatch {
   ownerName: string;
@@ -142,6 +143,16 @@ export function QuickAddLandModal({ open, onClose, onLandAdded }: QuickAddLandMo
 
     onLandAdded(pid, editedOwner, editedMobile, gisPlot || undefined);
     toast({ title: 'Listing Created', description: `${pid} has been added to your listings.` });
+
+    // Sync new listing to Google Sheet (append if not found)
+    syncListingToSheet(pid, {
+      owner: editedOwner,
+      contact: editedMobile,
+      area: gisPlot ? gisPlot.area.toString() : undefined,
+    }).then(ok => {
+      if (ok) toast({ title: 'Sheet Synced', description: `${pid} synced to Google Sheet.` });
+    }).catch(() => {});
+
     handleClose();
   };
 

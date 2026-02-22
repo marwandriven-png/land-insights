@@ -28,6 +28,7 @@ import {
   DialogTitle,
 } from '@/components/ui/dialog';
 import { toast } from '@/hooks/use-toast';
+import { syncListingToSheet } from '@/services/SheetSyncService';
 
 interface ListingsPageProps {
   plots: PlotData[];
@@ -278,6 +279,17 @@ export function ListingsPage({ plots, onSelectPlot, onCreateListing, onSyncSheet
     saveOverrides(newOverrides);
     setEditing(null);
     toast({ title: 'Updated', description: `Listing ${editing.plotId} updated.` });
+
+    // Sync to Google Sheet in background
+    syncListingToSheet(editing.plotId, {
+      owner: editing.owner,
+      contact: editing.contact,
+      status: editing.status,
+      price: editing.price,
+      notes: editing.notes,
+    }).then(ok => {
+      if (ok) toast({ title: 'Sheet Synced', description: `${editing.plotId} synced to Google Sheet.` });
+    }).catch(() => {});
   }
 
   function handleDelete(plotId: string) {
@@ -300,6 +312,9 @@ export function ListingsPage({ plots, onSelectPlot, onCreateListing, onSyncSheet
     };
     saveOverrides(newOverrides);
     toast({ title: 'Status Updated', description: `${plotId} → ${newStatus}` });
+
+    // Sync status change to Google Sheet
+    syncListingToSheet(plotId, { status: newStatus }).catch(() => {});
   }
 
   function getAffectionData(plot: PlotData) {
