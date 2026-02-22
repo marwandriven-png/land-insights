@@ -433,3 +433,8 @@ export function isNewListing(plotId: string): boolean {
   const thirtyDaysMs = 30 * 24 * 60 * 60 * 1000;
   return (Date.now() - entry.listedAt) < thirtyDaysMs;
 }
+
+export function unlistPlot(plotId: string) {
+  const existing = getListedPlots().filter(e => e.plotId !== plotId);
+  localStorage.setItem(CRM_LISTED_KEY, JSON.stringify(existing));
+}
