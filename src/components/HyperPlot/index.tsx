@@ -478,6 +478,7 @@ export function HyperPlotAI() {
                   onSelectPlot={handlePlotFound}
                   sharedFeasibilityParams={sharedFeasibilityParams}
                   onFeasibilityParamsChange={setSharedFeasibilityParams}
+                  refreshKey={listingsRefreshKey}
                   onGoToLocation={(plot) => {
                     setActiveTab('map');
                     setSelectedPlot(null);
@@ -622,6 +623,10 @@ export function HyperPlotAI() {
                     plots={plots}
                     onSelectPlot={(plot) => handlePlotClick(plot, true)}
                     onCreateListing={() => setShowQuickAdd(true)}
+                    onListingDeleted={() => {
+                      setLastSeen(getLastSeen());
+                      setListingsRefreshKey(k => k + 1);
+                    }}
                     onSyncSheet={async () => {
                       toast({ title: 'Syncing...', description: 'Importing plots from Google Sheet...' });
                       try {

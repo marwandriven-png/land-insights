@@ -2,6 +2,7 @@ import { useState, useMemo, useCallback, useEffect } from 'react';
 import { Search, Plus, Link2, Pencil, Trash2, Check, X, DollarSign, FileText, ChevronDown, ChevronUp, HandCoins, UserPlus } from 'lucide-react';
 import { PlotData, calculateFeasibility } from '@/services/DDAGISService';
 import { isPlotListed, isNewListing, getListedPlotIds, unlistPlot } from '@/services/LandMatchingService';
+import { removeLastSeen } from '@/services/LastSeenService';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
@@ -36,6 +37,7 @@ interface ListingsPageProps {
   onCreateListing?: () => void;
   onSyncSheet?: () => void;
   refreshKey?: number;
+  onListingDeleted?: (plotId: string) => void;
 }
 
 const SQM_TO_SQFT = 10.7639;
@@ -89,7 +91,7 @@ interface EditingState {
   notes: string;
 }
 
-export function ListingsPage({ plots, onSelectPlot, onCreateListing, onSyncSheet, refreshKey }: ListingsPageProps) {
+export function ListingsPage({ plots, onSelectPlot, onCreateListing, onSyncSheet, refreshKey, onListingDeleted }: ListingsPageProps) {
   const [searchQuery, setSearchQuery] = useState('');
   const [statusFilter, setStatusFilter] = useState('all');
   const [editing, setEditing] = useState<EditingState | null>(null);
@@ -292,10 +294,12 @@ export function ListingsPage({ plots, onSelectPlot, onCreateListing, onSyncSheet
   function handleDelete(plotId: string) {
     if (!window.confirm(`Remove ${plotId} from listings?`)) return;
     unlistPlot(plotId);
+    removeLastSeen(plotId);
     const newOverrides = { ...localOverrides };
     delete newOverrides[plotId];
     saveOverrides(newOverrides);
     forceUpdate(n => n + 1);
+    onListingDeleted?.(plotId);
     toast({ title: 'Removed', description: `${plotId} removed from listings.` });
   }
 
