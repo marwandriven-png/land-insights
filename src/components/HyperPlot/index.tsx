@@ -498,7 +498,8 @@ export function HyperPlotAI() {
                     Listings
                   </span>
                 </button>
-                <div className="flex items-center gap-1 px-2">
+                <div className="flex items-center gap-1.5 px-2">
+                  {/* macOS traffic light: Close/Minimize (yellow) */}
                   <button
                     onClick={() => {
                       if (bottomPanelMinimized) {
@@ -508,15 +509,14 @@ export function HyperPlotAI() {
                         setBottomPanelMaximized(false);
                       }
                     }}
-                    className={`p-1.5 rounded-md transition-all ${
+                    className={`w-3 h-3 rounded-full transition-all border ${
                       bottomPanelMinimized
-                        ? 'bg-primary/20 text-primary'
-                        : 'text-muted-foreground hover:text-foreground hover:bg-muted/50'
+                        ? 'bg-yellow-400 border-yellow-500 shadow-[0_0_6px_rgba(250,204,21,0.5)]'
+                        : 'bg-yellow-400/70 border-yellow-500/50 hover:bg-yellow-400 hover:border-yellow-500 hover:shadow-[0_0_6px_rgba(250,204,21,0.4)]'
                     }`}
                     title={bottomPanelMinimized ? 'Restore' : 'Minimize'}
-                  >
-                    <Minimize2 className="w-3.5 h-3.5" />
-                  </button>
+                  />
+                  {/* macOS traffic light: Fullscreen (green) */}
                   <button
                     onClick={() => {
                       if (bottomPanelMaximized) {
@@ -526,15 +526,13 @@ export function HyperPlotAI() {
                         setBottomPanelMinimized(false);
                       }
                     }}
-                    className={`p-1.5 rounded-md transition-all ${
+                    className={`w-3 h-3 rounded-full transition-all border ${
                       bottomPanelMaximized
-                        ? 'bg-primary/20 text-primary'
-                        : 'text-muted-foreground hover:text-foreground hover:bg-muted/50'
+                        ? 'bg-green-400 border-green-500 shadow-[0_0_6px_rgba(74,222,128,0.5)]'
+                        : 'bg-green-400/70 border-green-500/50 hover:bg-green-400 hover:border-green-500 hover:shadow-[0_0_6px_rgba(74,222,128,0.4)]'
                     }`}
-                    title={bottomPanelMaximized ? 'Restore' : 'Maximize'}
-                  >
-                    <Maximize2 className="w-3.5 h-3.5" />
-                  </button>
+                    title={bottomPanelMaximized ? 'Exit Full Screen' : 'Full Screen'}
+                  />
                 </div>
               </div>
 
