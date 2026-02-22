@@ -1,5 +1,8 @@
 import { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import { Map, Home, BarChart3, Brain, AlertCircle, X, RefreshCw, Wifi, WifiOff, Target, Clock, Settings, Shield, GitCompareArrows, Plus } from 'lucide-react';
+import { isPlotListed, isNewListing, markPlotListed } from '@/services/LandMatchingService';
+import { Badge } from '@/components/ui/badge';
+import { toast } from '@/hooks/use-toast';
 import xEstateLogo from '@/assets/X-Estate_Logo.svg';
 import { addLastSeen, getLastSeen, LastSeenEntry } from '@/services/LastSeenService';
 import { gisService, PlotData, generateDemoPlots } from '@/services/DDAGISService';
@@ -418,7 +421,7 @@ export function HyperPlotAI() {
               <div className="h-full glass-card glow-border p-4">
                 <div className="flex items-center gap-2 mb-4">
                   <Clock className="w-5 h-5 text-primary" />
-                  <h2 className="text-lg font-bold">Recently Viewed ({lastSeen.length})</h2>
+                  <h2 className="text-lg font-bold">Recent ({lastSeen.length})</h2>
                 </div>
                 {lastSeen.length === 0 ? (
                   <div className="text-center py-12 text-muted-foreground">
@@ -449,7 +452,15 @@ export function HyperPlotAI() {
                             }`}
                           >
                             <div className="flex items-center justify-between mb-1">
-                              <span className="font-bold text-base text-foreground">{entry.plotId}</span>
+                              <div className="flex items-center gap-1.5">
+                                <span className="font-bold text-base text-foreground">{entry.plotId}</span>
+                                {isPlotListed(entry.plotId) && (
+                                  <Badge className="bg-success/20 text-success border-success/30 text-[10px] px-1.5 py-0">Listing</Badge>
+                                )}
+                                {isNewListing(entry.plotId) && (
+                                  <Badge className="bg-primary/20 text-primary border-primary/30 text-[10px] px-1.5 py-0">New</Badge>
+                                )}
+                              </div>
                               <span className="text-xs text-muted-foreground">
                                 {new Date(entry.timestamp).toLocaleDateString()}
                               </span>
@@ -460,6 +471,19 @@ export function HyperPlotAI() {
                               <span className="text-muted-foreground">GFA: <span className="text-foreground font-medium">{entry.gfa.toLocaleString()} m²</span></span>
                               <span className={`font-medium ${entry.status === 'Available' ? 'text-success' : entry.status === 'Frozen' ? 'text-destructive' : 'text-warning'}`}>{entry.status}</span>
                             </div>
+                            {!isPlotListed(entry.plotId) && (
+                              <button
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  markPlotListed(entry.plotId);
+                                  toast({ title: 'Added to Listing', description: `Plot ${entry.plotId} added to listings.` });
+                                }}
+                                className="mt-2 w-full flex items-center justify-center gap-1.5 py-1.5 rounded-lg border border-dashed border-border/60 text-xs text-muted-foreground hover:text-primary hover:border-primary/50 hover:bg-primary/5 transition-colors"
+                              >
+                                <Plus className="w-3 h-3" />
+                                Quick Add to Listing
+                              </button>
+                            )}
                           </button>
                         );
                       })}
@@ -542,7 +566,7 @@ export function HyperPlotAI() {
                   <div className="mb-3">
                     <div className="flex items-center gap-1.5 mb-2">
                       <Clock className="w-3.5 h-3.5 text-muted-foreground" />
-                      <span className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">Last Seen</span>
+                      <span className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">Recent</span>
                     </div>
                     {lastSeen.slice(0, 5).map(entry => {
                       const matchedPlot = plots.find(p => p.id === entry.plotId);
