@@ -14,6 +14,7 @@ interface PlotDetailPanelProps {
   onGoToLocation?: (plot: PlotData) => void;
   sharedFeasibilityParams?: FeasibilityParams;
   onFeasibilityParamsChange?: (params: FeasibilityParams) => void;
+  refreshKey?: number;
 }
 
 function getStatusBadge(status: string) {
@@ -228,10 +229,12 @@ function AffectionPlanSection({ plotId }: { plotId: string }) {
   );
 }
 
-export function PlotDetailPanel({ plot, onClose, onSelectPlot, onGoToLocation, sharedFeasibilityParams, onFeasibilityParamsChange }: PlotDetailPanelProps) {
+export function PlotDetailPanel({ plot, onClose, onSelectPlot, onGoToLocation, sharedFeasibilityParams, onFeasibilityParamsChange, refreshKey }: PlotDetailPanelProps) {
   const listed = isPlotListed(plot.id);
   const exported = getExportedPlotIds().has(plot.id);
   const isManual = plot.verificationSource === 'Manual';
+  // refreshKey is used to force re-evaluation of isPlotListed when listings change
+  void refreshKey;
 
   return (
     <div className="fixed right-4 top-4 bottom-4 w-96 z-[1001] animate-in slide-in-from-right duration-300">
