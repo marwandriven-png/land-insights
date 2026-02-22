@@ -68,11 +68,13 @@ export function QuickAddLandModal({ open, onClose, onLandAdded }: QuickAddLandMo
       }
 
       // 2. Cross-check Google Sheet (optional)
-      const sheetUrl = localStorage.getItem('hyperplot_sheet_url') || '';
+      // Try both storage keys: wizard uses hp_sheetId, settings uses hyperplot_sheet_url
+      const sheetUrl = localStorage.getItem('hp_sheetId') || localStorage.getItem('hyperplot_sheet_url') || '';
+      const sheetName = localStorage.getItem('hp_sheetName') || '';
       if (sheetUrl) {
         try {
           const response = await fetch(
-            `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/google-sheets-proxy?action=lookup`,
+            `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/sheets-proxy?action=lookup`,
             {
               method: 'POST',
               headers: {
@@ -81,6 +83,7 @@ export function QuickAddLandModal({ open, onClose, onLandAdded }: QuickAddLandMo
               },
               body: JSON.stringify({
                 spreadsheetId: sheetUrl,
+                sheetName: sheetName || undefined,
                 plotNumbers: [plotNumber.trim()],
               }),
             }
