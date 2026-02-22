@@ -7,10 +7,29 @@ const corsHeaders = {
 
 // Parse service account JSON and create a JWT for Google API auth
 async function getAccessToken(): Promise<string> {
-  const saJson = Deno.env.get('GOOGLE_SERVICE_ACCOUNT_JSON');
+  let saJson = Deno.env.get('GOOGLE_SERVICE_ACCOUNT_JSON');
   if (!saJson) throw new Error('GOOGLE_SERVICE_ACCOUNT_JSON is not configured');
 
-  const sa = JSON.parse(saJson);
+  // Clean up common issues: BOM, leading/trailing whitespace, smart quotes
+  saJson = saJson.trim().replace(/^\uFEFF/, '');
+  // If the value doesn't start with '{', try to find the first '{' 
+  const braceIdx = saJson.indexOf('{');
+  if (braceIdx > 0) {
+    console.log(`Trimming ${braceIdx} leading chars from service account JSON`);
+    saJson = saJson.substring(braceIdx);
+  }
+  if (braceIdx === -1) {
+    throw new Error('GOOGLE_SERVICE_ACCOUNT_JSON does not contain valid JSON (no { found). Please re-enter the secret.');
+  }
+
+  let sa;
+  try {
+    sa = JSON.parse(saJson);
+  } catch (parseErr) {
+    console.error('Failed to parse GOOGLE_SERVICE_ACCOUNT_JSON:', (parseErr as Error).message);
+    console.error('First 100 chars:', saJson.substring(0, 100));
+    throw new Error(`Invalid GOOGLE_SERVICE_ACCOUNT_JSON: ${(parseErr as Error).message}. Please re-enter the secret value.`);
+  }
   const now = Math.floor(Date.now() / 1000);
   const header = { alg: 'RS256', typ: 'JWT' };
   const payload = {
