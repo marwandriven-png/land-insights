@@ -297,8 +297,7 @@ export function DecisionConfidence({ plot, comparisonPlots = [], isFullscreen, o
     );
   }
 
-
-
+  return (
     <div className="h-full flex flex-col overflow-hidden glass-card glow-border">
       {/* ─── COMPARISON PLOT TABS ─── */}
       {comparisonMode && (
