@@ -136,7 +136,8 @@ class DDAGISService {
       const data = await response.json();
 
       if (data.error) {
-        throw new Error(data.error);
+        const errMsg = typeof data.error === 'string' ? data.error : (data.error.message || JSON.stringify(data.error));
+        throw new Error(errMsg);
       }
 
       if (!data.features || !Array.isArray(data.features)) {
