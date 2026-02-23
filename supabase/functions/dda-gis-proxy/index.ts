@@ -54,26 +54,40 @@ serve(async (req) => {
     if (action === 'fetch') {
       const limit = url.searchParams.get('limit') || '100';
 
-      const params = new URLSearchParams({
-        where: '1=1',
-        outFields: STANDARD_OUT_FIELDS,
-        returnGeometry: 'true',
-        outSR: '3997',
-        f: 'json',
-        resultRecordCount: limit
-      });
+      // Try with specific fields first, fall back to wildcard
+      let data: Record<string, unknown> | null = null;
+      
+      for (const fields of [STANDARD_OUT_FIELDS, '*']) {
+        const params = new URLSearchParams({
+          where: '1=1',
+          outFields: fields,
+          returnGeometry: 'true',
+          outSR: '3997',
+          f: 'json',
+          resultRecordCount: limit
+        });
 
-      console.log(`Fetching plots with limit: ${limit}`);
+        console.log(`Fetching plots with limit: ${limit}, fields: ${fields === '*' ? 'wildcard' : 'standard'}`);
 
-      const response = await fetch(`${DDA_GIS_BASE_URL}/2/query?${params}`, {
-        method: 'GET',
-        headers: { 'Accept': 'application/json', 'User-Agent': 'HyperPlot-AI/1.0' }
-      });
+        const response = await fetch(`${DDA_GIS_BASE_URL}/2/query?${params}`, {
+          method: 'GET',
+          headers: { 'Accept': 'application/json', 'User-Agent': 'HyperPlot-AI/1.0' }
+        });
 
-      if (!response.ok) throw new Error(`GIS API returned ${response.status}`);
+        if (!response.ok) throw new Error(`GIS API returned ${response.status}`);
 
-      const data = await response.json();
-      console.log(`Fetched ${data.features?.length || 0} features`);
+        data = await response.json();
+        
+        // If ArcGIS returns an error in body, try fallback
+        if (data?.error) {
+          console.log(`Query failed with ${fields === '*' ? 'wildcard' : 'standard'} fields:`, JSON.stringify(data.error));
+          if (fields !== '*') continue;
+        } else {
+          break;
+        }
+      }
+
+      console.log(`Fetched ${(data as any)?.features?.length || 0} features`);
 
       return new Response(JSON.stringify(data), {
         headers: { ...corsHeaders, 'Content-Type': 'application/json' }
@@ -197,26 +211,39 @@ serve(async (req) => {
 
       const whereClause = conditions.length > 0 ? conditions.join(' AND ') : '1=1';
 
-      const params = new URLSearchParams({
-        where: whereClause,
-        outFields: STANDARD_OUT_FIELDS,
-        returnGeometry: 'true',
-        outSR: '3997',
-        f: 'json',
-        resultRecordCount: limit
-      });
+      // Try with specific fields first, fall back to wildcard
+      let data: Record<string, unknown> | null = null;
+      
+      for (const fields of [STANDARD_OUT_FIELDS, '*']) {
+        const params = new URLSearchParams({
+          where: whereClause,
+          outFields: fields,
+          returnGeometry: 'true',
+          outSR: '3997',
+          f: 'json',
+          resultRecordCount: limit
+        });
 
-      console.log(`Searching plots: ${whereClause}`);
+        console.log(`Searching plots: ${whereClause}, fields: ${fields === '*' ? 'wildcard' : 'standard'}`);
 
-      const response = await fetch(`${DDA_GIS_BASE_URL}/2/query?${params}`, {
-        method: 'GET',
-        headers: { 'Accept': 'application/json', 'User-Agent': 'HyperPlot-AI/1.0' }
-      });
+        const response = await fetch(`${DDA_GIS_BASE_URL}/2/query?${params}`, {
+          method: 'GET',
+          headers: { 'Accept': 'application/json', 'User-Agent': 'HyperPlot-AI/1.0' }
+        });
 
-      if (!response.ok) throw new Error(`GIS API returned ${response.status}`);
+        if (!response.ok) throw new Error(`GIS API returned ${response.status}`);
 
-      const data = await response.json();
-      console.log(`Search returned ${data.features?.length || 0} features`);
+        data = await response.json();
+        
+        if (data?.error) {
+          console.log(`Search query failed with ${fields === '*' ? 'wildcard' : 'standard'} fields:`, JSON.stringify(data.error));
+          if (fields !== '*') continue;
+        } else {
+          break;
+        }
+      }
+
+      console.log(`Search returned ${(data as any)?.features?.length || 0} features`);
 
       return new Response(JSON.stringify(data), {
         headers: { ...corsHeaders, 'Content-Type': 'application/json' }
