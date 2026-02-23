@@ -100,7 +100,7 @@ export const TXN_WEIGHTED_AVG_PSF = Math.round(
   (TXN_AVG_PSF.studio * TXN_COUNT.studio + TXN_AVG_PSF.br1 * TXN_COUNT.br1 + TXN_AVG_PSF.br2 * TXN_COUNT.br2 + TXN_AVG_PSF.br3 * TXN_COUNT.br3) / TXN_COUNT.total
 );
 
-export function calcDSCFeasibility(plot: DSCPlotInput, mixKey: MixKey, overrides: { gfa?: number; landCost?: number; landCostPsf?: number; efficiency?: number; buaMultiplier?: number; constructionPsf?: number; avgPsfOverride?: number; contingencyPct?: number; financePct?: number; mix?: Partial<{ studio: number; br1: number; br2: number; br3: number }> } = {}): DSCFeasibilityResult {
+export function calcDSCFeasibility(plot: DSCPlotInput, mixKey: MixKey, overrides: { gfa?: number; landCost?: number; landCostPsf?: number; efficiency?: number; buaMultiplier?: number; constructionPsf?: number; avgPsfOverride?: number; contingencyPct?: number; financePct?: number; mix?: Partial<{ studio: number; br1: number; br2: number; br3: number }>; unitPsf?: { studio?: number; br1?: number; br2?: number; br3?: number }; unitSizes?: { studio?: number; br1?: number; br2?: number; br3?: number }; unitRents?: { studio?: number; br1?: number; br2?: number; br3?: number } } = {}): DSCFeasibilityResult {
   const tmpl = MIX_TEMPLATES[mixKey];
   const mix = { ...tmpl.mix, ...overrides.mix };
   const gfa = overrides.gfa || (plot.area * plot.ratio);
@@ -111,12 +111,32 @@ export function calcDSCFeasibility(plot: DSCPlotInput, mixKey: MixKey, overrides
   const landCostPsf = overrides.landCostPsf || 148.23;
   const landCost = overrides.landCost || (gfa * landCostPsf);
 
+  // Use area-specific market data if provided, otherwise DSC defaults
+  const usedSizes = {
+    studio: overrides.unitSizes?.studio || UNIT_SIZES.studio,
+    br1: overrides.unitSizes?.br1 || UNIT_SIZES.br1,
+    br2: overrides.unitSizes?.br2 || UNIT_SIZES.br2,
+    br3: overrides.unitSizes?.br3 || UNIT_SIZES.br3,
+  };
+  const usedPsf = {
+    studio: overrides.unitPsf?.studio || TXN_AVG_PSF.studio,
+    br1: overrides.unitPsf?.br1 || TXN_AVG_PSF.br1,
+    br2: overrides.unitPsf?.br2 || TXN_AVG_PSF.br2,
+    br3: overrides.unitPsf?.br3 || TXN_AVG_PSF.br3,
+  };
+  const usedRents = {
+    studio: overrides.unitRents?.studio || RENT_PSF_YR.studio,
+    br1: overrides.unitRents?.br1 || RENT_PSF_YR.br1,
+    br2: overrides.unitRents?.br2 || RENT_PSF_YR.br2,
+    br3: overrides.unitRents?.br3 || RENT_PSF_YR.br3,
+  };
+
   // Unit count derived from sellable area (100% allocation)
   const avgUnitSize =
-    mix.studio * UNIT_SIZES.studio +
-    mix.br1 * UNIT_SIZES.br1 +
-    mix.br2 * UNIT_SIZES.br2 +
-    mix.br3 * UNIT_SIZES.br3;
+    mix.studio * usedSizes.studio +
+    mix.br1 * usedSizes.br1 +
+    mix.br2 * usedSizes.br2 +
+    mix.br3 * usedSizes.br3;
   const totalUnits = Math.round(sellableArea / avgUnitSize);
 
   const units = {
@@ -128,13 +148,12 @@ export function calcDSCFeasibility(plot: DSCPlotInput, mixKey: MixKey, overrides
   };
   units.total = units.studio + units.br1 + units.br2 + units.br3;
 
-  // Per-unit-type prices from real transaction data (809 txns)
-  // Price per unit = Unit Size × Transaction Avg PSF for that type
+  // Per-unit-type prices from market data (area-specific or DSC default)
   const prices = {
-    studio: UNIT_SIZES.studio * TXN_AVG_PSF.studio,  // 426 × 1,796
-    br1: UNIT_SIZES.br1 * TXN_AVG_PSF.br1,            // 771 × 1,531
-    br2: UNIT_SIZES.br2 * TXN_AVG_PSF.br2,            // 1,208 × 1,368
-    br3: UNIT_SIZES.br3 * TXN_AVG_PSF.br3,            // 1,680 × 1,449
+    studio: usedSizes.studio * usedPsf.studio,
+    br1: usedSizes.br1 * usedPsf.br1,
+    br2: usedSizes.br2 * usedPsf.br2,
+    br3: usedSizes.br3 * usedPsf.br3,
   };
 
   // GDV = Sum of (units per type × avg selling price per type)
@@ -171,10 +190,10 @@ export function calcDSCFeasibility(plot: DSCPlotInput, mixKey: MixKey, overrides
   const breakEvenPsf = totalCost / sellableArea;
 
   const annualRent =
-    units.studio * (UNIT_SIZES.studio * RENT_PSF_YR.studio) +
-    units.br1 * (UNIT_SIZES.br1 * RENT_PSF_YR.br1) +
-    units.br2 * (UNIT_SIZES.br2 * RENT_PSF_YR.br2) +
-    units.br3 * (UNIT_SIZES.br3 * RENT_PSF_YR.br3);
+    units.studio * (usedSizes.studio * usedRents.studio) +
+    units.br1 * (usedSizes.br1 * usedRents.br1) +
+    units.br2 * (usedSizes.br2 * usedRents.br2) +
+    units.br3 * (usedSizes.br3 * usedRents.br3);
   const grossYield = annualRent / grossSales;
 
   const floorPlate = plot.area * efficiency;

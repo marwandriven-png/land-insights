@@ -5,7 +5,7 @@ import { Checkbox } from '@/components/ui/checkbox';
 import { PlotData, AffectionPlanData, gisService } from '@/services/DDAGISService';
 import { FeasibilityParams, DEFAULT_FEASIBILITY_PARAMS } from './FeasibilityCalculator';
 import { calcDSCFeasibility, DSCPlotInput, DSCFeasibilityResult, MixKey, MIX_TEMPLATES, COMPS, UNIT_SIZES, RENT_PSF_YR, BENCHMARK_AVG_PSF, TXN_AVG_PSF, TXN_AVG_SIZE, TXN_AVG_PRICE, TXN_MEDIAN_PSF, TXN_COUNT, TXN_WEIGHTED_AVG_PSF, fmt, fmtM, fmtA, pct } from '@/lib/dscFeasibility';
-import { findReportForLocation } from '@/data/areaReports';
+import { findReportForLocation, AreaReport } from '@/data/areaReports';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Table, TableHeader, TableBody, TableRow, TableHead, TableCell, TableFooter } from '@/components/ui/table';
 import { Badge } from '@/components/ui/badge';
@@ -216,6 +216,60 @@ export function DecisionConfidence({ plot, comparisonPlots = [], isFullscreen, o
     return base;
   }, [activePlot, plan, overrides]);
 
+  // Check if plot has area report or uploaded research file
+  const areaReport = useMemo(() => {
+    const location = activePlot.location || activePlot.project || '';
+    const report = findReportForLocation(location);
+    if (report) return report;
+    try {
+      const stored = localStorage.getItem('hyperplot_area_research_files');
+      if (stored) {
+        const files = JSON.parse(stored) as Array<{ areaName: string }>;
+        const loc = location.toLowerCase();
+        const match = files.some(f => {
+          const area = f.areaName.toLowerCase();
+          return loc.includes(area) || area.includes(loc);
+        });
+        if (match) {
+          return { areaName: location, uploadedOnly: true } as AreaReport & { uploadedOnly?: boolean };
+        }
+      }
+    } catch {}
+    return null;
+  }, [activePlot]);
+
+  const hasAreaData = !!areaReport;
+
+  // Extract area-specific market data from area report for feasibility engine
+  const areaMarketOverrides = useMemo(() => {
+    if (!areaReport || !areaReport.unitMix || areaReport.unitMix.length === 0) return {};
+    const mix = areaReport.unitMix;
+    const typeMap: Record<string, 'studio' | 'br1' | 'br2' | 'br3'> = {};
+    for (const u of mix) {
+      const t = u.type.toLowerCase();
+      if (t.includes('studio')) typeMap[u.type] = 'studio';
+      else if (t.includes('1b') || t.includes('1 b')) typeMap[u.type] = 'br1';
+      else if (t.includes('2b') || t.includes('2 b')) typeMap[u.type] = 'br2';
+      else if (t.includes('3b') || t.includes('3 b') || t.includes('penthouse')) typeMap[u.type] = 'br3';
+    }
+    const grouped: Record<string, { totalPsf: number; totalSize: number; count: number }> = {};
+    for (const u of mix) {
+      const key = typeMap[u.type];
+      if (!key) continue;
+      if (!grouped[key]) grouped[key] = { totalPsf: 0, totalSize: 0, count: 0 };
+      grouped[key].totalPsf += u.marketPsf;
+      grouped[key].totalSize += u.sizeSf;
+      grouped[key].count += 1;
+    }
+    const unitPsf: Record<string, number> = {};
+    const unitSizes: Record<string, number> = {};
+    for (const [key, g] of Object.entries(grouped)) {
+      unitPsf[key] = Math.round(g.totalPsf / g.count);
+      unitSizes[key] = Math.round(g.totalSize / g.count);
+    }
+    return { unitPsf, unitSizes };
+  }, [areaReport]);
+
   const fs = useMemo(() => {
     const result = calcDSCFeasibility(dscInput, activeMix, {
       efficiency: effectiveOverrides.efficiency,
@@ -225,18 +279,19 @@ export function DecisionConfidence({ plot, comparisonPlots = [], isFullscreen, o
       avgPsfOverride: effectiveOverrides.avgPsfOverride,
       contingencyPct: includeContingency ? effectiveOverrides.contingencyPct : 0,
       financePct: includeFinance ? effectiveOverrides.financePct : 0,
+      ...areaMarketOverrides,
     });
     return result;
-  }, [dscInput, activeMix, effectiveOverrides, includeContingency, includeFinance]);
+  }, [dscInput, activeMix, effectiveOverrides, includeContingency, includeFinance, areaMarketOverrides]);
 
   // Compute feasibility for ALL comparison plots (for compare tab + notes)
   const allResults = useMemo(() => {
     return allPlots.map(p => {
       const input = toDSCInput(p, null);
-      const result = calcDSCFeasibility(input, activeMix);
+      const result = calcDSCFeasibility(input, activeMix, areaMarketOverrides);
       return { id: p.id, plot: p, input, result };
     });
-  }, [allPlots, activeMix]);
+  }, [allPlots, activeMix, areaMarketOverrides]);
 
   // Auto-generated comparison notes
   const compNotes = useMemo(() => generateComparisonNotes(allResults), [allResults]);
@@ -247,26 +302,6 @@ export function DecisionConfidence({ plot, comparisonPlots = [], isFullscreen, o
       setActiveTab('plotCompare');
     }
   }, [comparisonMode, allPlots.length]);
-
-  // Check if plot has area report or uploaded research file
-  const hasAreaData = useMemo(() => {
-    const location = activePlot.location || activePlot.project || '';
-    // Check hardcoded area reports
-    if (findReportForLocation(location)) return true;
-    // Check uploaded area research files from localStorage
-    try {
-      const stored = localStorage.getItem('hyperplot_area_research_files');
-      if (stored) {
-        const files = JSON.parse(stored) as Array<{ areaName: string }>;
-        const loc = location.toLowerCase();
-        return files.some(f => {
-          const area = f.areaName.toLowerCase();
-          return loc.includes(area) || area.includes(loc);
-        });
-      }
-    } catch {}
-    return false;
-  }, [activePlot]);
 
   if (loading) {
     return (
