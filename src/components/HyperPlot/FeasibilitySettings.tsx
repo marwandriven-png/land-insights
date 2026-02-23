@@ -1,5 +1,6 @@
 import { useState, useEffect, useRef } from 'react';
 import { Settings, Save, RotateCcw, FileText, Plus, Link2, Upload, X, File, CheckCircle2, Loader2 } from 'lucide-react';
+import mammoth from 'mammoth';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
@@ -50,23 +51,16 @@ function AreaResearchUpload() {
         toast.error(`Only Word files (.doc, .docx) are supported: ${f.name}`);
         continue;
       }
-      // Read file content as text for AI parsing
+      // Extract text from .docx using mammoth.js for proper parsing
       let textContent = '';
       try {
-        textContent = await f.text();
-      } catch {
-        // Binary Word files may not yield clean text, but we capture what we can
-        try {
-          const buf = await f.arrayBuffer();
-          const bytes = new Uint8Array(buf);
-          // Extract readable ASCII/UTF text from binary
-          const chars: string[] = [];
-          for (const b of bytes) {
-            if (b >= 32 && b < 127) chars.push(String.fromCharCode(b));
-            else if (chars.length && chars[chars.length - 1] !== ' ') chars.push(' ');
-          }
-          textContent = chars.join('').replace(/\s{3,}/g, '\n').trim();
-        } catch { textContent = ''; }
+        const arrayBuffer = await f.arrayBuffer();
+        const result = await mammoth.extractRawText({ arrayBuffer });
+        textContent = result.value || '';
+        console.log(`Mammoth extracted ${textContent.length} chars from ${f.name}`);
+      } catch (err) {
+        console.error('Mammoth extraction failed:', err);
+        textContent = '';
       }
       newFiles.push({
         id: `AF_${Date.now()}_${Math.random().toString(36).slice(2, 5)}`,
