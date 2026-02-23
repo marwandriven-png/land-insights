@@ -4,7 +4,7 @@ import { DCShareModal } from './DCShareModal';
 import { Checkbox } from '@/components/ui/checkbox';
 import { PlotData, AffectionPlanData, gisService } from '@/services/DDAGISService';
 import { FeasibilityParams, DEFAULT_FEASIBILITY_PARAMS } from './FeasibilityCalculator';
-import { calcDSCFeasibility, DSCPlotInput, DSCFeasibilityResult, MixKey, MIX_TEMPLATES, COMPS, UNIT_SIZES, RENT_PSF_YR, BENCHMARK_AVG_PSF, TXN_AVG_PSF, TXN_AVG_SIZE, TXN_AVG_PRICE, TXN_MEDIAN_PSF, TXN_COUNT, TXN_WEIGHTED_AVG_PSF, fmt, fmtM, fmtA, pct } from '@/lib/dscFeasibility';
+import { calcDSCFeasibility, DSCPlotInput, DSCFeasibilityResult, MixKey, MIX_TEMPLATES, UNIT_SIZES, RENT_PSF_YR, fmt, fmtM, fmtA, pct } from '@/lib/dscFeasibility';
 import { findReportForLocation, AreaReport } from '@/data/areaReports';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Table, TableHeader, TableBody, TableRow, TableHead, TableCell, TableFooter } from '@/components/ui/table';
@@ -255,9 +255,13 @@ export function DecisionConfidence({ plot, comparisonPlots = [], isFullscreen, o
   }, [areaReport]);
 
   // Dynamic area-specific comparables, transactions, and market benchmarks from AI data
+  // STRICT: Never fall back to hardcoded DSC data — use zeros/empty if AI didn't extract
+  const ZERO_UNIT = { studio: 0, br1: 0, br2: 0, br3: 0 };
+  const ZERO_COUNT = { studio: 0, br1: 0, br2: 0, br3: 0, total: 0 };
+
   const areaComps = useMemo(() => {
     const aiData = (areaReport as any)?.aiMarketData;
-    return aiData?.comparables || COMPS;
+    return aiData?.comparables || [];
   }, [areaReport]);
 
   const areaTxnData = useMemo(() => {
@@ -266,23 +270,23 @@ export function DecisionConfidence({ plot, comparisonPlots = [], isFullscreen, o
       if (val && typeof val === 'object') return { ...fallback, ...val };
       return fallback;
     };
-    if (!aiData) return { avgPsf: TXN_AVG_PSF, medianPsf: TXN_MEDIAN_PSF, avgSize: TXN_AVG_SIZE, avgPrice: TXN_AVG_PRICE, count: TXN_COUNT };
+    if (!aiData) return { avgPsf: ZERO_UNIT, medianPsf: ZERO_UNIT, avgSize: ZERO_UNIT, avgPrice: ZERO_UNIT, count: ZERO_COUNT };
     return {
-      avgPsf: safeObj(aiData.unitPsf, TXN_AVG_PSF),
-      medianPsf: safeObj(aiData.medianPsf, TXN_MEDIAN_PSF),
-      avgSize: safeObj(aiData.unitSizes, TXN_AVG_SIZE),
-      avgPrice: safeObj(aiData.avgPrices, TXN_AVG_PRICE),
-      count: safeObj(aiData.txnCount, TXN_COUNT),
+      avgPsf: safeObj(aiData.unitPsf, ZERO_UNIT),
+      medianPsf: safeObj(aiData.medianPsf, ZERO_UNIT),
+      avgSize: safeObj(aiData.unitSizes, ZERO_UNIT),
+      avgPrice: safeObj(aiData.avgPrices, ZERO_UNIT),
+      count: safeObj(aiData.txnCount, ZERO_COUNT),
     };
   }, [areaReport]);
 
   const areaMarketBench = useMemo(() => {
     const aiData = (areaReport as any)?.aiMarketData;
-    if (!aiData) return { floor: 1452, avg: 1565, ceiling: 1800 };
+    if (!aiData) return { floor: 0, avg: 0, ceiling: 0 };
     return {
-      floor: aiData.marketFloorPsf || 1452,
-      avg: aiData.marketAvgPsf || 1565,
-      ceiling: aiData.marketCeilingPsf || 1800,
+      floor: aiData.marketFloorPsf || 0,
+      avg: aiData.marketAvgPsf || 0,
+      ceiling: aiData.marketCeilingPsf || 0,
     };
   }, [areaReport]);
 
@@ -637,10 +641,10 @@ export function DecisionConfidence({ plot, comparisonPlots = [], isFullscreen, o
                     </TableHeader>
                     <TableBody>
                       {[
-                        { type: 'Studio', u: fs.units.studio, sz: (areaTxnData.avgSize as any).studio || UNIT_SIZES.studio, pr: fs.prices.studio, rent: (areaTxnData.avgPsf as any).studio ? ((areaMarketOverrides as any).unitRents?.studio || RENT_PSF_YR.studio) : RENT_PSF_YR.studio, txnPsf: (areaTxnData.avgPsf as any).studio || TXN_AVG_PSF.studio },
-                        { type: '1 Bedroom', u: fs.units.br1, sz: (areaTxnData.avgSize as any).br1 || UNIT_SIZES.br1, pr: fs.prices.br1, rent: (areaMarketOverrides as any).unitRents?.br1 || RENT_PSF_YR.br1, txnPsf: (areaTxnData.avgPsf as any).br1 || TXN_AVG_PSF.br1 },
-                        { type: '2 Bedroom', u: fs.units.br2, sz: (areaTxnData.avgSize as any).br2 || UNIT_SIZES.br2, pr: fs.prices.br2, rent: (areaMarketOverrides as any).unitRents?.br2 || RENT_PSF_YR.br2, txnPsf: (areaTxnData.avgPsf as any).br2 || TXN_AVG_PSF.br2 },
-                        { type: '3 Bedroom', u: fs.units.br3, sz: (areaTxnData.avgSize as any).br3 || UNIT_SIZES.br3, pr: fs.prices.br3, rent: (areaMarketOverrides as any).unitRents?.br3 || RENT_PSF_YR.br3, txnPsf: (areaTxnData.avgPsf as any).br3 || TXN_AVG_PSF.br3 },
+                        { type: 'Studio', u: fs.units.studio, sz: (areaTxnData.avgSize as any).studio || UNIT_SIZES.studio, pr: fs.prices.studio, rent: (areaMarketOverrides as any).unitRents?.studio || RENT_PSF_YR.studio, txnPsf: (areaTxnData.avgPsf as any).studio || 0 },
+                        { type: '1 Bedroom', u: fs.units.br1, sz: (areaTxnData.avgSize as any).br1 || UNIT_SIZES.br1, pr: fs.prices.br1, rent: (areaMarketOverrides as any).unitRents?.br1 || RENT_PSF_YR.br1, txnPsf: (areaTxnData.avgPsf as any).br1 || 0 },
+                        { type: '2 Bedroom', u: fs.units.br2, sz: (areaTxnData.avgSize as any).br2 || UNIT_SIZES.br2, pr: fs.prices.br2, rent: (areaMarketOverrides as any).unitRents?.br2 || RENT_PSF_YR.br2, txnPsf: (areaTxnData.avgPsf as any).br2 || 0 },
+                        { type: '3 Bedroom', u: fs.units.br3, sz: (areaTxnData.avgSize as any).br3 || UNIT_SIZES.br3, pr: fs.prices.br3, rent: (areaMarketOverrides as any).unitRents?.br3 || RENT_PSF_YR.br3, txnPsf: (areaTxnData.avgPsf as any).br3 || 0 },
                       ].map(r => (
                         <TableRow key={r.type}>
                           <TableCell className="text-sm font-medium py-2">{r.type}</TableCell>
