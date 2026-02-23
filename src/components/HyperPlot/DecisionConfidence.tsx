@@ -224,14 +224,14 @@ export function DecisionConfidence({ plot, comparisonPlots = [], isFullscreen, o
     try {
       const stored = localStorage.getItem('hyperplot_area_research_files');
       if (stored) {
-        const files = JSON.parse(stored) as Array<{ areaName: string }>;
+        const files = JSON.parse(stored) as Array<{ areaName: string; aiParsed?: boolean; marketData?: Record<string, unknown> }>;
         const loc = location.toLowerCase();
-        const match = files.some(f => {
+        const match = files.find(f => {
           const area = f.areaName.toLowerCase();
           return loc.includes(area) || area.includes(loc);
         });
         if (match) {
-          return { areaName: location, uploadedOnly: true } as AreaReport & { uploadedOnly?: boolean };
+          return { areaName: match.areaName, uploadedOnly: true, aiMarketData: match.aiParsed ? match.marketData : null } as AreaReport & { uploadedOnly?: boolean; aiMarketData?: Record<string, unknown> | null };
         }
       }
     } catch {}
@@ -240,8 +240,21 @@ export function DecisionConfidence({ plot, comparisonPlots = [], isFullscreen, o
 
   const hasAreaData = !!areaReport;
 
-  // Extract area-specific market data from area report for feasibility engine
+  // Extract area-specific market data from area report or AI-parsed uploaded file
   const areaMarketOverrides = useMemo(() => {
+    // First check AI-parsed data from uploaded files
+    const aiData = (areaReport as any)?.aiMarketData;
+    if (aiData) {
+      const result: Record<string, unknown> = {};
+      if (aiData.unitPsf) result.unitPsf = aiData.unitPsf;
+      if (aiData.unitSizes) result.unitSizes = aiData.unitSizes;
+      if (aiData.unitRents) result.unitRents = aiData.unitRents;
+      if (aiData.constructionPsf) result.constructionPsf = aiData.constructionPsf;
+      if (aiData.landCostPsf) result.landCostPsf = aiData.landCostPsf;
+      return result;
+    }
+
+    // Fallback to structured area report unitMix
     if (!areaReport || !areaReport.unitMix || areaReport.unitMix.length === 0) return {};
     const mix = areaReport.unitMix;
     const typeMap: Record<string, 'studio' | 'br1' | 'br2' | 'br3'> = {};
