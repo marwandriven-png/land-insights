@@ -30,10 +30,15 @@ function saveAreaFiles(files: AreaFile[]) {
 function AreaResearchUpload() {
   const [files, setFiles] = useState<AreaFile[]>(loadAreaFiles);
   const [dragOver, setDragOver] = useState(false);
+  const [areaNameInput, setAreaNameInput] = useState('');
   const inputRef = useRef<HTMLInputElement>(null);
 
   const handleFiles = (fileList: FileList | null) => {
     if (!fileList) return;
+    if (!areaNameInput.trim()) {
+      toast.error('Please enter an area name before uploading');
+      return;
+    }
     const newFiles: AreaFile[] = [];
     for (let i = 0; i < fileList.length; i++) {
       const f = fileList[i];
@@ -42,12 +47,11 @@ function AreaResearchUpload() {
         toast.error(`Only Word files (.doc, .docx) are supported: ${f.name}`);
         continue;
       }
-      const areaGuess = f.name.replace(/[-_]/g, ' ').replace(/\.pdf$/i, '').replace(/report|research|data|area/gi, '').trim();
       newFiles.push({
         id: `AF_${Date.now()}_${Math.random().toString(36).slice(2, 5)}`,
         name: f.name,
         size: f.size,
-        areaName: areaGuess || 'Unknown Area',
+        areaName: areaNameInput.trim(),
         uploadedAt: new Date().toISOString(),
       });
     }
@@ -55,6 +59,7 @@ function AreaResearchUpload() {
       const updated = [...files, ...newFiles];
       setFiles(updated);
       saveAreaFiles(updated);
+      setAreaNameInput('');
       toast.success(`${newFiles.length} file(s) added`);
     }
   };
@@ -89,6 +94,17 @@ function AreaResearchUpload() {
         </p>
       </div>
 
+      {/* Area name input */}
+      <div>
+        <label className="text-xs font-medium text-foreground mb-1.5 block">Area Name <span className="text-destructive">*</span></label>
+        <Input
+          value={areaNameInput}
+          onChange={e => setAreaNameInput(e.target.value)}
+          placeholder="e.g. Jumeirah Garden City, Al Satwa..."
+          className="text-sm"
+        />
+      </div>
+
       {/* Drop zone */}
       <div
         onDragOver={e => { e.preventDefault(); setDragOver(true); }}
@@ -96,11 +112,14 @@ function AreaResearchUpload() {
         onDrop={e => { e.preventDefault(); setDragOver(false); handleFiles(e.dataTransfer.files); }}
         onClick={() => inputRef.current?.click()}
         className={`border-2 border-dashed rounded-xl p-8 text-center cursor-pointer transition-colors ${
+          !areaNameInput.trim() ? 'border-border/30 bg-muted/10 opacity-60 cursor-not-allowed' :
           dragOver ? 'border-primary bg-primary/5' : 'border-border/50 hover:border-primary/50 hover:bg-muted/20'
         }`}
       >
         <Upload className="w-8 h-8 text-muted-foreground/40 mx-auto mb-2" />
-        <p className="text-sm text-muted-foreground font-medium">Drop Word files here or click to browse</p>
+        <p className="text-sm text-muted-foreground font-medium">
+          {areaNameInput.trim() ? 'Drop Word files here or click to browse' : 'Enter area name above first'}
+        </p>
         <p className="text-[10px] text-muted-foreground/60 mt-1">Supports .doc and .docx files only</p>
         <input
           ref={inputRef}
