@@ -216,22 +216,23 @@ export function DecisionConfidence({ plot, comparisonPlots = [], isFullscreen, o
     return base;
   }, [activePlot, plan, overrides]);
 
-  // Check if plot has area report or uploaded research file
+  // Check if plot has uploaded research file with AI-parsed market data
+  // STRICT: Only use AI-parsed uploaded files — never fall back to hardcoded DSC data
   const areaReport = useMemo(() => {
     const location = activePlot.location || activePlot.project || '';
-    const report = findReportForLocation(location);
-    if (report) return report;
     try {
       const stored = localStorage.getItem('hyperplot_area_research_files');
       if (stored) {
         const files = JSON.parse(stored) as Array<{ areaName: string; aiParsed?: boolean; marketData?: Record<string, unknown> }>;
         const loc = location.toLowerCase();
+        // Find uploaded file that matches this plot's location AND has been AI-parsed
         const match = files.find(f => {
+          if (!f.aiParsed || !f.marketData) return false;
           const area = f.areaName.toLowerCase();
           return loc.includes(area) || area.includes(loc);
         });
         if (match) {
-          return { areaName: match.areaName, uploadedOnly: true, aiMarketData: match.aiParsed ? match.marketData : null } as AreaReport & { uploadedOnly?: boolean; aiMarketData?: Record<string, unknown> | null };
+          return { areaName: match.areaName, uploadedOnly: true, aiMarketData: match.marketData } as AreaReport & { uploadedOnly?: boolean; aiMarketData?: Record<string, unknown> | null };
         }
       }
     } catch {}
@@ -240,47 +241,18 @@ export function DecisionConfidence({ plot, comparisonPlots = [], isFullscreen, o
 
   const hasAreaData = !!areaReport;
 
-  // Extract area-specific market data from area report or AI-parsed uploaded file
+  // Extract area-specific market data ONLY from AI-parsed uploaded files
+  // No fallback to hardcoded DSC data — uploaded research is the single source of truth
   const areaMarketOverrides = useMemo(() => {
-    // First check AI-parsed data from uploaded files
     const aiData = (areaReport as any)?.aiMarketData;
-    if (aiData) {
-      const result: Record<string, unknown> = {};
-      if (aiData.unitPsf) result.unitPsf = aiData.unitPsf;
-      if (aiData.unitSizes) result.unitSizes = aiData.unitSizes;
-      if (aiData.unitRents) result.unitRents = aiData.unitRents;
-      if (aiData.constructionPsf) result.constructionPsf = aiData.constructionPsf;
-      if (aiData.landCostPsf) result.landCostPsf = aiData.landCostPsf;
-      return result;
-    }
-
-    // Fallback to structured area report unitMix
-    if (!areaReport || !areaReport.unitMix || areaReport.unitMix.length === 0) return {};
-    const mix = areaReport.unitMix;
-    const typeMap: Record<string, 'studio' | 'br1' | 'br2' | 'br3'> = {};
-    for (const u of mix) {
-      const t = u.type.toLowerCase();
-      if (t.includes('studio')) typeMap[u.type] = 'studio';
-      else if (t.includes('1b') || t.includes('1 b')) typeMap[u.type] = 'br1';
-      else if (t.includes('2b') || t.includes('2 b')) typeMap[u.type] = 'br2';
-      else if (t.includes('3b') || t.includes('3 b') || t.includes('penthouse')) typeMap[u.type] = 'br3';
-    }
-    const grouped: Record<string, { totalPsf: number; totalSize: number; count: number }> = {};
-    for (const u of mix) {
-      const key = typeMap[u.type];
-      if (!key) continue;
-      if (!grouped[key]) grouped[key] = { totalPsf: 0, totalSize: 0, count: 0 };
-      grouped[key].totalPsf += u.marketPsf;
-      grouped[key].totalSize += u.sizeSf;
-      grouped[key].count += 1;
-    }
-    const unitPsf: Record<string, number> = {};
-    const unitSizes: Record<string, number> = {};
-    for (const [key, g] of Object.entries(grouped)) {
-      unitPsf[key] = Math.round(g.totalPsf / g.count);
-      unitSizes[key] = Math.round(g.totalSize / g.count);
-    }
-    return { unitPsf, unitSizes };
+    if (!aiData) return {};
+    const result: Record<string, unknown> = {};
+    if (aiData.unitPsf) result.unitPsf = aiData.unitPsf;
+    if (aiData.unitSizes) result.unitSizes = aiData.unitSizes;
+    if (aiData.unitRents) result.unitRents = aiData.unitRents;
+    if (aiData.constructionPsf) result.constructionPsf = aiData.constructionPsf;
+    if (aiData.landCostPsf) result.landCostPsf = aiData.landCostPsf;
+    return result;
   }, [areaReport]);
 
   const fs = useMemo(() => {
@@ -333,12 +305,12 @@ export function DecisionConfidence({ plot, comparisonPlots = [], isFullscreen, o
       <div className="h-full flex items-center justify-center glass-card glow-border">
         <div className="text-center max-w-sm">
           <Shield className="w-12 h-12 text-muted-foreground/30 mx-auto mb-3" />
-          <h3 className="text-lg font-bold mb-2">No Area Report Available</h3>
+          <h3 className="text-lg font-bold mb-2">No Area Research Uploaded</h3>
           <p className="text-sm text-muted-foreground">
-            Decision Confidence requires an <strong>area report or feasibility study</strong> to be attached for this location.
+            Decision Confidence requires an <strong>uploaded area research file (.doc/.docx)</strong> with AI-parsed market data for this location.
           </p>
           <p className="text-xs text-muted-foreground mt-2">
-            Upload an area research file in <strong>Settings → Area Research</strong> for "{activePlot.location || activePlot.id}".
+            Go to <strong>Settings → Area Research</strong>, enter the area name matching "<strong>{activePlot.location || activePlot.project || activePlot.id}</strong>", and upload the study file. The AI will extract PSF, sizes, and yields automatically.
           </p>
         </div>
       </div>
