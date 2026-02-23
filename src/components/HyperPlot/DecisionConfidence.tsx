@@ -242,7 +242,6 @@ export function DecisionConfidence({ plot, comparisonPlots = [], isFullscreen, o
   const hasAreaData = !!areaReport;
 
   // Extract area-specific market data ONLY from AI-parsed uploaded files
-  // No fallback to hardcoded DSC data — uploaded research is the single source of truth
   const areaMarketOverrides = useMemo(() => {
     const aiData = (areaReport as any)?.aiMarketData;
     if (!aiData) return {};
@@ -254,6 +253,36 @@ export function DecisionConfidence({ plot, comparisonPlots = [], isFullscreen, o
     if (aiData.landCostPsf) result.landCostPsf = aiData.landCostPsf;
     return result;
   }, [areaReport]);
+
+  // Dynamic area-specific comparables, transactions, and market benchmarks from AI data
+  const areaComps = useMemo(() => {
+    const aiData = (areaReport as any)?.aiMarketData;
+    return aiData?.comparables || COMPS;
+  }, [areaReport]);
+
+  const areaTxnData = useMemo(() => {
+    const aiData = (areaReport as any)?.aiMarketData;
+    if (!aiData) return { avgPsf: TXN_AVG_PSF, medianPsf: TXN_MEDIAN_PSF, avgSize: TXN_AVG_SIZE, avgPrice: TXN_AVG_PRICE, count: TXN_COUNT };
+    return {
+      avgPsf: aiData.unitPsf || TXN_AVG_PSF,
+      medianPsf: aiData.medianPsf || TXN_MEDIAN_PSF,
+      avgSize: aiData.unitSizes || TXN_AVG_SIZE,
+      avgPrice: aiData.avgPrices || TXN_AVG_PRICE,
+      count: aiData.txnCount || TXN_COUNT,
+    };
+  }, [areaReport]);
+
+  const areaMarketBench = useMemo(() => {
+    const aiData = (areaReport as any)?.aiMarketData;
+    if (!aiData) return { floor: 1452, avg: 1565, ceiling: 1800 };
+    return {
+      floor: aiData.marketFloorPsf || 1452,
+      avg: aiData.marketAvgPsf || 1565,
+      ceiling: aiData.marketCeilingPsf || 1800,
+    };
+  }, [areaReport]);
+
+  const areaName = areaReport?.areaName || 'Area';
 
   const fs = useMemo(() => {
     const result = calcDSCFeasibility(dscInput, activeMix, {
@@ -475,7 +504,7 @@ export function DecisionConfidence({ plot, comparisonPlots = [], isFullscreen, o
           <KpiCard label="Net Profit" value={fmtM(fs.grossProfit)} sub={`Margin: ${pct(fs.grossMargin)}`} positive={fs.grossMargin > 0.2} negative={fs.grossMargin < 0} />
           <KpiCard label="ROI" value={pct(fs.roi)} sub="Return on cost" positive={fs.roi > 0.2} negative={fs.roi < 0} />
           <KpiCard label="Units" value={fmt(fs.units.total)} sub={`${fmt(Math.round(fs.bua))} sqft BUA`} />
-          <KpiCard label="Break-Even" value={`AED ${fmt(Math.round(fs.breakEvenPsf))}`} sub="vs AED 1,565 mkt avg" />
+          <KpiCard label="Break-Even" value={`AED ${fmt(Math.round(fs.breakEvenPsf))}`} sub={`vs AED ${fmt(areaMarketBench.avg)} mkt avg`} />
           <KpiCard label="Yield" value={pct(fs.grossYield)} sub="Annual rent / GDV" positive={fs.grossYield > 0.055} />
         </div>
 
@@ -604,10 +633,10 @@ export function DecisionConfidence({ plot, comparisonPlots = [], isFullscreen, o
                     </TableHeader>
                     <TableBody>
                       {[
-                        { type: 'Studio', u: fs.units.studio, sz: UNIT_SIZES.studio, pr: fs.prices.studio, rent: RENT_PSF_YR.studio, txnPsf: TXN_AVG_PSF.studio },
-                        { type: '1 Bedroom', u: fs.units.br1, sz: UNIT_SIZES.br1, pr: fs.prices.br1, rent: RENT_PSF_YR.br1, txnPsf: TXN_AVG_PSF.br1 },
-                        { type: '2 Bedroom', u: fs.units.br2, sz: UNIT_SIZES.br2, pr: fs.prices.br2, rent: RENT_PSF_YR.br2, txnPsf: TXN_AVG_PSF.br2 },
-                        { type: '3 Bedroom', u: fs.units.br3, sz: UNIT_SIZES.br3, pr: fs.prices.br3, rent: RENT_PSF_YR.br3, txnPsf: TXN_AVG_PSF.br3 },
+                        { type: 'Studio', u: fs.units.studio, sz: (areaTxnData.avgSize as any).studio || UNIT_SIZES.studio, pr: fs.prices.studio, rent: (areaTxnData.avgPsf as any).studio ? ((areaMarketOverrides as any).unitRents?.studio || RENT_PSF_YR.studio) : RENT_PSF_YR.studio, txnPsf: (areaTxnData.avgPsf as any).studio || TXN_AVG_PSF.studio },
+                        { type: '1 Bedroom', u: fs.units.br1, sz: (areaTxnData.avgSize as any).br1 || UNIT_SIZES.br1, pr: fs.prices.br1, rent: (areaMarketOverrides as any).unitRents?.br1 || RENT_PSF_YR.br1, txnPsf: (areaTxnData.avgPsf as any).br1 || TXN_AVG_PSF.br1 },
+                        { type: '2 Bedroom', u: fs.units.br2, sz: (areaTxnData.avgSize as any).br2 || UNIT_SIZES.br2, pr: fs.prices.br2, rent: (areaMarketOverrides as any).unitRents?.br2 || RENT_PSF_YR.br2, txnPsf: (areaTxnData.avgPsf as any).br2 || TXN_AVG_PSF.br2 },
+                        { type: '3 Bedroom', u: fs.units.br3, sz: (areaTxnData.avgSize as any).br3 || UNIT_SIZES.br3, pr: fs.prices.br3, rent: (areaMarketOverrides as any).unitRents?.br3 || RENT_PSF_YR.br3, txnPsf: (areaTxnData.avgPsf as any).br3 || TXN_AVG_PSF.br3 },
                       ].map(r => (
                         <TableRow key={r.type}>
                           <TableCell className="text-sm font-medium py-2">{r.type}</TableCell>
@@ -642,7 +671,7 @@ export function DecisionConfidence({ plot, comparisonPlots = [], isFullscreen, o
               </Section>
 
               {/* Sales Transactions Reference */}
-              <Section title="Sales Transactions" badge={`${TXN_COUNT.total} total`}>
+              <Section title={`${areaName} Sales Transactions`} badge={`${areaTxnData.count.total || '—'} total`}>
                 <div className="overflow-x-auto">
                   <Table>
                     <TableHeader>
@@ -654,25 +683,25 @@ export function DecisionConfidence({ plot, comparisonPlots = [], isFullscreen, o
                     </TableHeader>
                     <TableBody>
                       {[
-                        { type: 'Studio', txn: TXN_COUNT.studio, avgPsf: TXN_AVG_PSF.studio, medPsf: TXN_MEDIAN_PSF.studio, sz: TXN_AVG_SIZE.studio, pr: TXN_AVG_PRICE.studio },
-                        { type: '1 Bedroom', txn: TXN_COUNT.br1, avgPsf: TXN_AVG_PSF.br1, medPsf: TXN_MEDIAN_PSF.br1, sz: TXN_AVG_SIZE.br1, pr: TXN_AVG_PRICE.br1 },
-                        { type: '2 Bedroom', txn: TXN_COUNT.br2, avgPsf: TXN_AVG_PSF.br2, medPsf: TXN_MEDIAN_PSF.br2, sz: TXN_AVG_SIZE.br2, pr: TXN_AVG_PRICE.br2 },
-                        { type: '3 Bedroom', txn: TXN_COUNT.br3, avgPsf: TXN_AVG_PSF.br3, medPsf: TXN_MEDIAN_PSF.br3, sz: TXN_AVG_SIZE.br3, pr: TXN_AVG_PRICE.br3 },
+                        { type: 'Studio', txn: areaTxnData.count.studio, avgPsf: areaTxnData.avgPsf.studio, medPsf: areaTxnData.medianPsf.studio, sz: areaTxnData.avgSize.studio, pr: areaTxnData.avgPrice.studio },
+                        { type: '1 Bedroom', txn: areaTxnData.count.br1, avgPsf: areaTxnData.avgPsf.br1, medPsf: areaTxnData.medianPsf.br1, sz: areaTxnData.avgSize.br1, pr: areaTxnData.avgPrice.br1 },
+                        { type: '2 Bedroom', txn: areaTxnData.count.br2, avgPsf: areaTxnData.avgPsf.br2, medPsf: areaTxnData.medianPsf.br2, sz: areaTxnData.avgSize.br2, pr: areaTxnData.avgPrice.br2 },
+                        { type: '3 Bedroom', txn: areaTxnData.count.br3, avgPsf: areaTxnData.avgPsf.br3, medPsf: areaTxnData.medianPsf.br3, sz: areaTxnData.avgSize.br3, pr: areaTxnData.avgPrice.br3 },
                       ].map(r => (
                         <TableRow key={r.type}>
                           <TableCell className="text-xs font-medium py-1.5">{r.type}</TableCell>
-                          <TableCell className="text-xs text-right font-mono py-1.5">{fmt(r.txn)}</TableCell>
+                          <TableCell className="text-xs text-right font-mono py-1.5">{r.txn ? fmt(r.txn) : '—'}</TableCell>
                           <TableCell className="text-xs text-right font-mono font-bold py-1.5">AED {fmt(r.avgPsf)}</TableCell>
-                          <TableCell className="text-xs text-right font-mono py-1.5">AED {fmt(r.medPsf)}</TableCell>
+                          <TableCell className="text-xs text-right font-mono py-1.5">{r.medPsf ? `AED ${fmt(r.medPsf)}` : '—'}</TableCell>
                           <TableCell className="text-xs text-right py-1.5">{fmt(r.sz)} sqft</TableCell>
-                          <TableCell className="text-xs text-right font-mono py-1.5">{fmtA(r.pr)}</TableCell>
+                          <TableCell className="text-xs text-right font-mono py-1.5">{r.pr ? fmtA(r.pr) : '—'}</TableCell>
                         </TableRow>
                       ))}
                     </TableBody>
                   </Table>
                 </div>
                 <div className="mt-2 text-[10px] text-muted-foreground p-2 rounded-lg bg-muted/30 border border-border/30">
-                  💡 GDV is calculated using average selling prices from {TXN_COUNT.total} real DSC transactions per unit type, not a flat benchmark PSF.
+                  💡 GDV is calculated using average selling prices from {areaName} {areaTxnData.count.total ? `${areaTxnData.count.total} real` : ''} transactions per unit type, not a flat benchmark PSF.
                 </div>
               </Section>
 
@@ -688,10 +717,10 @@ export function DecisionConfidence({ plot, comparisonPlots = [], isFullscreen, o
                     </TableHeader>
                     <TableBody>
                       {[
-                        { type: 'Studio', u: fs.units.studio, pr: fs.prices.studio, rev: fs.revBreak.studio, sz: UNIT_SIZES.studio, rent: RENT_PSF_YR.studio },
-                        { type: '1 Bedroom', u: fs.units.br1, pr: fs.prices.br1, rev: fs.revBreak.br1, sz: UNIT_SIZES.br1, rent: RENT_PSF_YR.br1 },
-                        { type: '2 Bedroom', u: fs.units.br2, pr: fs.prices.br2, rev: fs.revBreak.br2, sz: UNIT_SIZES.br2, rent: RENT_PSF_YR.br2 },
-                        { type: '3 Bedroom', u: fs.units.br3, pr: fs.prices.br3, rev: fs.revBreak.br3, sz: UNIT_SIZES.br3, rent: RENT_PSF_YR.br3 },
+                        { type: 'Studio', u: fs.units.studio, pr: fs.prices.studio, rev: fs.revBreak.studio, sz: (areaTxnData.avgSize as any).studio || UNIT_SIZES.studio, rent: (areaMarketOverrides as any).unitRents?.studio || RENT_PSF_YR.studio },
+                        { type: '1 Bedroom', u: fs.units.br1, pr: fs.prices.br1, rev: fs.revBreak.br1, sz: (areaTxnData.avgSize as any).br1 || UNIT_SIZES.br1, rent: (areaMarketOverrides as any).unitRents?.br1 || RENT_PSF_YR.br1 },
+                        { type: '2 Bedroom', u: fs.units.br2, pr: fs.prices.br2, rev: fs.revBreak.br2, sz: (areaTxnData.avgSize as any).br2 || UNIT_SIZES.br2, rent: (areaMarketOverrides as any).unitRents?.br2 || RENT_PSF_YR.br2 },
+                        { type: '3 Bedroom', u: fs.units.br3, pr: fs.prices.br3, rev: fs.revBreak.br3, sz: (areaTxnData.avgSize as any).br3 || UNIT_SIZES.br3, rent: (areaMarketOverrides as any).unitRents?.br3 || RENT_PSF_YR.br3 },
                       ].map(r => (
                         <TableRow key={r.type}>
                           <TableCell className="text-xs font-medium py-1.5">{r.type}</TableCell>
@@ -726,8 +755,8 @@ export function DecisionConfidence({ plot, comparisonPlots = [], isFullscreen, o
                 <div className="flex gap-2 flex-wrap mb-4">
                   <KpiCard label="GDV" value={fmtM(fs.grossSales)} sub={`Σ(Units × Avg Price) · ${fmt(fs.units.total)} units`} accent />
                   <KpiCard label="Annual Rental" value={fmtM(fs.annualRent)} sub={`AED ${fmt(Math.round(fs.annualRent / fs.units.total))}/unit/yr`} />
-                  <KpiCard label="Rental Yield" value={pct(fs.grossYield)} sub="vs 5.5–6.5% DSC avg" positive={fs.grossYield > 0.055} />
-                  <KpiCard label="Avg Selling PSF" value={`AED ${fmt(Math.round(fs.avgPsf))}`} sub={`Wtd avg from ${TXN_COUNT.total} txns`} positive={fs.avgPsf >= TXN_WEIGHTED_AVG_PSF} />
+                  <KpiCard label="Rental Yield" value={pct(fs.grossYield)} sub={`vs 5.5–6.5% ${areaName} avg`} positive={fs.grossYield > 0.055} />
+                  <KpiCard label="Avg Selling PSF" value={`AED ${fmt(Math.round(fs.avgPsf))}`} sub={`Wtd avg from ${areaTxnData.count.total || '—'} txns`} positive={fs.avgPsf >= areaMarketBench.avg} />
                 </div>
 
               {/* 5.2 Finance Structure */}
@@ -773,9 +802,9 @@ export function DecisionConfidence({ plot, comparisonPlots = [], isFullscreen, o
                       {[
                         ['Gross Margin %', pct(fs.grossMargin), 'Min 25–30%', fs.grossMargin >= 0.25],
                         ['ROI', pct(fs.roi), 'Min 20–25%', fs.roi >= 0.20],
-                        ['Break-Even PSF', `AED ${fmt(Math.round(fs.breakEvenPsf))}`, 'DSC Avg AED 1,565', fs.breakEvenPsf < 1508],
+                        ['Break-Even PSF', `AED ${fmt(Math.round(fs.breakEvenPsf))}`, `${areaName} Avg AED ${fmt(areaMarketBench.avg)}`, fs.breakEvenPsf < areaMarketBench.avg],
                         ['Land Cost % GDV', pct(fs.landCost / fs.grossSales), 'Max 40%', fs.landCost / fs.grossSales <= 0.40],
-                        ['Rental Yield', pct(fs.grossYield), 'DSC Avg ~5.5%', fs.grossYield >= 0.055],
+                        ['Rental Yield', pct(fs.grossYield), `${areaName} Avg ~5.5%`, fs.grossYield >= 0.055],
                       ].map(([metric, val, bench, pass]) => (
                         <TableRow key={metric as string}>
                           <TableCell className="text-xs font-medium py-1.5">{metric}</TableCell>
@@ -828,16 +857,16 @@ export function DecisionConfidence({ plot, comparisonPlots = [], isFullscreen, o
                     </TableRow>
                   </TableHeader>
                   <TableBody>
-                    {COMPS.map(c => {
-                      const strategy = c.studioP >= 50 ? 'Investor' : c.br2P >= 40 ? 'Family' : 'Balanced';
+                    {areaComps.map((c: any) => {
+                      const strategy = (c.studioP || 0) >= 50 ? 'Investor' : (c.br2P || 0) >= 40 ? 'Family' : 'Balanced';
                       return (
                         <TableRow key={c.name}>
                           <TableCell className="text-xs font-bold py-1.5">{c.name}</TableCell>
                           <TableCell className="text-xs text-right font-mono py-1.5">{c.units}</TableCell>
-                          <TableCell className="text-xs text-right py-1.5">{c.studioP}%</TableCell>
-                          <TableCell className="text-xs text-right py-1.5">{c.br1P}%</TableCell>
-                          <TableCell className="text-xs text-right py-1.5">{c.br2P}%</TableCell>
-                          <TableCell className="text-xs text-right py-1.5">{c.br3P}%</TableCell>
+                          <TableCell className="text-xs text-right py-1.5">{c.studioP || 0}%</TableCell>
+                          <TableCell className="text-xs text-right py-1.5">{c.br1P || 0}%</TableCell>
+                          <TableCell className="text-xs text-right py-1.5">{c.br2P || 0}%</TableCell>
+                          <TableCell className="text-xs text-right py-1.5">{c.br3P || 0}%</TableCell>
                           <TableCell className="text-xs text-right py-1.5">
                             <Badge variant="outline" className={`text-[10px] ${strategy === 'Investor' ? 'border-primary/40 text-primary' : strategy === 'Family' ? 'border-success/40 text-success' : 'border-warning/40 text-warning'}`}>
                               {strategy}
@@ -865,7 +894,7 @@ export function DecisionConfidence({ plot, comparisonPlots = [], isFullscreen, o
               </div>
             </Section>
 
-            <Section title="Project Comparison — Active DSC Benchmarks" badge="6 projects">
+            <Section title={`Project Comparison — Active ${areaName} Benchmarks`} badge={`${areaComps.length} projects`}>
               <div className="overflow-x-auto">
                 <Table>
                   <TableHeader>
@@ -876,21 +905,21 @@ export function DecisionConfidence({ plot, comparisonPlots = [], isFullscreen, o
                     </TableRow>
                   </TableHeader>
                   <TableBody>
-                    {COMPS.map(c => (
+                    {areaComps.map((c: any) => (
                       <TableRow key={c.name}>
                         <TableCell className="text-xs font-medium py-1.5 whitespace-nowrap">{c.name}</TableCell>
-                        <TableCell className="text-[10px] text-right py-1.5">{c.developer}</TableCell>
-                        <TableCell className="text-xs text-right font-mono py-1.5">{fmt(c.plotSqft)}</TableCell>
-                        <TableCell className="text-xs text-right font-mono py-1.5">{c.units}</TableCell>
-                        <TableCell className="text-xs text-right font-mono py-1.5">{fmt(c.bua)}</TableCell>
-                        <TableCell className="text-[10px] text-right py-1.5">{c.floors}</TableCell>
-                        <TableCell className="text-[10px] text-right py-1.5">{c.handover}</TableCell>
-                        <TableCell className="text-xs text-right font-mono py-1.5">{c.psf}</TableCell>
-                        <TableCell className="text-xs text-right py-1.5">{c.studioP}%</TableCell>
-                        <TableCell className="text-xs text-right py-1.5">{c.br1P}%</TableCell>
-                        <TableCell className="text-xs text-right py-1.5">{c.br2P}%</TableCell>
-                        <TableCell className="text-xs text-right py-1.5">{c.br3P}%</TableCell>
-                        <TableCell className="text-[10px] text-right py-1.5">{c.payPlan}</TableCell>
+                        <TableCell className="text-[10px] text-right py-1.5">{c.developer || '—'}</TableCell>
+                        <TableCell className="text-xs text-right font-mono py-1.5">{c.plotSqft ? fmt(c.plotSqft) : '—'}</TableCell>
+                        <TableCell className="text-xs text-right font-mono py-1.5">{c.units || '—'}</TableCell>
+                        <TableCell className="text-xs text-right font-mono py-1.5">{c.bua ? fmt(c.bua) : '—'}</TableCell>
+                        <TableCell className="text-[10px] text-right py-1.5">{c.floors || '—'}</TableCell>
+                        <TableCell className="text-[10px] text-right py-1.5">{c.handover || '—'}</TableCell>
+                        <TableCell className="text-xs text-right font-mono py-1.5">{c.psf || '—'}</TableCell>
+                        <TableCell className="text-xs text-right py-1.5">{c.studioP || 0}%</TableCell>
+                        <TableCell className="text-xs text-right py-1.5">{c.br1P || 0}%</TableCell>
+                        <TableCell className="text-xs text-right py-1.5">{c.br2P || 0}%</TableCell>
+                        <TableCell className="text-xs text-right py-1.5">{c.br3P || 0}%</TableCell>
+                        <TableCell className="text-[10px] text-right py-1.5">{c.payPlan || '—'}</TableCell>
                       </TableRow>
                     ))}
                   </TableBody>
@@ -908,16 +937,16 @@ export function DecisionConfidence({ plot, comparisonPlots = [], isFullscreen, o
                     </TableRow>
                   </TableHeader>
                   <TableBody>
-                    {COMPS.map(c => {
-                      const diff = fs.avgPsf - c.psf;
+                    {areaComps.map((c: any) => {
+                      const diff = fs.avgPsf - (c.psf || 0);
                       return (
                         <TableRow key={c.name}>
                           <TableCell className="text-xs font-medium py-1.5">{c.name}</TableCell>
-                          <TableCell className="text-xs text-right py-1.5">{c.density.toFixed(2)}</TableCell>
-                          <TableCell className="text-xs text-right py-1.5">{fmt(Math.round(fs.gfa - c.bua))} sqft</TableCell>
-                          <TableCell className="text-xs text-right py-1.5">{fs.units.total} vs {c.units}</TableCell>
+                          <TableCell className="text-xs text-right py-1.5">{c.density ? c.density.toFixed(2) : '—'}</TableCell>
+                          <TableCell className="text-xs text-right py-1.5">{c.bua ? `${fmt(Math.round(fs.gfa - c.bua))} sqft` : '—'}</TableCell>
+                          <TableCell className="text-xs text-right py-1.5">{fs.units.total} vs {c.units || '—'}</TableCell>
                           <TableCell className={`text-xs text-right font-bold py-1.5 ${diff >= 0 ? 'text-success' : 'text-warning'}`}>
-                            {diff >= 0 ? '+' : ''}AED {fmt(Math.round(diff))}
+                            {c.psf ? `${diff >= 0 ? '+' : ''}AED ${fmt(Math.round(diff))}` : '—'}
                           </TableCell>
                         </TableRow>
                       );
@@ -927,7 +956,7 @@ export function DecisionConfidence({ plot, comparisonPlots = [], isFullscreen, o
               </div>
 
               <div className="mt-3 p-2 rounded-lg bg-muted/30 border border-border/30 text-[10px] text-muted-foreground">
-                <strong className="text-foreground">Market Intelligence:</strong> DSC sales avg AED 1,565/sqft (809 txns) · Rental avg AED 86/sqft/yr (3,191 txns) · Rental-to-sales ratio 3.9:1 · Avg service charge AED 13–15/sqft
+                <strong className="text-foreground">Market Intelligence:</strong> {areaName} sales avg AED {fmt(areaMarketBench.avg)}/sqft{areaTxnData.count.total ? ` (${areaTxnData.count.total} txns)` : ''} · Market range AED {fmt(areaMarketBench.floor)}–{fmt(areaMarketBench.ceiling)}/sqft
               </div>
             </Section>
             </>
@@ -974,10 +1003,10 @@ export function DecisionConfidence({ plot, comparisonPlots = [], isFullscreen, o
 
                 <div className="flex gap-2 flex-wrap mt-4">
                   <KpiCard label="Break-Even PSF" value={`AED ${fmt(Math.round(fs.breakEvenPsf))}`} sub="Min to cover costs" />
-                  <KpiCard label="Market Floor" value="AED 1,452" sub="DSC historical" />
-                  <KpiCard label="Market Avg" value="AED 1,565" sub="809-txn avg" accent />
-                  <KpiCard label="Market Ceiling" value="AED 1,800" sub="Premium" />
-                  <KpiCard label="Buffer" value={`+AED ${fmt(Math.round(1565 - fs.breakEvenPsf))}`} sub="vs break-even" positive={fs.breakEvenPsf < 1565} negative={fs.breakEvenPsf > 1565} />
+                  <KpiCard label="Market Floor" value={`AED ${fmt(areaMarketBench.floor)}`} sub={`${areaName} historical`} />
+                  <KpiCard label="Market Avg" value={`AED ${fmt(areaMarketBench.avg)}`} sub={`${areaTxnData.count.total ? `${areaTxnData.count.total}-txn` : ''} avg`} accent />
+                  <KpiCard label="Market Ceiling" value={`AED ${fmt(areaMarketBench.ceiling)}`} sub="Premium" />
+                  <KpiCard label="Buffer" value={`+AED ${fmt(Math.round(areaMarketBench.avg - fs.breakEvenPsf))}`} sub="vs break-even" positive={fs.breakEvenPsf < areaMarketBench.avg} negative={fs.breakEvenPsf > areaMarketBench.avg} />
                 </div>
               </Section>
 

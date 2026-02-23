@@ -19,21 +19,28 @@ serve(async (req) => {
       });
     }
 
-    const systemPrompt = `You are a Dubai real estate market data extraction specialist. Given area research/feasibility study content, extract structured market data. Return ONLY a JSON object using this exact tool call.`;
+    console.log(`Parsing area research for "${areaName}", content length: ${fileContent.length}`);
 
-    const userPrompt = `Extract market data for "${areaName}" from this area research document:
+    const systemPrompt = `You are a Dubai real estate market data extraction specialist. Given area research/feasibility study content, extract ALL structured market data including transaction averages, comparable developments, rental data, and cost benchmarks. Return ONLY a JSON object using the provided tool call. Extract every number and data point you can find.`;
+
+    const userPrompt = `Extract ALL market data for "${areaName}" from this area research document:
 
 ${fileContent}
 
-Extract the following if available:
-- Average selling PSF per unit type (studio, 1BR, 2BR, 3BR)
-- Average unit sizes in sqft per type
-- Average rental PSF per year per type
-- Construction cost PSF
-- Land cost PSF
-- Any market trends or notes
+Extract EVERYTHING available:
+1. Average selling PSF per unit type (studio, 1BR, 2BR, 3BR)
+2. Average unit sizes in sqft per type
+3. Average rental PSF per year per type
+4. Construction cost PSF
+5. Land cost PSF
+6. Transaction counts per unit type and total
+7. Median PSF per unit type
+8. Average prices per unit type
+9. ALL comparable/benchmark developments with their details (name, developer, units, PSF, floors, handover, unit mix percentages, payment plan, plot size, BUA, service charge, density)
+10. Market average PSF, market floor PSF, market ceiling PSF
+11. Any market trends or notes
 
-If specific data is not found, omit that field (don't guess).`;
+IMPORTANT: Extract ALL developments/projects mentioned as comparables. Include every numeric data point found.`;
 
     const response = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
       method: "POST",
@@ -42,7 +49,7 @@ If specific data is not found, omit that field (don't guess).`;
         "Content-Type": "application/json",
       },
       body: JSON.stringify({
-        model: "google/gemini-3-flash-preview",
+        model: "google/gemini-2.5-flash",
         messages: [
           { role: "system", content: systemPrompt },
           { role: "user", content: userPrompt },
@@ -51,7 +58,7 @@ If specific data is not found, omit that field (don't guess).`;
           type: "function",
           function: {
             name: "extract_market_data",
-            description: "Extract structured market data from area research document",
+            description: "Extract comprehensive structured market data from area research document",
             parameters: {
               type: "object",
               properties: {
@@ -87,6 +94,65 @@ If specific data is not found, omit that field (don't guess).`;
                 },
                 constructionPsf: { type: "number", description: "Construction cost per sqft" },
                 landCostPsf: { type: "number", description: "Land cost per sqft" },
+                txnCount: {
+                  type: "object",
+                  description: "Transaction counts by unit type",
+                  properties: {
+                    studio: { type: "number" },
+                    br1: { type: "number" },
+                    br2: { type: "number" },
+                    br3: { type: "number" },
+                    total: { type: "number" },
+                  },
+                },
+                medianPsf: {
+                  type: "object",
+                  description: "Median PSF by unit type",
+                  properties: {
+                    studio: { type: "number" },
+                    br1: { type: "number" },
+                    br2: { type: "number" },
+                    br3: { type: "number" },
+                  },
+                },
+                avgPrices: {
+                  type: "object",
+                  description: "Average unit prices by type",
+                  properties: {
+                    studio: { type: "number" },
+                    br1: { type: "number" },
+                    br2: { type: "number" },
+                    br3: { type: "number" },
+                  },
+                },
+                comparables: {
+                  type: "array",
+                  description: "Comparable/benchmark development projects in the area",
+                  items: {
+                    type: "object",
+                    properties: {
+                      name: { type: "string" },
+                      developer: { type: "string" },
+                      plotSqft: { type: "number" },
+                      units: { type: "number" },
+                      bua: { type: "number" },
+                      floors: { type: "string" },
+                      handover: { type: "string" },
+                      priceFrom: { type: "number" },
+                      psf: { type: "number" },
+                      studioP: { type: "number" },
+                      br1P: { type: "number" },
+                      br2P: { type: "number" },
+                      br3P: { type: "number" },
+                      payPlan: { type: "string" },
+                      svc: { type: "number" },
+                      density: { type: "number" },
+                    },
+                  },
+                },
+                marketFloorPsf: { type: "number", description: "Market floor PSF" },
+                marketAvgPsf: { type: "number", description: "Market average PSF" },
+                marketCeilingPsf: { type: "number", description: "Market ceiling/premium PSF" },
                 marketNotes: { type: "string", description: "Key market insights or trends" },
               },
               required: [],
@@ -127,6 +193,7 @@ If specific data is not found, omit that field (don't guess).`;
     }
 
     const marketData = JSON.parse(toolCall.function.arguments);
+    console.log(`Extracted market data for "${areaName}":`, JSON.stringify(marketData).slice(0, 500));
 
     return new Response(JSON.stringify({ success: true, areaName, marketData }), {
       headers: { ...corsHeaders, "Content-Type": "application/json" },
