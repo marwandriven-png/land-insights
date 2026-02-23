@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from 'react';
-import { Settings, Save, RotateCcw, FileText, Plus, Link2, Upload, X, File } from 'lucide-react';
+import { Settings, Save, RotateCcw, FileText, Plus, Link2, Upload, X, File, CheckCircle2, Loader2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
@@ -14,6 +14,9 @@ interface AreaFile {
   size: number;
   areaName: string;
   uploadedAt: string;
+  textContent?: string;
+  aiParsed?: boolean;
+  marketData?: Record<string, unknown>;
 }
 
 function loadAreaFiles(): AreaFile[] {
@@ -33,7 +36,7 @@ function AreaResearchUpload() {
   const [areaNameInput, setAreaNameInput] = useState('');
   const inputRef = useRef<HTMLInputElement>(null);
 
-  const handleFiles = (fileList: FileList | null) => {
+  const handleFiles = async (fileList: FileList | null) => {
     if (!fileList) return;
     if (!areaNameInput.trim()) {
       toast.error('Please enter an area name before uploading');
@@ -47,12 +50,31 @@ function AreaResearchUpload() {
         toast.error(`Only Word files (.doc, .docx) are supported: ${f.name}`);
         continue;
       }
+      // Read file content as text for AI parsing
+      let textContent = '';
+      try {
+        textContent = await f.text();
+      } catch {
+        // Binary Word files may not yield clean text, but we capture what we can
+        try {
+          const buf = await f.arrayBuffer();
+          const bytes = new Uint8Array(buf);
+          // Extract readable ASCII/UTF text from binary
+          const chars: string[] = [];
+          for (const b of bytes) {
+            if (b >= 32 && b < 127) chars.push(String.fromCharCode(b));
+            else if (chars.length && chars[chars.length - 1] !== ' ') chars.push(' ');
+          }
+          textContent = chars.join('').replace(/\s{3,}/g, '\n').trim();
+        } catch { textContent = ''; }
+      }
       newFiles.push({
         id: `AF_${Date.now()}_${Math.random().toString(36).slice(2, 5)}`,
         name: f.name,
         size: f.size,
         areaName: areaNameInput.trim(),
         uploadedAt: new Date().toISOString(),
+        textContent: textContent.slice(0, 50000), // Cap at 50k chars
       });
     }
     if (newFiles.length) {
@@ -60,7 +82,45 @@ function AreaResearchUpload() {
       setFiles(updated);
       saveAreaFiles(updated);
       setAreaNameInput('');
-      toast.success(`${newFiles.length} file(s) added`);
+      toast.success(`${newFiles.length} file(s) added — sending to AI for analysis...`);
+      // Trigger AI parsing for each new file
+      for (const nf of newFiles) {
+        parseWithAI(nf, updated);
+      }
+    }
+  };
+
+  const parseWithAI = async (file: AreaFile, currentFiles: AreaFile[]) => {
+    if (!file.textContent) {
+      toast.error(`No readable content in ${file.name}`);
+      return;
+    }
+    try {
+      const resp = await fetch(`${import.meta.env.VITE_SUPABASE_URL}/functions/v1/parse-area-research`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY}`,
+        },
+        body: JSON.stringify({ fileContent: file.textContent, areaName: file.areaName }),
+      });
+      if (!resp.ok) {
+        const err = await resp.json().catch(() => ({ error: 'AI parsing failed' }));
+        toast.error(err.error || 'AI parsing failed');
+        return;
+      }
+      const data = await resp.json();
+      if (data.success && data.marketData) {
+        const updated = currentFiles.map(f =>
+          f.id === file.id ? { ...f, aiParsed: true, marketData: data.marketData } : f
+        );
+        setFiles(updated);
+        saveAreaFiles(updated);
+        toast.success(`AI extracted market data for ${file.areaName}`);
+      }
+    } catch (e) {
+      console.error('AI parse error:', e);
+      toast.error(`Failed to parse ${file.name} with AI`);
     }
   };
 
@@ -141,7 +201,18 @@ function AreaResearchUpload() {
             <div key={f.id} className="flex items-center gap-3 p-3 rounded-lg bg-muted/30 border border-border/50 group">
               <File className="w-5 h-5 text-primary flex-shrink-0" />
               <div className="flex-1 min-w-0">
-                <p className="text-xs font-medium text-foreground truncate">{f.name}</p>
+                <div className="flex items-center gap-2">
+                  <p className="text-xs font-medium text-foreground truncate">{f.name}</p>
+                  {f.aiParsed ? (
+                    <span className="flex items-center gap-1 text-[10px] text-success font-medium">
+                      <CheckCircle2 className="w-3 h-3" /> AI Parsed
+                    </span>
+                  ) : f.textContent ? (
+                    <span className="flex items-center gap-1 text-[10px] text-muted-foreground font-medium">
+                      <Loader2 className="w-3 h-3 animate-spin" /> Parsing...
+                    </span>
+                  ) : null}
+                </div>
                 <div className="flex items-center gap-2 mt-1">
                   <Input
                     value={f.areaName}

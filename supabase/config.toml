@@ -8,3 +8,6 @@ verify_jwt = false
 
 [functions.sheets-proxy]
 verify_jwt = false
+
+[functions.parse-area-research]
+verify_jwt = false
