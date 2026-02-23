@@ -217,8 +217,11 @@ export function calcDSCFeasibility(plot: DSCPlotInput, mixKey: MixKey, overrides
   };
 }
 
-// Formatting helpers
-export const fmt = (n: number, dec = 0) => n.toLocaleString("en-US", { minimumFractionDigits: dec, maximumFractionDigits: dec });
-export const fmtM = (n: number) => `AED ${(n / 1000000).toFixed(2)}M`;
-export const fmtA = (n: number) => `AED ${fmt(Math.round(n))}`;
-export const pct = (n: number) => `${(n * 100).toFixed(1)}%`;
+// Formatting helpers — safe against undefined/NaN
+export const fmt = (n: number, dec = 0) => {
+  if (n == null || isNaN(n)) return '0';
+  return n.toLocaleString("en-US", { minimumFractionDigits: dec, maximumFractionDigits: dec });
+};
+export const fmtM = (n: number) => `AED ${(n == null || isNaN(n) ? 0 : n / 1000000).toFixed(2)}M`;
+export const fmtA = (n: number) => `AED ${fmt(Math.round(n || 0))}`;
+export const pct = (n: number) => `${((n == null || isNaN(n) ? 0 : n) * 100).toFixed(1)}%`;

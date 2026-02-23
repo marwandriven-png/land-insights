@@ -262,13 +262,17 @@ export function DecisionConfidence({ plot, comparisonPlots = [], isFullscreen, o
 
   const areaTxnData = useMemo(() => {
     const aiData = (areaReport as any)?.aiMarketData;
+    const safeObj = (val: any, fallback: Record<string, number>) => {
+      if (val && typeof val === 'object') return { ...fallback, ...val };
+      return fallback;
+    };
     if (!aiData) return { avgPsf: TXN_AVG_PSF, medianPsf: TXN_MEDIAN_PSF, avgSize: TXN_AVG_SIZE, avgPrice: TXN_AVG_PRICE, count: TXN_COUNT };
     return {
-      avgPsf: aiData.unitPsf || TXN_AVG_PSF,
-      medianPsf: aiData.medianPsf || TXN_MEDIAN_PSF,
-      avgSize: aiData.unitSizes || TXN_AVG_SIZE,
-      avgPrice: aiData.avgPrices || TXN_AVG_PRICE,
-      count: aiData.txnCount || TXN_COUNT,
+      avgPsf: safeObj(aiData.unitPsf, TXN_AVG_PSF),
+      medianPsf: safeObj(aiData.medianPsf, TXN_MEDIAN_PSF),
+      avgSize: safeObj(aiData.unitSizes, TXN_AVG_SIZE),
+      avgPrice: safeObj(aiData.avgPrices, TXN_AVG_PRICE),
+      count: safeObj(aiData.txnCount, TXN_COUNT),
     };
   }, [areaReport]);
 
