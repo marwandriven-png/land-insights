@@ -23,7 +23,7 @@ export const DEFAULT_FEASIBILITY_PARAMS: FeasibilityParams = {
   buaMultiplier: 1.45,
   efficiency: 0.95,
   contingencyPct: 5,
-  financePct: 4,
+  financePct: 3,   // 3% of GDV per Bukadra model
 };
 
 interface FeasibilityCalculatorProps {
@@ -164,10 +164,11 @@ export function FeasibilityCalculator({ plot, sharedParams, onParamsChange }: Fe
         {[
           { label: `Construction (${params.constructionPsf} PSF)`, value: fs.constructionCost },
           { label: `Land (GFA × ${params.landCostPsf} PSF)`, value: fs.landCost },
-          { label: `Authority Fees (${params.authorityFeePct}%)`, value: fs.authorityFees },
-          { label: `Consultant Fees (${params.consultantFeePct}%)`, value: fs.consultantFees },
-          { label: `Contingency (${params.contingencyPct}%)`, value: fs.contingency },
-          { label: `Finance (${params.financePct}%)`, value: fs.financing },
+          { label: `Authority Fees (${params.authorityFeePct}% Land)`, value: fs.authorityFees },
+          { label: `Consultant Fees (${params.consultantFeePct}% Constr)`, value: fs.consultantFees },
+          { label: `Marketing (2% GDV)`, value: fs.marketing },
+          { label: `Contingency (${params.contingencyPct}% Constr)`, value: fs.contingency },
+          { label: `Finance (${params.financePct}% GDV)`, value: fs.financing },
         ].map(item => (
           <div key={item.label} className="flex justify-between text-sm">
             <span className="text-muted-foreground">{item.label}</span>
