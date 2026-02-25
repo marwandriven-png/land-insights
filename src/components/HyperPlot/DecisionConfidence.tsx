@@ -5,6 +5,7 @@ import { Checkbox } from '@/components/ui/checkbox';
 import { PlotData, AffectionPlanData, gisService } from '@/services/DDAGISService';
 import { FeasibilityParams, DEFAULT_FEASIBILITY_PARAMS } from './FeasibilityCalculator';
 import { calcDSCFeasibility, DSCPlotInput, DSCFeasibilityResult, MixKey, MIX_TEMPLATES, UNIT_SIZES, RENT_PSF_YR, fmt, fmtM, fmtA, pct } from '@/lib/dscFeasibility';
+import { matchCLFFArea, CLFF_AREAS, CLFF_MARKET_DATA, getCLFFOverrides, type CLFFAreaProfile, type CLFFMarketData } from '@/lib/clffAreaDefaults';
 import { findReportForLocation, AreaReport } from '@/data/areaReports';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Table, TableHeader, TableBody, TableRow, TableHead, TableCell, TableFooter } from '@/components/ui/table';
@@ -12,6 +13,8 @@ import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
+
+
 
 interface DecisionConfidenceProps {
   plot: PlotData;
@@ -216,8 +219,12 @@ export function DecisionConfidence({ plot, comparisonPlots = [], isFullscreen, o
     return base;
   }, [activePlot, plan, overrides]);
 
-  // Check if plot has uploaded research file with AI-parsed market data
-  // STRICT: Only use AI-parsed uploaded files — never fall back to hardcoded DSC data
+  // ─── Data Resolution: AI-parsed upload → CLFF area defaults → empty ───
+  const clffMatch = useMemo(() => {
+    const location = activePlot.location || activePlot.project || '';
+    return matchCLFFArea(location);
+  }, [activePlot]);
+
   const areaReport = useMemo(() => {
     const location = activePlot.location || activePlot.project || '';
     try {
@@ -225,7 +232,6 @@ export function DecisionConfidence({ plot, comparisonPlots = [], isFullscreen, o
       if (stored) {
         const files = JSON.parse(stored) as Array<{ areaName: string; aiParsed?: boolean; marketData?: Record<string, unknown> }>;
         const loc = location.toLowerCase();
-        // Find uploaded file that matches this plot's location AND has been AI-parsed
         const match = files.find(f => {
           if (!f.aiParsed || !f.marketData) return false;
           const area = f.areaName.toLowerCase();
@@ -239,23 +245,27 @@ export function DecisionConfidence({ plot, comparisonPlots = [], isFullscreen, o
     return null;
   }, [activePlot]);
 
-  const hasAreaData = !!areaReport;
+  // Has data if either AI-parsed upload OR CLFF area match exists
+  const hasAreaData = !!areaReport || !!clffMatch;
+  const dataSource = areaReport ? 'AI Upload' : clffMatch ? `CLFF v1 · ${clffMatch.area.name}` : null;
 
-  // Extract area-specific market data ONLY from AI-parsed uploaded files
+  // Extract area-specific market data: AI upload takes priority, then CLFF defaults
   const areaMarketOverrides = useMemo(() => {
     const aiData = (areaReport as any)?.aiMarketData;
-    if (!aiData) return {};
-    const result: Record<string, unknown> = {};
-    if (aiData.unitPsf) result.unitPsf = aiData.unitPsf;
-    if (aiData.unitSizes) result.unitSizes = aiData.unitSizes;
-    if (aiData.unitRents) result.unitRents = aiData.unitRents;
-    if (aiData.constructionPsf) result.constructionPsf = aiData.constructionPsf;
-    if (aiData.landCostPsf) result.landCostPsf = aiData.landCostPsf;
-    return result;
-  }, [areaReport]);
+    if (aiData) {
+      const result: Record<string, unknown> = {};
+      if (aiData.unitPsf) result.unitPsf = aiData.unitPsf;
+      if (aiData.unitSizes) result.unitSizes = aiData.unitSizes;
+      if (aiData.unitRents) result.unitRents = aiData.unitRents;
+      if (aiData.constructionPsf) result.constructionPsf = aiData.constructionPsf;
+      if (aiData.landCostPsf) result.landCostPsf = aiData.landCostPsf;
+      return result;
+    }
+    // Fall back to CLFF area defaults
+    if (clffMatch) return getCLFFOverrides(clffMatch.area.code);
+    return {};
+  }, [areaReport, clffMatch]);
 
-  // Dynamic area-specific comparables, transactions, and market benchmarks from AI data
-  // STRICT: Never fall back to hardcoded DSC data — use zeros/empty if AI didn't extract
   const ZERO_UNIT = { studio: 0, br1: 0, br2: 0, br3: 0 };
   const ZERO_COUNT = { studio: 0, br1: 0, br2: 0, br3: 0, total: 0 };
 
@@ -270,27 +280,51 @@ export function DecisionConfidence({ plot, comparisonPlots = [], isFullscreen, o
       if (val && typeof val === 'object') return { ...fallback, ...val };
       return fallback;
     };
-    if (!aiData) return { avgPsf: ZERO_UNIT, medianPsf: ZERO_UNIT, avgSize: ZERO_UNIT, avgPrice: ZERO_UNIT, count: ZERO_COUNT };
-    return {
-      avgPsf: safeObj(aiData.unitPsf, ZERO_UNIT),
-      medianPsf: safeObj(aiData.medianPsf, ZERO_UNIT),
-      avgSize: safeObj(aiData.unitSizes, ZERO_UNIT),
-      avgPrice: safeObj(aiData.avgPrices, ZERO_UNIT),
-      count: safeObj(aiData.txnCount, ZERO_COUNT),
-    };
-  }, [areaReport]);
+    if (aiData) {
+      return {
+        avgPsf: safeObj(aiData.unitPsf, ZERO_UNIT),
+        medianPsf: safeObj(aiData.medianPsf, ZERO_UNIT),
+        avgSize: safeObj(aiData.unitSizes, ZERO_UNIT),
+        avgPrice: safeObj(aiData.avgPrices, ZERO_UNIT),
+        count: safeObj(aiData.txnCount, ZERO_COUNT),
+      };
+    }
+    // CLFF fallback
+    if (clffMatch) {
+      const m = clffMatch.market;
+      return {
+        avgPsf: { studio: m.studioPsfAvg || 0, br1: m.oneBrPsfAvg || 0, br2: m.twoBrPsfAvg || 0, br3: m.threeBrPsfAvg || 0 },
+        medianPsf: ZERO_UNIT,
+        avgSize: ZERO_UNIT,
+        avgPrice: ZERO_UNIT,
+        count: { studio: 0, br1: 0, br2: 0, br3: 0, total: m.salesTransactions },
+      };
+    }
+    return { avgPsf: ZERO_UNIT, medianPsf: ZERO_UNIT, avgSize: ZERO_UNIT, avgPrice: ZERO_UNIT, count: ZERO_COUNT };
+  }, [areaReport, clffMatch]);
 
   const areaMarketBench = useMemo(() => {
     const aiData = (areaReport as any)?.aiMarketData;
-    if (!aiData) return { floor: 0, avg: 0, ceiling: 0 };
-    return {
-      floor: aiData.marketFloorPsf || 0,
-      avg: aiData.marketAvgPsf || 0,
-      ceiling: aiData.marketCeilingPsf || 0,
-    };
-  }, [areaReport]);
+    if (aiData) {
+      return {
+        floor: aiData.marketFloorPsf || 0,
+        avg: aiData.marketAvgPsf || 0,
+        ceiling: aiData.marketCeilingPsf || 0,
+      };
+    }
+    // CLFF fallback — derive from PSF values
+    if (clffMatch) {
+      const m = clffMatch.market;
+      const psfs = [m.studioPsfAvg, m.oneBrPsfAvg, m.twoBrPsfAvg, m.threeBrPsfAvg].filter(Boolean) as number[];
+      const avg = psfs.length > 0 ? Math.round(psfs.reduce((a, b) => a + b, 0) / psfs.length) : 0;
+      const floor = psfs.length > 0 ? Math.min(...psfs) : 0;
+      const ceiling = psfs.length > 0 ? Math.max(...psfs) : 0;
+      return { floor, avg, ceiling };
+    }
+    return { floor: 0, avg: 0, ceiling: 0 };
+  }, [areaReport, clffMatch]);
 
-  const areaName = areaReport?.areaName || 'Area';
+  const areaName = areaReport?.areaName || clffMatch?.area.name || 'Area';
 
   const fs = useMemo(() => {
     const result = calcDSCFeasibility(dscInput, activeMix, {
@@ -342,12 +376,12 @@ export function DecisionConfidence({ plot, comparisonPlots = [], isFullscreen, o
       <div className="h-full flex items-center justify-center glass-card glow-border">
         <div className="text-center max-w-sm">
           <Shield className="w-12 h-12 text-muted-foreground/30 mx-auto mb-3" />
-          <h3 className="text-lg font-bold mb-2">No Area Research Uploaded</h3>
+          <h3 className="text-lg font-bold mb-2">No Area Data Available</h3>
           <p className="text-sm text-muted-foreground">
-            Decision Confidence requires an <strong>uploaded area research file (.doc/.docx)</strong> with AI-parsed market data for this location.
+            This location is not in the <strong>CLFF v1 area registry</strong> (Majan, DLRC, Al Satwa, DSC, Meydan, DIC) and has no uploaded research file.
           </p>
           <p className="text-xs text-muted-foreground mt-2">
-            Go to <strong>Settings → Area Research</strong>, enter the area name matching "<strong>{activePlot.location || activePlot.project || activePlot.id}</strong>", and upload the study file. The AI will extract PSF, sizes, and yields automatically.
+            Go to <strong>Settings → Area Research</strong>, enter the area name matching "<strong>{activePlot.location || activePlot.project || activePlot.id}</strong>", and upload a study file (.doc/.docx). The AI will extract PSF, sizes, and yields automatically.
           </p>
         </div>
       </div>
@@ -427,6 +461,7 @@ export function DecisionConfidence({ plot, comparisonPlots = [], isFullscreen, o
             </h2>
             <p className="text-xs text-muted-foreground">
               Plot {activePlot.id} · {dscInput.zone} · {dscInput.height}
+              {dataSource && <Badge variant="outline" className="text-[10px] border-primary/30 text-primary ml-2">{dataSource}</Badge>}
             </p>
           </div>
           <div className="flex gap-2 items-center">
@@ -591,13 +626,13 @@ export function DecisionConfidence({ plot, comparisonPlots = [], isFullscreen, o
                     </TableHeader>
                     <TableBody>
                       {[
-                        { key: 'land', item: 'Land Cost', basis: 'GFA × Land PSF', rate: `AED ${fmt(Math.round(fs.landCost / fs.gfa))}/sqft`, amount: fs.landCost, toggle: null },
-                        { key: 'construction', item: 'Construction', basis: `BUA × AED ${overrides.constructionPsf || 420}/sqft`, rate: `AED ${overrides.constructionPsf || 420}/sqft BUA`, amount: fs.constructionCost, toggle: null },
-                        { key: 'authority', item: 'Authority Fees', basis: 'DLD + NOC + RERA', rate: '4% of land', amount: fs.authorityFees, toggle: null },
-                        { key: 'consultant', item: 'Consultant Fees', basis: 'Architecture, PM', rate: '3% of construction', amount: fs.consultantFees, toggle: null },
-                        { key: 'marketing', item: 'Marketing & Sales', basis: 'Broker + campaign', rate: '10% of GDV', amount: fs.marketing, toggle: null },
-                        { key: 'contingency', item: 'Contingency', basis: 'Risk buffer', rate: `${((overrides.contingencyPct ?? 0.05) * 100).toFixed(1)}% of construction`, amount: fs.contingency, toggle: { checked: includeContingency, onChange: setIncludeContingency } },
-                        { key: 'finance', item: 'Financing', basis: 'Construction carry', rate: `${((overrides.financePct ?? 0.04) * 100).toFixed(1)}% of construction`, amount: fs.financing, toggle: { checked: includeFinance, onChange: setIncludeFinance } },
+                        { key: 'land', item: 'Land Cost', basis: 'GFA × Land PSF (Bukadra)', rate: `AED ${fmt(Math.round(fs.landCost / fs.gfa))}/sqft`, amount: fs.landCost, toggle: null },
+                        { key: 'construction', item: 'Construction', basis: `BUA × Construction PSF`, rate: `AED ${overrides.constructionPsf || (clffMatch?.area.constructionPsf || 420)}/sqft BUA`, amount: fs.constructionCost, toggle: null },
+                        { key: 'authority', item: 'Authority / DLD Fees', basis: '4% × Land Cost', rate: '4% of land', amount: fs.authorityFees, toggle: null },
+                        { key: 'consultant', item: 'Consultant & Design', basis: '3% × Construction', rate: '3% of construction', amount: fs.consultantFees, toggle: null },
+                        { key: 'marketing', item: 'Sales & Marketing', basis: '2% × GDV (Bukadra)', rate: '2% of GDV', amount: fs.marketing, toggle: null },
+                        { key: 'contingency', item: 'Contingency Reserve', basis: '% × Construction', rate: `${((overrides.contingencyPct ?? 0.05) * 100).toFixed(1)}% of construction`, amount: fs.contingency, toggle: { checked: includeContingency, onChange: setIncludeContingency } },
+                        { key: 'finance', item: 'Finance / Interest', basis: '% × GDV (Bukadra)', rate: `${((overrides.financePct ?? 0.03) * 100).toFixed(1)}% of GDV`, amount: fs.financing, toggle: { checked: includeFinance, onChange: setIncludeFinance } },
                       ].map(r => (
                         <TableRow key={r.key} className={r.toggle && !r.toggle.checked ? 'opacity-40' : ''}>
                           <TableCell className="py-1.5 w-8">

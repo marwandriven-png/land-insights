@@ -175,13 +175,13 @@ export function calcDSCFeasibility(plot: DSCPlotInput, mixKey: MixKey, overrides
 
   const constructionPsf = overrides.constructionPsf || 420;
   const constructionCost = bua * constructionPsf;
-  const authorityFees = landCost * 0.04;
-  const consultantFees = constructionCost * 0.03;
-  const marketing = grossSales * 0.10;
+  const authorityFees = landCost * 0.04;          // 4% of Land Cost (CLFF)
+  const consultantFees = constructionCost * 0.03;  // 3% of Construction (CLFF)
+  const marketing = grossSales * 0.02;             // 2% of GDV (Bukadra model)
   const contingencyPct = overrides.contingencyPct ?? 0.05;
-  const financePct = overrides.financePct ?? 0.04;
-  const contingency = constructionCost * contingencyPct;
-  const financing = constructionCost * financePct;
+  const financePct = overrides.financePct ?? 0.03;
+  const contingency = constructionCost * contingencyPct; // 5% of Construction (CLFF)
+  const financing = grossSales * financePct;             // 3% of GDV (Bukadra model)
   const totalCost = landCost + constructionCost + authorityFees + consultantFees + marketing + contingency + financing;
 
   const grossProfit = grossSales - totalCost;
