@@ -1,0 +1,286 @@
+import { useEffect, useRef, useState, useCallback } from 'react';
+import L from 'leaflet';
+import 'leaflet/dist/leaflet.css';
+import proj4 from 'proj4';
+import { PlotData } from '@/services/DDAGISService';
+import { Loader2, Home } from 'lucide-react';
+import { CinematicPlotOverlay } from './CinematicPlotOverlay';
+import { MapMeasureTool } from './MapMeasureTool';
+
+proj4.defs('EPSG:3997', '+proj=tmerc +lat_0=0 +lon_0=55.33333333333334 +k=1 +x_0=500000 +y_0=0 +ellps=WGS84 +towgs84=0,0,0,0,0,0,0 +units=m +no_defs');
+
+interface LeafletMapProps {
+  plots: PlotData[];
+  selectedPlot: PlotData | null;
+  onPlotClick: (plot: PlotData) => void;
+  highlightedPlots: string[];
+  onMapReady?: (map: L.Map) => void;
+}
+
+const UAE_BOUNDS = L.latLngBounds([24.0000, 54.0000], [26.0000, 56.5000]);
+
+function convertToLatLng(x: number, y: number): [number, number] {
+  try {
+    const result = proj4('EPSG:3997', 'EPSG:4326', [x, y]);
+    return [result[1], result[0]];
+  } catch (e) {
+    console.error('Coordinate conversion error:', e);
+    return [25.0657, 55.1713];
+  }
+}
+
+const DDA_BLUE = '#2b5a9e';
+
+export function LeafletMap({ plots, selectedPlot, onPlotClick, highlightedPlots, onMapReady }: LeafletMapProps) {
+  const mapContainerRef = useRef<HTMLDivElement>(null);
+  const mapRef = useRef<L.Map | null>(null);
+  const plotLayersRef = useRef<Map<string, L.Layer>>(new Map());
+  const glowLayersRef = useRef<Map<string, L.Layer>>(new Map());
+  const [isLoading, setIsLoading] = useState(true);
+  const [mapInstance, setMapInstance] = useState<L.Map | null>(null);
+
+  useEffect(() => {
+    if (!mapContainerRef.current || mapRef.current) return;
+
+    const map = L.map(mapContainerRef.current, {
+      center: [25.075, 55.20],
+      zoom: 13,
+      minZoom: 8,
+      maxZoom: 19,
+      zoomControl: false,
+      attributionControl: false,
+      maxBounds: UAE_BOUNDS,
+      maxBoundsViscosity: 1.0,
+      bounceAtZoomLimits: true,
+      worldCopyJump: false
+    });
+
+    L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}', {
+      maxZoom: 19,
+      noWrap: true
+    }).addTo(map);
+
+    L.control.zoom({ position: 'topleft' }).addTo(map);
+
+    mapRef.current = map;
+    setMapInstance(map);
+    setIsLoading(false);
+
+    // Invalidate size after render to fix gray gap at bottom
+    setTimeout(() => map.invalidateSize(), 100);
+    setTimeout(() => map.invalidateSize(), 500);
+
+    if (onMapReady) onMapReady(map);
+
+    // ResizeObserver to handle container size changes
+    const ro = new ResizeObserver(() => map.invalidateSize());
+    ro.observe(mapContainerRef.current);
+
+    return () => {
+      ro.disconnect();
+      map.remove();
+      mapRef.current = null;
+    };
+  }, [onMapReady]);
+
+  useEffect(() => {
+    const map = mapRef.current;
+    if (!map || plots.length === 0) return;
+
+    plotLayersRef.current.forEach(layer => map.removeLayer(layer));
+    plotLayersRef.current.clear();
+    glowLayersRef.current.forEach(layer => map.removeLayer(layer));
+    glowLayersRef.current.clear();
+
+    function isSelectedOrHighlighted(id: string) {
+      return selectedPlot?.id === id || highlightedPlots.includes(id);
+    }
+
+    plots.forEach(plot => {
+      const rawAttrs = plot.rawAttributes;
+      let polygon: L.Polygon | L.CircleMarker;
+      let glowLayer: L.Polygon | L.CircleMarker | null = null;
+      const active = isSelectedOrHighlighted(plot.id);
+      const isSelected = selectedPlot?.id === plot.id;
+      const isManualLatLng = rawAttrs && (rawAttrs as Record<string, unknown>)._isManualLatLng === true;
+
+      if (rawAttrs && (rawAttrs as Record<string, unknown>).geometry) {
+        const geom = (rawAttrs as Record<string, unknown>).geometry as { rings?: number[][][]; x?: number; y?: number };
+        if (geom.rings && geom.rings.length > 0) {
+          let latLngs: L.LatLng[];
+
+          if (isManualLatLng) {
+            // Manual land: rings store [lng, lat] pairs — convert to L.LatLng
+            latLngs = geom.rings[0].map(coord => L.latLng(coord[1], coord[0]));
+          } else {
+            // DDA land: rings store EPSG:3997 coords
+            latLngs = geom.rings[0].map(coord => {
+              const [lat, lng] = convertToLatLng(coord[0], coord[1]);
+              return L.latLng(lat, lng);
+            });
+          }
+
+          if (active) {
+            glowLayer = L.polygon(latLngs, {
+              color: '#00e5ff',
+              weight: 8,
+              opacity: 0.4,
+              fillColor: 'transparent',
+              fillOpacity: 0,
+              interactive: false,
+              className: 'plot-glow-layer'
+            });
+          }
+
+          polygon = L.polygon(latLngs, {
+            color: isSelected ? '#ffffff' : active ? '#00e5ff' : DDA_BLUE,
+            weight: isSelected ? 2.5 : active ? 2 : 1,
+            opacity: 1,
+            fillColor: DDA_BLUE,
+            fillOpacity: active ? 0.65 : 0.35
+          });
+        } else {
+          // Fallback to point
+          let lat: number, lng: number;
+          if (isManualLatLng) {
+            lat = plot.y; lng = plot.x;
+          } else {
+            [lat, lng] = convertToLatLng(plot.x * 10 + 495000, plot.y * 10 + 2766000);
+          }
+          polygon = L.circleMarker([lat, lng], {
+            radius: 8,
+            color: isSelected ? '#ffffff' : active ? '#00e5ff' : DDA_BLUE,
+            weight: 2,
+            fillColor: DDA_BLUE,
+            fillOpacity: 0.6,
+            className: active ? 'plot-glow-circle' : ''
+          });
+        }
+      } else {
+        // No geometry — render as point
+        let lat: number, lng: number;
+        if (isManualLatLng) {
+          lat = plot.y; lng = plot.x;
+        } else {
+          [lat, lng] = convertToLatLng(plot.x * 10 + 495000, plot.y * 10 + 2766000);
+        }
+        polygon = L.circleMarker([lat, lng], {
+          radius: 8,
+          color: isSelected ? '#ffffff' : active ? '#00e5ff' : DDA_BLUE,
+          weight: 2,
+          fillColor: DDA_BLUE,
+          fillOpacity: 0.6,
+          className: active ? 'plot-glow-circle' : ''
+        });
+      }
+
+      polygon.bindTooltip(`
+        <div class="p-2 min-w-[180px]">
+          <div class="font-bold text-sm">${plot.id}</div>
+          <div class="text-xs text-gray-400">${plot.location || plot.project || 'Dubai'}</div>
+          <hr class="my-1 border-gray-600" />
+          <div class="grid grid-cols-2 gap-1 text-xs">
+            <span class="text-gray-400">Area:</span>
+            <span>${plot.area.toLocaleString()} m²</span>
+            <span class="text-gray-400">GFA:</span>
+            <span>${plot.gfa.toLocaleString()} m²</span>
+            <span class="text-gray-400">Status:</span>
+            <span>${plot.status}</span>
+          </div>
+        </div>
+      `, { permanent: false, className: 'plot-tooltip' });
+
+      polygon.on('click', () => onPlotClick(plot));
+
+      if (glowLayer) {
+        glowLayer.addTo(map);
+        glowLayersRef.current.set(plot.id, glowLayer);
+      }
+      polygon.addTo(map);
+      plotLayersRef.current.set(plot.id, polygon);
+    });
+    // Zoom is handled by CinematicPlotOverlay with smooth easeInOutQuad animation
+  }, [plots, selectedPlot, highlightedPlots, onPlotClick]);
+
+  const resetView = useCallback(() => {
+    if (mapRef.current) {
+      mapRef.current.setView([25.075, 55.20], 13);
+    }
+  }, []);
+
+  return (
+    <div className={`relative w-full h-full rounded-2xl overflow-hidden ${selectedPlot ? 'cinematic-desaturate' : ''}`}>
+      {isLoading && (
+        <div className="absolute inset-0 flex items-center justify-center bg-card/80 backdrop-blur z-50">
+          <Loader2 className="w-8 h-8 animate-spin text-primary" />
+        </div>
+      )}
+
+      <div ref={mapContainerRef} className="w-full h-full" style={{ minHeight: '400px' }} />
+
+      {/* Home Control */}
+      <div className="absolute top-20 left-2 z-[1000] flex flex-col gap-1">
+        <button onClick={resetView} className="dda-map-btn" title="Reset View">
+          <Home className="w-4 h-4" />
+        </button>
+      </div>
+
+      {/* Measurement Tool */}
+      <MapMeasureTool map={mapInstance} />
+
+      {/* Scale Bar */}
+      <div className="absolute bottom-3 left-3 z-[1000]">
+        <div className="flex items-end gap-1.5 text-[10px] font-mono text-white/80">
+          <div className="flex flex-col items-start">
+            <div className="h-[2px] bg-white/70" style={{ width: '60px' }} />
+          </div>
+          500 m
+        </div>
+      </div>
+
+      {/* Cinematic Plot Overlay */}
+      <CinematicPlotOverlay map={mapInstance} plot={selectedPlot} />
+
+      {/* Styles */}
+      <style>{`
+        .dda-map-btn {
+          width: 32px; height: 32px;
+          display: flex; align-items: center; justify-content: center;
+          background: hsl(222 47% 8% / 0.85);
+          border: 1px solid hsl(217 33% 25%);
+          border-radius: 6px;
+          color: hsl(210 40% 85%);
+          cursor: pointer; transition: all 0.15s;
+        }
+        .dda-map-btn:hover {
+          background: hsl(217 33% 17%);
+          color: hsl(187 94% 43%);
+          border-color: hsl(187 94% 43% / 0.4);
+        }
+        .leaflet-control-zoom { border: none !important; box-shadow: none !important; }
+        .leaflet-control-zoom a {
+          width: 32px !important; height: 32px !important; line-height: 32px !important;
+          background: hsl(222 47% 8% / 0.85) !important;
+          color: hsl(210 40% 85%) !important;
+          border: 1px solid hsl(217 33% 25%) !important;
+          border-radius: 6px !important; margin-bottom: 2px !important; font-size: 16px !important;
+        }
+        .leaflet-control-zoom a:hover {
+          background: hsl(217 33% 17%) !important;
+          color: hsl(187 94% 43%) !important;
+          border-color: hsl(187 94% 43% / 0.4) !important;
+        }
+        .plot-tooltip {
+          background: hsl(222 47% 8% / 0.95) !important;
+          border: 1px solid hsl(187 94% 43% / 0.3) !important;
+          border-radius: 0.75rem !important;
+          box-shadow: 0 4px 20px hsla(222, 47%, 5%, 0.5) !important;
+          color: hsl(210 40% 98%) !important; padding: 0 !important;
+        }
+        .plot-tooltip::before { border-top-color: hsl(187 94% 43% / 0.3) !important; }
+        .plot-glow-layer { filter: drop-shadow(0 0 6px rgba(0, 229, 255, 0.7)) drop-shadow(0 0 14px rgba(0, 229, 255, 0.35)); }
+        .plot-glow-circle { filter: drop-shadow(0 0 6px rgba(0, 229, 255, 0.7)) drop-shadow(0 0 12px rgba(0, 229, 255, 0.4)); }
+      `}</style>
+    </div>
+  );
+}

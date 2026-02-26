@@ -1,0 +1,285 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600&display=swap');
+
+@layer base {
+  :root {
+    --background: 222 47% 5%;
+    --foreground: 210 40% 98%;
+
+    --card: 222 47% 8%;
+    --card-foreground: 210 40% 98%;
+
+    --popover: 222 47% 8%;
+    --popover-foreground: 210 40% 98%;
+
+    --primary: 187 94% 43%;
+    --primary-foreground: 222 47% 5%;
+
+    --secondary: 270 70% 60%;
+    --secondary-foreground: 210 40% 98%;
+
+    --muted: 217 33% 17%;
+    --muted-foreground: 215 20% 65%;
+
+    --accent: 270 70% 60%;
+    --accent-foreground: 210 40% 98%;
+
+    --destructive: 0 84% 60%;
+    --destructive-foreground: 210 40% 98%;
+
+    --border: 217 33% 20%;
+    --input: 217 33% 17%;
+    --ring: 187 94% 43%;
+
+    --radius: 0.75rem;
+
+    /* Custom design tokens */
+    --cyan-glow: 187 94% 43%;
+    --purple-glow: 270 70% 60%;
+    --success: 158 64% 52%;
+    --warning: 38 92% 50%;
+    --info: 217 91% 60%;
+    
+    /* Gradients */
+    --gradient-primary: linear-gradient(135deg, hsl(187 94% 43%) 0%, hsl(270 70% 60%) 100%);
+    --gradient-success: linear-gradient(135deg, hsl(158 64% 52%) 0%, hsl(172 66% 50%) 100%);
+    --gradient-dark: linear-gradient(135deg, hsl(222 47% 8%) 0%, hsl(222 47% 5%) 100%);
+    
+    /* Shadows */
+    --shadow-glow-cyan: 0 0 30px hsla(187, 94%, 43%, 0.3);
+    --shadow-glow-purple: 0 0 30px hsla(270, 70%, 60%, 0.3);
+    --shadow-card: 0 4px 20px hsla(222, 47%, 5%, 0.5);
+  }
+
+  .dark {
+    --background: 222 47% 5%;
+    --foreground: 210 40% 98%;
+  }
+}
+
+@layer base {
+  * {
+    @apply border-border;
+  }
+
+  body {
+    @apply bg-background text-foreground antialiased;
+    font-family: 'Inter', sans-serif;
+  }
+
+  .font-mono {
+    font-family: 'JetBrains Mono', monospace;
+  }
+}
+
+@layer components {
+  .glass-card {
+    @apply bg-card/80 backdrop-blur-xl border border-border/50 rounded-2xl;
+    box-shadow: var(--shadow-card);
+  }
+
+  .glow-border {
+    @apply border border-primary/30;
+    box-shadow: inset 0 0 20px hsla(187, 94%, 43%, 0.05);
+  }
+
+  .gradient-text {
+    @apply bg-clip-text text-transparent;
+    background-image: var(--gradient-primary);
+  }
+
+  .btn-primary {
+    @apply bg-primary text-primary-foreground font-semibold rounded-xl px-4 py-2 transition-all duration-300;
+  }
+
+  .btn-primary:hover {
+    box-shadow: var(--shadow-glow-cyan);
+    transform: translateY(-1px);
+  }
+
+  .btn-secondary {
+    @apply bg-secondary text-secondary-foreground font-semibold rounded-xl px-4 py-2 transition-all duration-300;
+  }
+
+  .btn-secondary:hover {
+    box-shadow: var(--shadow-glow-purple);
+    transform: translateY(-1px);
+  }
+
+  .data-card {
+    @apply bg-muted/50 rounded-lg p-3 border border-border/30;
+  }
+
+  .stat-value {
+    @apply text-2xl font-bold text-foreground;
+  }
+
+  .stat-label {
+    @apply text-xs text-muted-foreground uppercase tracking-wide;
+  }
+}
+
+@layer utilities {
+  .animate-glow {
+    animation: glow 2s ease-in-out infinite alternate;
+  }
+
+  @keyframes glow {
+    from {
+      box-shadow: 0 0 10px hsla(187, 94%, 43%, 0.2);
+    }
+    to {
+      box-shadow: 0 0 20px hsla(187, 94%, 43%, 0.4);
+    }
+  }
+
+  .animate-pulse-slow {
+    animation: pulse 3s cubic-bezier(0.4, 0, 0.6, 1) infinite;
+  }
+
+  .scrollbar-thin::-webkit-scrollbar {
+    width: 6px;
+  }
+
+  .scrollbar-thin::-webkit-scrollbar-track {
+    @apply bg-muted/30 rounded-full;
+  }
+
+  .scrollbar-thin::-webkit-scrollbar-thumb {
+    @apply bg-primary/30 rounded-full;
+  }
+
+  .scrollbar-thin::-webkit-scrollbar-thumb:hover {
+    @apply bg-primary/50;
+  }
+}
+
+/* ============================================
+   Cinematic Plot Highlight Animation System
+   ============================================ */
+
+/* Boundary trace - SVG stroke animation */
+.cinematic-boundary-trace {
+  stroke-dasharray: 2000;
+  stroke-dashoffset: 2000;
+  animation: cinematic-trace 1.8s cubic-bezier(0.4, 0, 0.2, 1) forwards;
+  filter: drop-shadow(0 0 6px rgba(0, 229, 255, 0.8))
+          drop-shadow(0 0 14px rgba(0, 229, 255, 0.4))
+          drop-shadow(0 0 28px rgba(0, 229, 255, 0.2));
+}
+
+@keyframes cinematic-trace {
+  to { stroke-dashoffset: 0; }
+}
+
+/* Inner glow pulse after trace */
+.cinematic-inner-glow {
+  opacity: 0;
+  animation: cinematic-inner-pulse 1.8s cubic-bezier(0.4, 0, 0.2, 1) forwards;
+}
+
+@keyframes cinematic-inner-pulse {
+  0% { opacity: 0; }
+  60% { opacity: 0; }
+  100% { opacity: 1; }
+}
+
+/* Fill reveal after boundary completes */
+.cinematic-glow-fill {
+  transition: fill-opacity 0.8s ease-out;
+}
+.cinematic-fill-reveal {
+  fill-opacity: 0.12 !important;
+}
+
+/* Text overlay container */
+.cinematic-text-overlay {
+  position: absolute;
+  transform: translate(-50%, -50%);
+  z-index: 800;
+  pointer-events: none;
+  perspective: 600px;
+}
+
+.cinematic-text-content {
+  text-align: center;
+  animation: cinematic-text-reveal 0.9s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+  transform-origin: center bottom;
+  opacity: 0;
+  transform: scale(0.6) rotateX(30deg) translateY(10px);
+  text-shadow:
+    0 0 12px rgba(0, 229, 255, 0.9),
+    0 0 30px rgba(0, 229, 255, 0.5),
+    0 4px 8px rgba(0, 0, 0, 0.7);
+}
+
+@keyframes cinematic-text-reveal {
+  0% {
+    opacity: 0;
+    transform: scale(0.6) rotateX(30deg) translateY(10px);
+  }
+  100% {
+    opacity: 1;
+    transform: scale(1) rotateX(8deg) translateY(0);
+  }
+}
+
+.cinematic-plot-area {
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 22px;
+  font-weight: 800;
+  color: #ffffff;
+  letter-spacing: 2px;
+  line-height: 1.2;
+  text-shadow:
+    0 0 10px rgba(255, 255, 255, 0.9),
+    0 0 25px rgba(0, 229, 255, 0.6),
+    0 0 50px rgba(139, 92, 246, 0.4);
+}
+
+.cinematic-plot-dims {
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 12px;
+  font-weight: 500;
+  color: rgba(255, 255, 255, 0.7);
+  letter-spacing: 1px;
+  margin-top: 2px;
+}
+
+.cinematic-plot-id {
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 13px;
+  font-weight: 800;
+  color: #f5e642;
+  letter-spacing: 3px;
+  text-transform: uppercase;
+  margin-top: 6px;
+  text-shadow:
+    0 0 8px rgba(245, 230, 66, 0.9),
+    0 0 20px rgba(245, 230, 66, 0.5),
+    0 0 40px rgba(245, 230, 66, 0.25);
+}
+
+/* Desaturate surrounding map tiles when cinematic is active */
+
+/* Desaturate surrounding map tiles when cinematic is active */
+.cinematic-desaturate .leaflet-tile-pane {
+  filter: saturate(0.3) brightness(0.7);
+  transition: filter 1s ease-out;
+}
+
+/* Ground shadow beneath text */
+.cinematic-text-content::after {
+  content: '';
+  position: absolute;
+  bottom: -8px;
+  left: 50%;
+  transform: translateX(-50%);
+  width: 80%;
+  height: 6px;
+  background: radial-gradient(ellipse, rgba(0, 0, 0, 0.5) 0%, transparent 70%);
+  border-radius: 50%;
+}
