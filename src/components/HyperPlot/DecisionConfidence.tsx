@@ -5,7 +5,7 @@ import { Checkbox } from '@/components/ui/checkbox';
 import { PlotData, AffectionPlanData, gisService } from '@/services/DDAGISService';
 import { FeasibilityParams, DEFAULT_FEASIBILITY_PARAMS } from './FeasibilityCalculator';
 import { calcDSCFeasibility, DSCPlotInput, DSCFeasibilityResult, MixKey, MIX_TEMPLATES, UNIT_SIZES, RENT_PSF_YR, fmt, fmtM, fmtA, pct } from '@/lib/dscFeasibility';
-import { matchCLFFArea, findAnchorArea, CLFF_AREAS, CLFF_MARKET_DATA, getCLFFOverrides, type CLFFAreaProfile, type CLFFMarketData } from '@/lib/clffAreaDefaults';
+import { matchCLFFArea, findAnchorArea, normalizeAreaCode, CLFF_AREAS, CLFF_MARKET_DATA, getCLFFOverrides, type CLFFAreaProfile, type CLFFMarketData } from '@/lib/clffAreaDefaults';
 import { findReportForLocation, AreaReport } from '@/data/areaReports';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Table, TableHeader, TableBody, TableRow, TableHead, TableCell, TableFooter } from '@/components/ui/table';
@@ -222,10 +222,20 @@ export function DecisionConfidence({ plot, comparisonPlots = [], isFullscreen, o
   }, [activePlot, plan, overrides]);
 
   // ─── Data Resolution: AI-parsed upload → CLFF area defaults → Anchor Area → empty ───
+  // Priority: Affection Plan landName (raw DLD name) > plot location > keyword scan
   const clffMatch = useMemo(() => {
+    // 1. If we have an Affection Plan, try its landName first (DDA returns official DLD area names
+    //    like "SAIH SHUAIB 2" which normalizeAreaCode() maps to the correct CLFF code)
+    if (plan?.landName) {
+      const codeFromPlan = normalizeAreaCode(plan.landName);
+      if (codeFromPlan && CLFF_AREAS[codeFromPlan]) {
+        return { area: CLFF_AREAS[codeFromPlan], market: CLFF_MARKET_DATA[codeFromPlan] };
+      }
+    }
+    // 2. Fall back to plot location / project name
     const location = activePlot.location || activePlot.project || '';
     return matchCLFFArea(location);
-  }, [activePlot]);
+  }, [activePlot, plan]);
 
   // Anchor area fallback when no exact CLFF match
   const anchorMatch = useMemo(() => {
@@ -241,28 +251,35 @@ export function DecisionConfidence({ plot, comparisonPlots = [], isFullscreen, o
       if (stored) {
         const files = JSON.parse(stored) as Array<{ areaName: string; aiParsed?: boolean; marketData?: Record<string, unknown> }>;
         const loc = location.toLowerCase();
-        // Support multi-area consolidation: find ALL matching files
+        // Support strict area matching: find ONLY the file that matches this area exactly or uniquely
         const matchingFiles = files.filter(f => {
           if (!f.aiParsed || !f.marketData) return false;
-          const area = f.areaName.toLowerCase();
-          return loc.includes(area) || area.includes(loc);
+          const area = f.areaName.toLowerCase().trim();
+          const target = loc.toLowerCase().trim();
+          // Strict match or one is a subset of the other as a whole word
+          return area === target ||
+            target.split(/\s+/).includes(area) ||
+            area.split(/\s+/).includes(target);
         });
         if (matchingFiles.length > 0) {
-          // Consolidate: use first match as primary, merge data
-          const primary = matchingFiles[0];
-          return { areaName: primary.areaName, uploadedOnly: true, aiMarketData: primary.marketData } as AreaReport & { uploadedOnly?: boolean; aiMarketData?: Record<string, unknown> | null };
+          // Use the best match (shortest string usually indicates the canonical area name)
+          const bestMatch = matchingFiles.sort((a, b) => a.areaName.length - b.areaName.length)[0];
+          return { areaName: bestMatch.areaName, uploadedOnly: true, aiMarketData: bestMatch.marketData } as AreaReport & { uploadedOnly?: boolean; aiMarketData?: Record<string, unknown> | null };
         }
       }
     } catch { }
     return null;
   }, [activePlot]);
 
-  // Has data if either AI-parsed upload OR CLFF area match OR anchor area exists
-  const hasAreaData = !!areaReport || !!clffMatch || !!anchorMatch;
-  const dataSource = areaReport ? 'AI Upload' : clffMatch ? `CLFF v1 · ${clffMatch.area.name}` : anchorMatch ? `Anchor · ${anchorMatch.area.name} (${Math.round(anchorMatch.confidence * 100)}%)` : null;
+  // Has data if either AI-parsed upload OR CLFF area match
+  const hasAreaData = !!areaReport || !!clffMatch;
+  const dataSource = areaReport ? 'AI Upload' : clffMatch ? `CLFF v1 · ${clffMatch.area.name}` : null;
 
-  // Effective CLFF/anchor for fallback resolution
+  // Effective CLFF/anchor for fallback resolution (restored anchor fallback)
   const effectiveClff = clffMatch || anchorMatch;
+
+  const areaName = areaReport?.areaName || clffMatch?.area.name || anchorMatch?.area.name || 'Unknown Area';
+  const isStrictMatch = !!areaReport || !!clffMatch;
 
   // Extract area-specific market data: AI upload > CLFF > Anchor > empty
   // CRITICAL: User overrides (effectiveOverrides) are applied AFTER this, so they always win
@@ -288,15 +305,25 @@ export function DecisionConfidence({ plot, comparisonPlots = [], isFullscreen, o
   const areaComps = useMemo(() => {
     const aiData = (areaReport as any)?.aiMarketData;
     const comps = (aiData?.comparables || []) as any[];
-    // Filter out items that look like transactions or have missing names
+    const targetArea = areaName.toLowerCase();
+
+    // Filter out items that look like transactions or have missing names, 
+    // AND enforce strict area isolation
     return comps.filter(c => {
       const name = c.name?.toString() || '';
       if (!name || name.trim() === '') return false;
+
+      // Strict Area Isolation: If the project has an area field, it MUST match the targetArea
+      const projectArea = (c.area || '').toString().toLowerCase();
+      if (projectArea && !targetArea.includes(projectArea) && !projectArea.includes(targetArea)) {
+        return false;
+      }
+
       // Exclude strings that look like transaction IDs or contain "Transaction"
       const isTransaction = /transaction/i.test(name) || /txn/i.test(name) || /^[0-9\-_]+$/.test(name);
       return !isTransaction;
     });
-  }, [areaReport]);
+  }, [areaReport, areaName]);
 
   const areaTxnData = useMemo(() => {
     const aiData = (areaReport as any)?.aiMarketData;
@@ -348,7 +375,6 @@ export function DecisionConfidence({ plot, comparisonPlots = [], isFullscreen, o
     return { floor: 0, avg: 0, ceiling: 0 };
   }, [areaReport, effectiveClff]);
 
-  const areaName = areaReport?.areaName || effectiveClff?.area.name || 'Area';
 
   const fs = useMemo(() => {
     const result = calcDSCFeasibility(dscInput, activeMix, {
@@ -982,59 +1008,12 @@ export function DecisionConfidence({ plot, comparisonPlots = [], isFullscreen, o
             </>
           )}
 
-          {/* ─── COMPARISON TAB ─── */}
           {activeTab === 'comparison' && (
             <>
-              {/* Summary Comparison Table */}
-              <Section title="Summary Comparison" badge="Strategy Classification">
-                <div className="overflow-x-auto">
-                  <Table>
-                    <TableHeader>
-                      <TableRow>
-                        {['Project', 'Total Units', 'Studio %', '1BR %', '2BR %', '3BR %', 'Strategy'].map(h => (
-                          <TableHead key={h} className="text-[10px] text-right first:text-left">{h}</TableHead>
-                        ))}
-                      </TableRow>
-                    </TableHeader>
-                    <TableBody>
-                      {areaComps.map((c: any) => {
-                        const strategy = (c.studioP || 0) >= 50 ? 'Investor' : (c.br2P || 0) >= 40 ? 'Family' : 'Balanced';
-                        return (
-                          <TableRow key={c.name}>
-                            <TableCell className="text-xs font-bold py-1.5">{c.name}</TableCell>
-                            <TableCell className="text-xs text-right font-mono py-1.5">{c.units}</TableCell>
-                            <TableCell className="text-xs text-right py-1.5">{c.studioP || 0}%</TableCell>
-                            <TableCell className="text-xs text-right py-1.5">{c.br1P || 0}%</TableCell>
-                            <TableCell className="text-xs text-right py-1.5">{c.br2P || 0}%</TableCell>
-                            <TableCell className="text-xs text-right py-1.5">{c.br3P || 0}%</TableCell>
-                            <TableCell className="text-xs text-right py-1.5">
-                              <Badge variant="outline" className={`text-[10px] ${strategy === 'Investor' ? 'border-primary/40 text-primary' : strategy === 'Family' ? 'border-success/40 text-success' : 'border-warning/40 text-warning'}`}>
-                                {strategy}
-                              </Badge>
-                            </TableCell>
-                          </TableRow>
-                        );
-                      })}
-                      {/* Your Plot row */}
-                      <TableRow className="bg-primary/5 border-t-2 border-primary/30">
-                        <TableCell className="text-xs font-bold py-1.5 text-primary">Your Plot</TableCell>
-                        <TableCell className="text-xs text-right font-mono font-bold py-1.5">{fs.units.total}</TableCell>
-                        <TableCell className="text-xs text-right font-bold py-1.5">{pct(fs.mix.studio)}</TableCell>
-                        <TableCell className="text-xs text-right font-bold py-1.5">{pct(fs.mix.br1)}</TableCell>
-                        <TableCell className="text-xs text-right font-bold py-1.5">{pct(fs.mix.br2)}</TableCell>
-                        <TableCell className="text-xs text-right font-bold py-1.5">{pct(fs.mix.br3)}</TableCell>
-                        <TableCell className="text-xs text-right py-1.5">
-                          <Badge className="bg-primary/20 text-primary border-primary/40 text-[10px]">
-                            {MIX_TEMPLATES[activeMix].label}
-                          </Badge>
-                        </TableCell>
-                      </TableRow>
-                    </TableBody>
-                  </Table>
-                </div>
-              </Section>
-
-              <Section title={`Project Comparison — Active ${areaName} Benchmarks`} badge={`${areaComps.length} projects`}>
+              <Section
+                title={`Competitive Project Analysis — ${areaName}`}
+                badge={isStrictMatch ? `${areaComps.length} projects` : `Proxy Data — ${anchorMatch?.area.name}`}
+              >
                 <div className="overflow-x-auto">
                   <Table>
                     <TableHeader>
@@ -1095,9 +1074,16 @@ export function DecisionConfidence({ plot, comparisonPlots = [], isFullscreen, o
                   </Table>
                 </div>
 
-                <div className="mt-3 p-2 rounded-lg bg-muted/30 border border-border/30 text-[10px] text-muted-foreground">
-                  <strong className="text-foreground">Market Intelligence:</strong> {areaName} sales avg AED {fmt(areaMarketBench.avg)}/sqft{areaTxnData.count.total ? ` (${areaTxnData.count.total} txns)` : ''} · Market range AED {fmt(areaMarketBench.floor)}–{fmt(areaMarketBench.ceiling)}/sqft
-                </div>
+                {areaComps.length > 0 ? (
+                  <div className="mt-3 p-2 rounded-lg bg-muted/30 border border-border/30 text-[10px] text-muted-foreground">
+                    <strong className="text-foreground">Market Intelligence:</strong> {areaName} sales avg AED {fmt(areaMarketBench.avg)}/sqft{areaTxnData.count.total ? ` (${areaTxnData.count.total} txns)` : ''} · Market range AED {fmt(areaMarketBench.floor)}–{fmt(areaMarketBench.ceiling)}/sqft
+                  </div>
+                ) : (
+                  <div className="mt-3 p-4 rounded-lg bg-warning/5 border border-warning/20 text-xs text-center text-muted-foreground italic">
+                    ⚠️ No local benchmarks found for "{areaName}".
+                    Please upload area research files to populate competitive analysis.
+                  </div>
+                )}
               </Section>
             </>
           )}
@@ -1303,13 +1289,14 @@ export function DecisionConfidence({ plot, comparisonPlots = [], isFullscreen, o
       {/* Share Modal */}
       <DCShareModal
         open={showShareModal}
-        onClose={() => setShowShareModal(false)}
+        onClose={() => setShowShareModal(false)
+        }
         plotId={activePlot.id}
         activeMix={activeMix}
         fs={fs}
         plotInput={dscInput}
         overrides={effectiveOverrides}
       />
-    </div>
+    </div >
   );
 }

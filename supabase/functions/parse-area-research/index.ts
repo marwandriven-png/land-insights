@@ -9,9 +9,11 @@ serve(async (req) => {
   if (req.method === "OPTIONS") return new Response(null, { headers: corsHeaders });
 
   try {
-    const { fileContent, areaName } = await req.json();
+    const { fileContent, areaName, openaiApiKey } = await req.json();
     const LOVABLE_API_KEY = Deno.env.get("LOVABLE_API_KEY");
-    if (!LOVABLE_API_KEY) throw new Error("LOVABLE_API_KEY is not configured");
+    // Use caller-supplied key first (from the UI), fall back to server secret
+    const apiKey = openaiApiKey || LOVABLE_API_KEY;
+    if (!apiKey) throw new Error("No API key configured — provide an OpenAI key in Settings or set LOVABLE_API_KEY");
 
     if (!fileContent || !areaName) {
       return new Response(JSON.stringify({ error: "fileContent and areaName are required" }), {
@@ -45,7 +47,7 @@ IMPORTANT: Extract ALL developments/projects mentioned as comparables. Include e
     const response = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
       method: "POST",
       headers: {
-        Authorization: `Bearer ${LOVABLE_API_KEY}`,
+        Authorization: `Bearer ${apiKey}`,
         "Content-Type": "application/json",
       },
       body: JSON.stringify({
@@ -184,7 +186,7 @@ IMPORTANT: Extract ALL developments/projects mentioned as comparables. Include e
 
     const aiResult = await response.json();
     const toolCall = aiResult.choices?.[0]?.message?.tool_calls?.[0];
-    
+
     if (!toolCall?.function?.arguments) {
       console.error("No tool call in AI response:", JSON.stringify(aiResult));
       return new Response(JSON.stringify({ error: "AI could not extract structured data" }), {

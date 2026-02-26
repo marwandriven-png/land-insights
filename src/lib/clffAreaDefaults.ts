@@ -87,6 +87,56 @@ export const CLFF_AREAS: Record<string, CLFFAreaProfile> = {
   },
 };
 
+// ─── Canonical Area Alias Map ─────────────────────────────────────────────────
+// Maps any raw input name (DLD official names, acronyms, shorthand) → CLFF code
+// Usage: normalizeAreaCode(input) → 'DIC' | 'DLRC' | 'ALSATWA' | ... | null
+export const AREA_ALIAS_MAP: Record<string, string> = {
+  // DIC – Dubai Industrial City
+  'dubai industrial city': 'DIC',
+  'dic': 'DIC',
+  'saih shuaib 2': 'DIC',
+  'saih shuaib2': 'DIC',
+
+  // DLRC – Dubai Land Residential Complex
+  'dlrc': 'DLRC',
+  'dubai land residential complex': 'DLRC',
+  'dubai land residential': 'DLRC',
+  'dubailand residential complex': 'DLRC',
+  'dubailand residential': 'DLRC',
+
+  // ALSATWA – Al Satwa / Jumeirah Garden City
+  'al satwa': 'ALSATWA',
+  'alsatwa': 'ALSATWA',
+  'jumeirah garden city': 'ALSATWA',
+  'jgc': 'ALSATWA',
+
+  // MAJAN
+  'majan': 'MAJAN',
+  'wadi al safa 3': 'MAJAN',
+  'wadi al safa3': 'MAJAN',
+  'wadi alsafa 3': 'MAJAN',
+
+  // DSC – Dubai Sports City
+  'dubai sports city': 'DSC',
+  'dsc': 'DSC',
+  'sports city': 'DSC',
+
+  // MEYDAN
+  'meydan': 'MEYDAN',
+  'meydan horizon': 'MEYDAN',
+};
+
+/**
+ * Normalize any raw area name (case-insensitive) to its CLFF area code.
+ * Returns the CLFF code string (e.g. 'DIC', 'DLRC') or null if not matched.
+ * This is the SINGLE SOURCE OF TRUTH for area name resolution.
+ */
+export function normalizeAreaCode(input: string): string | null {
+  if (!input) return null;
+  const key = input.trim().toLowerCase();
+  return AREA_ALIAS_MAP[key] ?? null;
+}
+
 // ─── Market Data Seed (Feb 2026) ──────────────────────────────────────────
 
 export const CLFF_MARKET_DATA: Record<string, CLFFMarketData> = {
@@ -165,15 +215,22 @@ export const CLFF_COST_CATEGORIES = [
  */
 export function matchCLFFArea(location: string): { area: CLFFAreaProfile; market: CLFFMarketData } | null {
   if (!location) return null;
-  const loc = location.toLowerCase();
 
+  // 1. Try exact alias map first (catches DLD official names & acronyms)
+  const normalizedCode = normalizeAreaCode(location);
+  if (normalizedCode && CLFF_AREAS[normalizedCode]) {
+    return { area: CLFF_AREAS[normalizedCode], market: CLFF_MARKET_DATA[normalizedCode] };
+  }
+
+  // 2. Substring keyword scan as secondary fallback
+  const loc = location.toLowerCase();
   const matchers: [string[], string][] = [
-    [['majan'], 'MAJAN'],
+    [['majan', 'wadi al safa'], 'MAJAN'],
     [['dlrc', 'dubai land residential', 'dubailand residential'], 'DLRC'],
-    [['satwa', 'jgc', 'jumeirah garden'], 'ALSATWA'],
+    [['al satwa', 'satwa', 'jgc', 'jumeirah garden'], 'ALSATWA'],
     [['sports city', 'dsc'], 'DSC'],
     [['meydan'], 'MEYDAN'],
-    [['industrial city', 'dic'], 'DIC'],
+    [['industrial city', 'saih shuaib', 'dic'], 'DIC'],
   ];
 
   for (const [keywords, code] of matchers) {
@@ -191,7 +248,7 @@ export function matchCLFFArea(location: string): { area: CLFFAreaProfile; market
  */
 export function findAnchorArea(location: string): { area: CLFFAreaProfile; market: CLFFMarketData; confidence: number } | null {
   if (!location) return null;
-  
+
   // First try exact match
   const exact = matchCLFFArea(location);
   if (exact) return { ...exact, confidence: 1.0 };
@@ -209,11 +266,11 @@ export function findAnchorArea(location: string): { area: CLFFAreaProfile; marke
       });
       if (match) return null; // AI upload exists, let that take priority
     }
-  } catch {}
+  } catch { }
 
   // Heuristic: Pick closest anchor area by keywords and zone type
   const loc = location.toLowerCase();
-  
+
   // Proximity/context keywords map to anchor areas
   const contextMatchers: [string[], string, number][] = [
     // Dubai central areas → Al Satwa (premium, mixed-use)

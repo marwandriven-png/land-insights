@@ -3,7 +3,7 @@ import { Calculator, DollarSign, TrendingUp, Building2, Edit3, Check } from 'luc
 import { PlotData, AffectionPlanData, gisService } from '@/services/DDAGISService';
 import { Input } from '@/components/ui/input';
 import { calcDSCFeasibility, DSCPlotInput, MIX_TEMPLATES, fmt, fmtM, fmtA, pct, MixKey } from '@/lib/dscFeasibility';
-import { matchCLFFArea, findAnchorArea, getCLFFOverrides } from '@/lib/clffAreaDefaults';
+import { matchCLFFArea, findAnchorArea, normalizeAreaCode, getCLFFOverrides } from '@/lib/clffAreaDefaults';
 
 export interface FeasibilityParams {
   constructionPsf: number;
@@ -52,25 +52,34 @@ function toDSCInput(plot: PlotData, plan: AffectionPlanData | null): DSCPlotInpu
 
 /**
  * Resolve area-specific market overrides: AI Upload > CLFF > Anchor Area > empty
+ * Uses normalizeAreaCode() to ensure all area name variants resolve consistently.
  * This is the SAME logic used by DecisionConfidence to ensure parity.
  */
 function resolveAreaMarketOverrides(plot: PlotData): Record<string, unknown> {
   const location = plot.location || plot.project || '';
+  // Normalize the location for consistent lookup
+  const normalizedCode = normalizeAreaCode(location);
 
-  // 1. Check AI-parsed uploads
+  // 1. Check AI-parsed uploads (normalize both stored area name and incoming location)
   try {
     const stored = localStorage.getItem('hyperplot_area_research_files');
     if (stored) {
       const files = JSON.parse(stored) as Array<{ areaName: string; aiParsed?: boolean; marketData?: Record<string, unknown> }>;
       const loc = location.toLowerCase();
-      // Check all uploaded files (consolidated multi-area support)
+
       const matchingFiles = files.filter(f => {
         if (!f.aiParsed || !f.marketData) return false;
-        const area = f.areaName.toLowerCase();
-        return loc.includes(area) || area.includes(loc);
+        const storedArea = f.areaName.toLowerCase();
+
+        // Normalize-based match: if both resolve to the same CLFF code, they match
+        const storedCode = normalizeAreaCode(f.areaName);
+        if (storedCode && normalizedCode && storedCode === normalizedCode) return true;
+
+        // Substring match fallback
+        return loc.includes(storedArea) || storedArea.includes(loc);
       });
+
       if (matchingFiles.length > 0) {
-        // Use the first match's market data
         const aiData = matchingFiles[0].marketData as any;
         const result: Record<string, unknown> = {};
         if (aiData?.unitPsf) result.unitPsf = aiData.unitPsf;
@@ -83,7 +92,7 @@ function resolveAreaMarketOverrides(plot: PlotData): Record<string, unknown> {
     }
   } catch { }
 
-  // 2. CLFF exact match
+  // 2. CLFF exact match (using normalized code or keyword scan)
   const clffMatch = matchCLFFArea(location);
   if (clffMatch) return getCLFFOverrides(clffMatch.area.code);
 

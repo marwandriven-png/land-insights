@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from 'react';
-import { Settings, Save, RotateCcw, FileText, Plus, Link2, Upload, X, File, CheckCircle2, Loader2 } from 'lucide-react';
+import { Settings, Save, RotateCcw, FileText, Plus, Link2, Upload, X, File, CheckCircle2, Loader2, Key, Eye, EyeOff } from 'lucide-react';
 import mammoth from 'mammoth';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -8,6 +8,7 @@ import { toast } from 'sonner';
 
 const STORAGE_KEY = 'hyperplot_feasibility_settings';
 const AREA_FILES_KEY = 'hyperplot_area_research_files';
+const OPENAI_KEY_STORAGE = 'hyperplot_openai_api_key';
 
 interface AreaFile {
   id: string;
@@ -35,7 +36,15 @@ function AreaResearchUpload() {
   const [files, setFiles] = useState<AreaFile[]>(loadAreaFiles);
   const [dragOver, setDragOver] = useState(false);
   const [areaNameInput, setAreaNameInput] = useState('');
+  const [openaiKey, setOpenaiKey] = useState(() => localStorage.getItem(OPENAI_KEY_STORAGE) || '');
+  const [showKey, setShowKey] = useState(false);
   const inputRef = useRef<HTMLInputElement>(null);
+
+  // Persist OpenAI key on change
+  const handleKeyChange = (val: string) => {
+    setOpenaiKey(val);
+    localStorage.setItem(OPENAI_KEY_STORAGE, val);
+  };
 
   const handleFiles = async (fileList: FileList | null) => {
     if (!fileList) return;
@@ -79,12 +88,13 @@ function AreaResearchUpload() {
       toast.success(`${newFiles.length} file(s) added — sending to AI for analysis...`);
       // Trigger AI parsing for each new file
       for (const nf of newFiles) {
-        parseWithAI(nf, updated);
+        parseWithAI(nf, updated, openaiKey);
       }
     }
   };
 
-  const parseWithAI = async (file: AreaFile, currentFiles: AreaFile[]) => {
+  const parseWithAI = async (file: AreaFile, currentFiles: AreaFile[], apiKey?: string) => {
+    const keyToUse = apiKey || localStorage.getItem(OPENAI_KEY_STORAGE) || '';
     if (!file.textContent) {
       toast.error(`No readable content in ${file.name}`);
       return;
@@ -96,7 +106,11 @@ function AreaResearchUpload() {
           'Content-Type': 'application/json',
           'Authorization': `Bearer ${import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY}`,
         },
-        body: JSON.stringify({ fileContent: file.textContent, areaName: file.areaName }),
+        body: JSON.stringify({
+          fileContent: file.textContent,
+          areaName: file.areaName,
+          ...(keyToUse ? { openaiApiKey: keyToUse } : {}),
+        }),
       });
       if (!resp.ok) {
         const err = await resp.json().catch(() => ({ error: 'AI parsing failed' }));
@@ -144,7 +158,36 @@ function AreaResearchUpload() {
           Area Research Files
         </h3>
         <p className="text-[11px] text-muted-foreground mb-3">
-          Upload Word research files (.doc, .docx) for each area. These will be used in feasibility analysis instead of a text prompt.
+          Upload Word research files (.doc, .docx) for each area. AI will extract market data used in feasibility analysis.
+        </p>
+      </div>
+
+      {/* OpenAI API Key input */}
+      <div className="p-3 rounded-xl bg-muted/20 border border-border/50 space-y-2">
+        <label className="text-xs font-semibold text-foreground flex items-center gap-1.5">
+          <Key className="w-3.5 h-3.5 text-primary" />
+          OpenAI API Key
+          <span className="ml-auto text-[10px] font-normal text-muted-foreground">Saved locally · never sent to our servers</span>
+        </label>
+        <div className="relative">
+          <Input
+            type={showKey ? 'text' : 'password'}
+            value={openaiKey}
+            onChange={e => handleKeyChange(e.target.value)}
+            placeholder="sk-..."
+            className="text-sm pr-9 font-mono"
+          />
+          <button
+            type="button"
+            onClick={() => setShowKey(v => !v)}
+            className="absolute right-2.5 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground transition-colors"
+          >
+            {showKey ? <EyeOff className="w-3.5 h-3.5" /> : <Eye className="w-3.5 h-3.5" />}
+          </button>
+        </div>
+        <p className="text-[10px] text-muted-foreground leading-relaxed">
+          Used to parse uploaded Word documents. If left blank, the server-side AI key is used instead.
+          Get a key at <a href="https://platform.openai.com/api-keys" target="_blank" rel="noreferrer" className="text-primary underline">platform.openai.com</a>.
         </p>
       </div>
 
@@ -165,10 +208,9 @@ function AreaResearchUpload() {
         onDragLeave={() => setDragOver(false)}
         onDrop={e => { e.preventDefault(); setDragOver(false); handleFiles(e.dataTransfer.files); }}
         onClick={() => inputRef.current?.click()}
-        className={`border-2 border-dashed rounded-xl p-8 text-center cursor-pointer transition-colors ${
-          !areaNameInput.trim() ? 'border-border/30 bg-muted/10 opacity-60 cursor-not-allowed' :
-          dragOver ? 'border-primary bg-primary/5' : 'border-border/50 hover:border-primary/50 hover:bg-muted/20'
-        }`}
+        className={`border-2 border-dashed rounded-xl p-8 text-center cursor-pointer transition-colors ${!areaNameInput.trim() ? 'border-border/30 bg-muted/10 opacity-60 cursor-not-allowed' :
+            dragOver ? 'border-primary bg-primary/5' : 'border-border/50 hover:border-primary/50 hover:bg-muted/20'
+          }`}
       >
         <Upload className="w-8 h-8 text-muted-foreground/40 mx-auto mb-2" />
         <p className="text-sm text-muted-foreground font-medium">
@@ -282,7 +324,7 @@ export function loadFeasibilitySettings(): FeasibilitySettingsData {
     if (stored) {
       return { ...DEFAULT_SETTINGS, ...JSON.parse(stored) };
     }
-  } catch {}
+  } catch { }
   return DEFAULT_SETTINGS;
 }
 
