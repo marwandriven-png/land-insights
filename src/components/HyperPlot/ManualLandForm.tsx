@@ -230,7 +230,7 @@ export function ManualLandForm({ open, onClose, onLandSaved, editEntry }: Manual
     }
     setIsGeocoding(true);
     try {
-      const searchQuery = query.toLowerCase().includes('dubai') ? query : `${query}, Dubai, UAE`;
+      const searchQuery = query.toLowerCase().includes('uae') || query.toLowerCase().includes('dubai') || query.toLowerCase().includes('abu dhabi') || query.toLowerCase().includes('sharjah') ? query : `${query}, UAE`;
       const res = await fetch(`https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(searchQuery)}&limit=1&countrycodes=ae`);
       const data = await res.json();
       if (data.length > 0) {

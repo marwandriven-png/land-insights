@@ -185,9 +185,65 @@ export function matchCLFFArea(location: string): { area: CLFFAreaProfile; market
 }
 
 /**
+ * Find the nearest anchor area when exact CLFF match is not available.
+ * Uses market tier similarity and zone type matching.
+ * Returns the best-fit CLFF area as a fallback.
+ */
+export function findAnchorArea(location: string): { area: CLFFAreaProfile; market: CLFFMarketData; confidence: number } | null {
+  if (!location) return null;
+  
+  // First try exact match
+  const exact = matchCLFFArea(location);
+  if (exact) return { ...exact, confidence: 1.0 };
+
+  // Check uploaded area research files for any consolidated matches
+  try {
+    const stored = localStorage.getItem('hyperplot_area_research_files');
+    if (stored) {
+      const files = JSON.parse(stored) as Array<{ areaName: string; aiParsed?: boolean; marketData?: Record<string, unknown> }>;
+      const loc = location.toLowerCase();
+      const match = files.find(f => {
+        if (!f.aiParsed || !f.marketData) return false;
+        const area = f.areaName.toLowerCase();
+        return loc.includes(area) || area.includes(loc);
+      });
+      if (match) return null; // AI upload exists, let that take priority
+    }
+  } catch {}
+
+  // Heuristic: Pick closest anchor area by keywords and zone type
+  const loc = location.toLowerCase();
+  
+  // Proximity/context keywords map to anchor areas
+  const contextMatchers: [string[], string, number][] = [
+    // Dubai central areas → Al Satwa (premium, mixed-use)
+    [['downtown', 'business bay', 'difc', 'burj', 'sheikh zayed', 'bur dubai', 'deira', 'creek', 'jumeirah', 'marina', 'palm', 'jlt', 'jbr', 'tecom', 'barsha'], 'ALSATWA', 0.7],
+    // Sports/leisure areas → DSC
+    [['motor city', 'falcon city', 'global village', 'studio city', 'arjan'], 'DSC', 0.65],
+    // Dubailand corridor → Majan or DLRC
+    [['dubailand', 'liwan', 'wadi al safa', 'villanova', 'remraam', 'al barari'], 'MAJAN', 0.6],
+    // Southern/industrial corridor → DIC
+    [['south', 'jafza', 'dip', 'techno', 'impz', 'al quoz'], 'DIC', 0.6],
+    // Premium new corridors → Meydan
+    [['mbr city', 'ras al khor', 'nad al sheba', 'al khail', 'sobha'], 'MEYDAN', 0.65],
+    // Outer residential → DLRC
+    [['silicon oasis', 'academic city', 'international city', 'warsan', 'muhaisnah'], 'DLRC', 0.55],
+  ];
+
+  for (const [keywords, code, confidence] of contextMatchers) {
+    if (keywords.some(k => loc.includes(k))) {
+      return { area: CLFF_AREAS[code], market: CLFF_MARKET_DATA[code], confidence };
+    }
+  }
+
+  // Ultimate fallback: Use DLRC as the most balanced mid-market anchor
+  return { area: CLFF_AREAS['DLRC'], market: CLFF_MARKET_DATA['DLRC'], confidence: 0.4 };
+}
+
+/**
  * Get CLFF market overrides for use in calcDSCFeasibility.
  */
-export function getCLFFOverrides(areaCode: string) {
+export function getCLFFOverrides(areaCode: string): Record<string, unknown> {
   const area = CLFF_AREAS[areaCode];
   const market = CLFF_MARKET_DATA[areaCode];
   if (!area || !market) return {};

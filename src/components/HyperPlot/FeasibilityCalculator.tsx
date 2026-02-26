@@ -2,7 +2,8 @@ import { useState, useEffect, useMemo } from 'react';
 import { Calculator, DollarSign, TrendingUp, Building2, Edit3, Check } from 'lucide-react';
 import { PlotData, AffectionPlanData, gisService } from '@/services/DDAGISService';
 import { Input } from '@/components/ui/input';
-import { calcDSCFeasibility, DSCPlotInput, MIX_TEMPLATES, fmt, fmtM, fmtA, pct, MixKey, TXN_AVG_PSF, TXN_WEIGHTED_AVG_PSF } from '@/lib/dscFeasibility';
+import { calcDSCFeasibility, DSCPlotInput, MIX_TEMPLATES, fmt, fmtM, fmtA, pct, MixKey } from '@/lib/dscFeasibility';
+import { matchCLFFArea, findAnchorArea, getCLFFOverrides } from '@/lib/clffAreaDefaults';
 
 export interface FeasibilityParams {
   constructionPsf: number;
@@ -13,6 +14,7 @@ export interface FeasibilityParams {
   efficiency: number;
   contingencyPct: number;
   financePct: number;
+  avgPsfOverride?: number;
 }
 
 export const DEFAULT_FEASIBILITY_PARAMS: FeasibilityParams = {
@@ -23,7 +25,7 @@ export const DEFAULT_FEASIBILITY_PARAMS: FeasibilityParams = {
   buaMultiplier: 1.45,
   efficiency: 0.95,
   contingencyPct: 5,
-  financePct: 3,   // 3% of GDV per Bukadra model
+  financePct: 3,
 };
 
 interface FeasibilityCalculatorProps {
@@ -31,8 +33,6 @@ interface FeasibilityCalculatorProps {
   sharedParams?: FeasibilityParams;
   onParamsChange?: (params: FeasibilityParams) => void;
 }
-
-// (FeasibilityParams and DEFAULT_FEASIBILITY_PARAMS are exported above)
 
 function toDSCInput(plot: PlotData, plan: AffectionPlanData | null): DSCPlotInput {
   const areaSqft = plot.area * 10.764;
@@ -49,12 +49,55 @@ function toDSCInput(plot: PlotData, plan: AffectionPlanData | null): DSCPlotInpu
   };
 }
 
+/**
+ * Resolve area-specific market overrides: AI Upload > CLFF > Anchor Area > empty
+ * This is the SAME logic used by DecisionConfidence to ensure parity.
+ */
+function resolveAreaMarketOverrides(plot: PlotData): Record<string, unknown> {
+  const location = plot.location || plot.project || '';
+
+  // 1. Check AI-parsed uploads
+  try {
+    const stored = localStorage.getItem('hyperplot_area_research_files');
+    if (stored) {
+      const files = JSON.parse(stored) as Array<{ areaName: string; aiParsed?: boolean; marketData?: Record<string, unknown> }>;
+      const loc = location.toLowerCase();
+      // Check all uploaded files (consolidated multi-area support)
+      const matchingFiles = files.filter(f => {
+        if (!f.aiParsed || !f.marketData) return false;
+        const area = f.areaName.toLowerCase();
+        return loc.includes(area) || area.includes(loc);
+      });
+      if (matchingFiles.length > 0) {
+        // Use the first match's market data
+        const aiData = matchingFiles[0].marketData as any;
+        const result: Record<string, unknown> = {};
+        if (aiData?.unitPsf) result.unitPsf = aiData.unitPsf;
+        if (aiData?.unitSizes) result.unitSizes = aiData.unitSizes;
+        if (aiData?.unitRents) result.unitRents = aiData.unitRents;
+        if (aiData?.constructionPsf) result.constructionPsf = aiData.constructionPsf;
+        if (aiData?.landCostPsf) result.landCostPsf = aiData.landCostPsf;
+        return result;
+      }
+    }
+  } catch {}
+
+  // 2. CLFF exact match
+  const clffMatch = matchCLFFArea(location);
+  if (clffMatch) return getCLFFOverrides(clffMatch.area.code);
+
+  // 3. Anchor area fallback
+  const anchor = findAnchorArea(location);
+  if (anchor) return getCLFFOverrides(anchor.area.code);
+
+  return {};
+}
+
 export function FeasibilityCalculator({ plot, sharedParams, onParamsChange }: FeasibilityCalculatorProps) {
   const [params, setParams] = useState<FeasibilityParams>(sharedParams || DEFAULT_FEASIBILITY_PARAMS);
   const [editing, setEditing] = useState(false);
   const [plan, setPlan] = useState<AffectionPlanData | null>(null);
 
-  // Sync from shared params when they change externally
   useEffect(() => {
     if (sharedParams) setParams(sharedParams);
   }, [sharedParams]);
@@ -66,6 +109,9 @@ export function FeasibilityCalculator({ plot, sharedParams, onParamsChange }: Fe
 
   const dscInput = useMemo(() => toDSCInput(plot, plan), [plot, plan]);
 
+  // Resolve area-specific market overrides (same as DC)
+  const areaMarketOverrides = useMemo(() => resolveAreaMarketOverrides(plot), [plot]);
+
   const fs = useMemo(() => calcDSCFeasibility(dscInput, 'balanced', {
     constructionPsf: params.constructionPsf,
     landCostPsf: params.landCostPsf,
@@ -73,7 +119,9 @@ export function FeasibilityCalculator({ plot, sharedParams, onParamsChange }: Fe
     efficiency: params.efficiency,
     contingencyPct: params.contingencyPct / 100,
     financePct: params.financePct / 100,
-  }), [dscInput, params]);
+    avgPsfOverride: params.avgPsfOverride,
+    ...areaMarketOverrides,
+  }), [dscInput, params, areaMarketOverrides]);
 
   const updateParam = (key: keyof FeasibilityParams, value: string) => {
     const num = parseFloat(value);
@@ -100,7 +148,6 @@ export function FeasibilityCalculator({ plot, sharedParams, onParamsChange }: Fe
         </button>
       </div>
 
-      {/* Editable Parameters */}
       {editing && (
         <div className="grid grid-cols-2 gap-2 mb-3 p-3 rounded-lg bg-muted/30 border border-border/30">
           <div>
@@ -128,8 +175,8 @@ export function FeasibilityCalculator({ plot, sharedParams, onParamsChange }: Fe
             <Input type="number" value={Math.round(params.efficiency * 100)} onChange={(e) => { const v = parseFloat(e.target.value); if (!isNaN(v) && v > 0) { const updated = { ...params, efficiency: v / 100 }; setParams(updated); onParamsChange?.(updated); } }} className="h-8 text-sm mt-0.5" />
           </div>
           <div>
-            <label className="text-xs text-muted-foreground">Avg PSF (Txn)</label>
-            <div className="h-8 text-sm mt-0.5 px-2 flex items-center bg-muted/50 rounded-md text-muted-foreground font-mono">AED {fmt(TXN_WEIGHTED_AVG_PSF)}</div>
+            <label className="text-xs text-muted-foreground">Avg Selling PSF</label>
+            <Input type="number" value={params.avgPsfOverride || ''} onChange={(e) => { const v = parseFloat(e.target.value); const updated = { ...params, avgPsfOverride: !isNaN(v) && v > 0 ? v : undefined }; setParams(updated); onParamsChange?.(updated); }} placeholder="Auto from market" className="h-8 text-sm mt-0.5" />
           </div>
           <div>
             <label className="text-xs text-muted-foreground">Contingency (%)</label>
@@ -150,7 +197,7 @@ export function FeasibilityCalculator({ plot, sharedParams, onParamsChange }: Fe
         </span>
       </div>
       <div className="flex justify-between text-sm mb-1">
-        <span className="text-muted-foreground">Avg Selling PSF (Txn)</span>
+        <span className="text-muted-foreground">Avg Selling PSF</span>
         <span className="text-foreground font-medium">AED {fmt(Math.round(fs.avgPsf))}</span>
       </div>
       <div className="flex justify-between text-sm mb-2 font-semibold">

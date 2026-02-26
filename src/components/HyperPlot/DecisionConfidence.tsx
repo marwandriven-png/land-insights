@@ -5,7 +5,7 @@ import { Checkbox } from '@/components/ui/checkbox';
 import { PlotData, AffectionPlanData, gisService } from '@/services/DDAGISService';
 import { FeasibilityParams, DEFAULT_FEASIBILITY_PARAMS } from './FeasibilityCalculator';
 import { calcDSCFeasibility, DSCPlotInput, DSCFeasibilityResult, MixKey, MIX_TEMPLATES, UNIT_SIZES, RENT_PSF_YR, fmt, fmtM, fmtA, pct } from '@/lib/dscFeasibility';
-import { matchCLFFArea, CLFF_AREAS, CLFF_MARKET_DATA, getCLFFOverrides, type CLFFAreaProfile, type CLFFMarketData } from '@/lib/clffAreaDefaults';
+import { matchCLFFArea, findAnchorArea, CLFF_AREAS, CLFF_MARKET_DATA, getCLFFOverrides, type CLFFAreaProfile, type CLFFMarketData } from '@/lib/clffAreaDefaults';
 import { findReportForLocation, AreaReport } from '@/data/areaReports';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Table, TableHeader, TableBody, TableRow, TableHead, TableCell, TableFooter } from '@/components/ui/table';
@@ -197,17 +197,19 @@ export function DecisionConfidence({ plot, comparisonPlots = [], isFullscreen, o
   }, [activePlot.id]);
 
   // Merge shared feasibility params into overrides for calculation
+  // CRITICAL: User overrides ALWAYS take priority over CLFF/AI defaults
   const effectiveOverrides = useMemo(() => {
     const sp = sharedFeasibilityParams || DEFAULT_FEASIBILITY_PARAMS;
     return {
       ...overrides,
-      // Shared params are defaults; explicit overrides take priority
+      // User overrides take absolute priority, then shared params
       efficiency: overrides.efficiency ?? sp.efficiency,
       landCostPsf: overrides.landCostPsf ?? sp.landCostPsf,
       constructionPsf: overrides.constructionPsf ?? sp.constructionPsf,
       buaMultiplier: overrides.buaMultiplier ?? sp.buaMultiplier,
       contingencyPct: overrides.contingencyPct ?? (sp.contingencyPct / 100),
       financePct: overrides.financePct ?? (sp.financePct / 100),
+      avgPsfOverride: overrides.avgPsfOverride ?? sp.avgPsfOverride,
     };
   }, [overrides, sharedFeasibilityParams]);
 
@@ -219,11 +221,18 @@ export function DecisionConfidence({ plot, comparisonPlots = [], isFullscreen, o
     return base;
   }, [activePlot, plan, overrides]);
 
-  // ─── Data Resolution: AI-parsed upload → CLFF area defaults → empty ───
+  // ─── Data Resolution: AI-parsed upload → CLFF area defaults → Anchor Area → empty ───
   const clffMatch = useMemo(() => {
     const location = activePlot.location || activePlot.project || '';
     return matchCLFFArea(location);
   }, [activePlot]);
+
+  // Anchor area fallback when no exact CLFF match
+  const anchorMatch = useMemo(() => {
+    if (clffMatch) return null; // Exact match exists
+    const location = activePlot.location || activePlot.project || '';
+    return findAnchorArea(location);
+  }, [activePlot, clffMatch]);
 
   const areaReport = useMemo(() => {
     const location = activePlot.location || activePlot.project || '';
@@ -232,24 +241,31 @@ export function DecisionConfidence({ plot, comparisonPlots = [], isFullscreen, o
       if (stored) {
         const files = JSON.parse(stored) as Array<{ areaName: string; aiParsed?: boolean; marketData?: Record<string, unknown> }>;
         const loc = location.toLowerCase();
-        const match = files.find(f => {
+        // Support multi-area consolidation: find ALL matching files
+        const matchingFiles = files.filter(f => {
           if (!f.aiParsed || !f.marketData) return false;
           const area = f.areaName.toLowerCase();
           return loc.includes(area) || area.includes(loc);
         });
-        if (match) {
-          return { areaName: match.areaName, uploadedOnly: true, aiMarketData: match.marketData } as AreaReport & { uploadedOnly?: boolean; aiMarketData?: Record<string, unknown> | null };
+        if (matchingFiles.length > 0) {
+          // Consolidate: use first match as primary, merge data
+          const primary = matchingFiles[0];
+          return { areaName: primary.areaName, uploadedOnly: true, aiMarketData: primary.marketData } as AreaReport & { uploadedOnly?: boolean; aiMarketData?: Record<string, unknown> | null };
         }
       }
     } catch {}
     return null;
   }, [activePlot]);
 
-  // Has data if either AI-parsed upload OR CLFF area match exists
-  const hasAreaData = !!areaReport || !!clffMatch;
-  const dataSource = areaReport ? 'AI Upload' : clffMatch ? `CLFF v1 · ${clffMatch.area.name}` : null;
+  // Has data if either AI-parsed upload OR CLFF area match OR anchor area exists
+  const hasAreaData = !!areaReport || !!clffMatch || !!anchorMatch;
+  const dataSource = areaReport ? 'AI Upload' : clffMatch ? `CLFF v1 · ${clffMatch.area.name}` : anchorMatch ? `Anchor · ${anchorMatch.area.name} (${Math.round(anchorMatch.confidence * 100)}%)` : null;
 
-  // Extract area-specific market data: AI upload takes priority, then CLFF defaults
+  // Effective CLFF/anchor for fallback resolution
+  const effectiveClff = clffMatch || anchorMatch;
+
+  // Extract area-specific market data: AI upload > CLFF > Anchor > empty
+  // CRITICAL: User overrides (effectiveOverrides) are applied AFTER this, so they always win
   const areaMarketOverrides = useMemo(() => {
     const aiData = (areaReport as any)?.aiMarketData;
     if (aiData) {
@@ -261,10 +277,10 @@ export function DecisionConfidence({ plot, comparisonPlots = [], isFullscreen, o
       if (aiData.landCostPsf) result.landCostPsf = aiData.landCostPsf;
       return result;
     }
-    // Fall back to CLFF area defaults
-    if (clffMatch) return getCLFFOverrides(clffMatch.area.code);
+    // Fall back to CLFF or anchor area defaults
+    if (effectiveClff) return getCLFFOverrides(effectiveClff.area.code);
     return {};
-  }, [areaReport, clffMatch]);
+  }, [areaReport, effectiveClff]);
 
   const ZERO_UNIT = { studio: 0, br1: 0, br2: 0, br3: 0 };
   const ZERO_COUNT = { studio: 0, br1: 0, br2: 0, br3: 0, total: 0 };
@@ -289,9 +305,9 @@ export function DecisionConfidence({ plot, comparisonPlots = [], isFullscreen, o
         count: safeObj(aiData.txnCount, ZERO_COUNT),
       };
     }
-    // CLFF fallback
-    if (clffMatch) {
-      const m = clffMatch.market;
+    // CLFF or anchor fallback
+    if (effectiveClff) {
+      const m = effectiveClff.market;
       return {
         avgPsf: { studio: m.studioPsfAvg || 0, br1: m.oneBrPsfAvg || 0, br2: m.twoBrPsfAvg || 0, br3: m.threeBrPsfAvg || 0 },
         medianPsf: ZERO_UNIT,
@@ -301,7 +317,7 @@ export function DecisionConfidence({ plot, comparisonPlots = [], isFullscreen, o
       };
     }
     return { avgPsf: ZERO_UNIT, medianPsf: ZERO_UNIT, avgSize: ZERO_UNIT, avgPrice: ZERO_UNIT, count: ZERO_COUNT };
-  }, [areaReport, clffMatch]);
+  }, [areaReport, effectiveClff]);
 
   const areaMarketBench = useMemo(() => {
     const aiData = (areaReport as any)?.aiMarketData;
@@ -312,9 +328,9 @@ export function DecisionConfidence({ plot, comparisonPlots = [], isFullscreen, o
         ceiling: aiData.marketCeilingPsf || 0,
       };
     }
-    // CLFF fallback — derive from PSF values
-    if (clffMatch) {
-      const m = clffMatch.market;
+    // CLFF or anchor fallback — derive from PSF values
+    if (effectiveClff) {
+      const m = effectiveClff.market;
       const psfs = [m.studioPsfAvg, m.oneBrPsfAvg, m.twoBrPsfAvg, m.threeBrPsfAvg].filter(Boolean) as number[];
       const avg = psfs.length > 0 ? Math.round(psfs.reduce((a, b) => a + b, 0) / psfs.length) : 0;
       const floor = psfs.length > 0 ? Math.min(...psfs) : 0;
@@ -322,9 +338,9 @@ export function DecisionConfidence({ plot, comparisonPlots = [], isFullscreen, o
       return { floor, avg, ceiling };
     }
     return { floor: 0, avg: 0, ceiling: 0 };
-  }, [areaReport, clffMatch]);
+  }, [areaReport, effectiveClff]);
 
-  const areaName = areaReport?.areaName || clffMatch?.area.name || 'Area';
+  const areaName = areaReport?.areaName || effectiveClff?.area.name || 'Area';
 
   const fs = useMemo(() => {
     const result = calcDSCFeasibility(dscInput, activeMix, {
@@ -378,10 +394,7 @@ export function DecisionConfidence({ plot, comparisonPlots = [], isFullscreen, o
           <Shield className="w-12 h-12 text-muted-foreground/30 mx-auto mb-3" />
           <h3 className="text-lg font-bold mb-2">No Area Data Available</h3>
           <p className="text-sm text-muted-foreground">
-            This location is not in the <strong>CLFF v1 area registry</strong> (Majan, DLRC, Al Satwa, DSC, Meydan, DIC) and has no uploaded research file.
-          </p>
-          <p className="text-xs text-muted-foreground mt-2">
-            Go to <strong>Settings → Area Research</strong>, enter the area name matching "<strong>{activePlot.location || activePlot.project || activePlot.id}</strong>", and upload a study file (.doc/.docx). The AI will extract PSF, sizes, and yields automatically.
+            No matching area profile or anchor area could be resolved for this location. Upload a research file in <strong>Settings → Area Research</strong> for "<strong>{activePlot.location || activePlot.project || activePlot.id}</strong>".
           </p>
         </div>
       </div>
@@ -491,7 +504,7 @@ export function DecisionConfidence({ plot, comparisonPlots = [], isFullscreen, o
 
         {/* Override inputs */}
         {editMode && (
-          <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 mt-2 p-2 rounded-lg bg-muted/30 border border-border/30">
+          <div className="grid grid-cols-2 sm:grid-cols-5 gap-2 mt-2 p-2 rounded-lg bg-muted/30 border border-border/30">
             <div>
               <label className="text-[10px] text-muted-foreground">Plot Area (sqft)</label>
               <Input type="number" className="h-7 text-xs mt-0.5" defaultValue={Math.round(dscInput.area)}
@@ -511,6 +524,12 @@ export function DecisionConfidence({ plot, comparisonPlots = [], isFullscreen, o
               <label className="text-[10px] text-muted-foreground">Floor Plate Eff. (%)</label>
               <Input type="number" step="1" className="h-7 text-xs mt-0.5" defaultValue={effectiveOverrides.efficiency ? effectiveOverrides.efficiency * 100 : 95}
                 onChange={e => { const v = parseFloat(e.target.value); const eff = v > 0 ? v / 100 : undefined; setOverrides(p => ({ ...p, efficiency: eff })); if (eff && onFeasibilityParamsChange && sharedFeasibilityParams) onFeasibilityParamsChange({ ...sharedFeasibilityParams, efficiency: eff }); }} />
+            </div>
+            <div>
+              <label className="text-[10px] text-muted-foreground font-bold">Avg Selling PSF ⭐</label>
+              <Input type="number" className="h-7 text-xs mt-0.5 border-primary/50" placeholder="Auto from market"
+                defaultValue={effectiveOverrides.avgPsfOverride || ''}
+                onChange={e => { const v = parseFloat(e.target.value); const psf = !isNaN(v) && v > 0 ? v : undefined; setOverrides(p => ({ ...p, avgPsfOverride: psf })); if (onFeasibilityParamsChange && sharedFeasibilityParams) onFeasibilityParamsChange({ ...sharedFeasibilityParams, avgPsfOverride: psf }); }} />
             </div>
             <div>
               <label className="text-[10px] text-muted-foreground">Land Cost (PSF)</label>
@@ -534,7 +553,7 @@ export function DecisionConfidence({ plot, comparisonPlots = [], isFullscreen, o
             </div>
             <div>
               <label className="text-[10px] text-muted-foreground">Finance (%)</label>
-              <Input type="number" step="0.5" className="h-7 text-xs mt-0.5" defaultValue={effectiveOverrides.financePct != null ? effectiveOverrides.financePct * 100 : 4}
+              <Input type="number" step="0.5" className="h-7 text-xs mt-0.5" defaultValue={effectiveOverrides.financePct != null ? effectiveOverrides.financePct * 100 : 3}
                 onChange={e => { const v = parseFloat(e.target.value); const pctVal = !isNaN(v) ? v / 100 : undefined; setOverrides(p => ({ ...p, financePct: pctVal })); if (pctVal != null && onFeasibilityParamsChange && sharedFeasibilityParams) onFeasibilityParamsChange({ ...sharedFeasibilityParams, financePct: v }); }} />
             </div>
           </div>
