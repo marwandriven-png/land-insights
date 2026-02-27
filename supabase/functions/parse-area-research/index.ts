@@ -11,7 +11,6 @@ serve(async (req) => {
   try {
     const { fileContent, areaName, openaiApiKey } = await req.json();
     const LOVABLE_API_KEY = Deno.env.get("LOVABLE_API_KEY");
-    // Use caller-supplied key first (from the UI), fall back to server secret
     const apiKey = openaiApiKey || LOVABLE_API_KEY;
     if (!apiKey) throw new Error("No API key configured — provide an OpenAI key in Settings or set LOVABLE_API_KEY");
 
@@ -23,7 +22,14 @@ serve(async (req) => {
 
     console.log(`Parsing area research for "${areaName}", content length: ${fileContent.length}`);
 
-    const systemPrompt = `You are a Dubai real estate market data extraction specialist. Given area research/feasibility study content, extract ALL structured market data including transaction averages, comparable developments, rental data, and cost benchmarks. Return ONLY a JSON object using the provided tool call. Extract every number and data point you can find.`;
+    const systemPrompt = `You are a Dubai real estate market data extraction specialist. Given area research/feasibility study content, extract ALL structured market data including transaction averages, comparable developments, rental data, and cost benchmarks. Return ONLY a JSON object using the provided tool call. Extract every number and data point you can find.
+
+CRITICAL RULES FOR MULTI-AREA DOCUMENTS:
+- If the document covers MULTIPLE areas (e.g. Majan, Al Satwa, DSC, DLRC, DIC, Meydan), you MUST:
+  1. Tag EVERY comparable project with its correct "area" field (e.g. "Majan", "Al Satwa", "Dubai Sports City")
+  2. Provide per-area transaction breakdowns in the "areaTransactions" object
+  3. Use the EXACT area names: "Majan", "DLRC", "Al Satwa", "Dubai Sports City", "Meydan", "Dubai Industrial City"
+- NEVER mix data from different areas into consolidated totals without also providing per-area breakdowns`;
 
     const userPrompt = `Extract ALL market data for "${areaName}" from this area research document:
 
@@ -38,9 +44,14 @@ Extract EVERYTHING available:
 6. Transaction counts per unit type and total
 7. Median PSF per unit type
 8. Average prices per unit type
-9. ALL comparable/benchmark developments with their details (name, developer, units, PSF, floors, handover, unit mix percentages, payment plan, plot size, BUA, service charge, density)
+9. ALL comparable/benchmark developments with their details (name, developer, units, PSF, floors, handover, unit mix percentages, payment plan, plot size, BUA, service charge, density). CRITICAL: Include the "area" field for EACH project indicating which area/community it belongs to.
 10. Market average PSF, market floor PSF, market ceiling PSF
 11. Any market trends or notes
+
+CRITICAL MULTI-AREA REQUIREMENT:
+- If this document covers multiple areas, you MUST provide "areaTransactions" — an object keyed by area name, where each value contains: unitPsf, unitSizes, medianPsf, avgPrices, txnCount (with studio, br1, br2, br3, total) for that specific area ONLY.
+- Each comparable project MUST have an "area" field with the community/area name it belongs to.
+- Do NOT consolidate different areas' data together without also providing the per-area breakdown.
 
 IMPORTANT: Extract ALL developments/projects mentioned as comparables. Include every numeric data point found.`;
 
@@ -66,7 +77,7 @@ IMPORTANT: Extract ALL developments/projects mentioned as comparables. Include e
               properties: {
                 unitPsf: {
                   type: "object",
-                  description: "Average selling price per sqft by unit type",
+                  description: "Average selling price per sqft by unit type (consolidated if multi-area)",
                   properties: {
                     studio: { type: "number" },
                     br1: { type: "number" },
@@ -98,7 +109,7 @@ IMPORTANT: Extract ALL developments/projects mentioned as comparables. Include e
                 landCostPsf: { type: "number", description: "Land cost per sqft" },
                 txnCount: {
                   type: "object",
-                  description: "Transaction counts by unit type",
+                  description: "Transaction counts by unit type (consolidated total)",
                   properties: {
                     studio: { type: "number" },
                     br1: { type: "number" },
@@ -129,12 +140,13 @@ IMPORTANT: Extract ALL developments/projects mentioned as comparables. Include e
                 },
                 comparables: {
                   type: "array",
-                  description: "Comparable/benchmark development projects in the area",
+                  description: "Comparable/benchmark development projects. MUST include 'area' field for each.",
                   items: {
                     type: "object",
                     properties: {
                       name: { type: "string" },
                       developer: { type: "string" },
+                      area: { type: "string", description: "The area/community this project belongs to (e.g. Majan, Al Satwa, Dubai Sports City, DLRC, Meydan, Dubai Industrial City)" },
                       plotSqft: { type: "number" },
                       units: { type: "number" },
                       bua: { type: "number" },
@@ -149,6 +161,23 @@ IMPORTANT: Extract ALL developments/projects mentioned as comparables. Include e
                       payPlan: { type: "string" },
                       svc: { type: "number" },
                       density: { type: "number" },
+                    },
+                  },
+                },
+                areaTransactions: {
+                  type: "object",
+                  description: "Per-area transaction breakdowns. Keys are area names (e.g. 'Majan', 'Al Satwa'). Each value has unitPsf, unitSizes, medianPsf, avgPrices, txnCount objects.",
+                  additionalProperties: {
+                    type: "object",
+                    properties: {
+                      unitPsf: { type: "object", properties: { studio: { type: "number" }, br1: { type: "number" }, br2: { type: "number" }, br3: { type: "number" } } },
+                      unitSizes: { type: "object", properties: { studio: { type: "number" }, br1: { type: "number" }, br2: { type: "number" }, br3: { type: "number" } } },
+                      medianPsf: { type: "object", properties: { studio: { type: "number" }, br1: { type: "number" }, br2: { type: "number" }, br3: { type: "number" } } },
+                      avgPrices: { type: "object", properties: { studio: { type: "number" }, br1: { type: "number" }, br2: { type: "number" }, br3: { type: "number" } } },
+                      txnCount: { type: "object", properties: { studio: { type: "number" }, br1: { type: "number" }, br2: { type: "number" }, br3: { type: "number" }, total: { type: "number" } } },
+                      marketFloorPsf: { type: "number" },
+                      marketAvgPsf: { type: "number" },
+                      marketCeilingPsf: { type: "number" },
                     },
                   },
                 },

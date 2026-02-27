@@ -320,6 +320,7 @@ export function DecisionConfidence({ plot, comparisonPlots = [], isFullscreen, o
     const aiData = (areaReport as any)?.aiMarketData;
     const comps = (aiData?.comparables || []) as any[];
     const plotCode = normalizeAreaCode(activePlot.location || activePlot.project || '') || clffMatch?.area.code || null;
+    const plotAreaName = clffMatch?.area.name?.toLowerCase() || areaName?.toLowerCase() || '';
 
     // STRICT AREA FILTERING: Only include projects from the SAME normalized area
     return comps.filter(c => {
@@ -330,19 +331,24 @@ export function DecisionConfidence({ plot, comparisonPlots = [], isFullscreen, o
       const isTransaction = /transaction/i.test(name) || /txn/i.test(name) || /^[0-9\-_]+$/.test(name);
       if (isTransaction) return false;
 
-      // If comparable has an area/location field, it MUST normalize to the same code
+      // MANDATORY: If comparable has an area field, it MUST match the plot's area
       const compArea = (c.area || c.location || '').toString();
-      if (compArea && plotCode) {
+      if (compArea) {
         const compCode = normalizeAreaCode(compArea);
-        // If we can resolve the comp's area and it doesn't match → exclude
-        if (compCode && compCode !== plotCode) return false;
-        // If we can't resolve but substring doesn't match → exclude
-        if (!compCode) {
-          const compLower = compArea.toLowerCase();
-          const areaLower = (areaName || '').toLowerCase();
-          if (areaLower && !compLower.includes(areaLower) && !areaLower.includes(compLower)) return false;
+        if (plotCode && compCode) {
+          // Both resolve → must match exactly
+          return compCode === plotCode;
+        }
+        // Fuzzy: substring match against known area name
+        const compLower = compArea.toLowerCase();
+        if (plotAreaName) {
+          return compLower.includes(plotAreaName) || plotAreaName.includes(compLower);
         }
       }
+
+      // If NO area field on comparable and we have a multi-area file, EXCLUDE it
+      // (can't verify area membership → safer to exclude)
+      if (!compArea && comps.length > 10) return false;
 
       return true;
     });
@@ -355,33 +361,56 @@ export function DecisionConfidence({ plot, comparisonPlots = [], isFullscreen, o
       return fallback;
     };
 
-    // For AI data: extract area-specific transaction data only
     if (aiData) {
-      // If the AI data has per-area breakdowns, use only the matching area
       const plotCode = normalizeAreaCode(activePlot.location || activePlot.project || '') || clffMatch?.area.code || null;
+      const plotAreaName = clffMatch?.area.name?.toLowerCase() || areaName?.toLowerCase() || '';
 
-      // Check if aiData has area-specific transaction sections
-      let areaSpecificTxn = null;
-      if (aiData.areaTransactions && plotCode) {
-        // Try to find transactions for this specific area
+      // STRICT: Try per-area transaction breakdowns FIRST
+      let areaSpecificTxn: any = null;
+      if (aiData.areaTransactions && typeof aiData.areaTransactions === 'object') {
         for (const [key, val] of Object.entries(aiData.areaTransactions)) {
           const txnCode = normalizeAreaCode(key);
-          if (txnCode === plotCode) {
+          if (txnCode && plotCode && txnCode === plotCode) {
             areaSpecificTxn = val;
             break;
+          }
+          // Fuzzy match by area name
+          if (!txnCode && plotAreaName) {
+            const keyLower = key.toLowerCase();
+            if (keyLower.includes(plotAreaName) || plotAreaName.includes(keyLower)) {
+              areaSpecificTxn = val;
+              break;
+            }
           }
         }
       }
 
-      const txnSource = areaSpecificTxn || aiData;
-      return {
-        avgPsf: safeObj(txnSource.unitPsf, ZERO_UNIT),
-        medianPsf: safeObj(txnSource.medianPsf, ZERO_UNIT),
-        avgSize: safeObj(txnSource.unitSizes, ZERO_UNIT),
-        avgPrice: safeObj(txnSource.avgPrices, ZERO_UNIT),
-        count: safeObj(txnSource.txnCount, ZERO_COUNT),
-      };
+      // If we found area-specific transactions, use them exclusively
+      if (areaSpecificTxn) {
+        return {
+          avgPsf: safeObj(areaSpecificTxn.unitPsf, ZERO_UNIT),
+          medianPsf: safeObj(areaSpecificTxn.medianPsf, ZERO_UNIT),
+          avgSize: safeObj(areaSpecificTxn.unitSizes, ZERO_UNIT),
+          avgPrice: safeObj(areaSpecificTxn.avgPrices, ZERO_UNIT),
+          count: safeObj(areaSpecificTxn.txnCount, ZERO_COUNT),
+        };
+      }
+
+      // If NO areaTransactions exist but we have a single-area file, use top-level data
+      const hasMultiAreaData = aiData.areaTransactions && Object.keys(aiData.areaTransactions).length > 1;
+      if (!hasMultiAreaData) {
+        return {
+          avgPsf: safeObj(aiData.unitPsf, ZERO_UNIT),
+          medianPsf: safeObj(aiData.medianPsf, ZERO_UNIT),
+          avgSize: safeObj(aiData.unitSizes, ZERO_UNIT),
+          avgPrice: safeObj(aiData.avgPrices, ZERO_UNIT),
+          count: safeObj(aiData.txnCount, ZERO_COUNT),
+        };
+      }
+
+      // Multi-area file but couldn't match → fall through to CLFF
     }
+
     // CLFF or anchor fallback
     if (effectiveClff) {
       const m = effectiveClff.market;
@@ -394,18 +423,47 @@ export function DecisionConfidence({ plot, comparisonPlots = [], isFullscreen, o
       };
     }
     return { avgPsf: ZERO_UNIT, medianPsf: ZERO_UNIT, avgSize: ZERO_UNIT, avgPrice: ZERO_UNIT, count: ZERO_COUNT };
-  }, [areaReport, effectiveClff, activePlot, clffMatch]);
+  }, [areaReport, effectiveClff, activePlot, clffMatch, areaName]);
 
   const areaMarketBench = useMemo(() => {
     const aiData = (areaReport as any)?.aiMarketData;
+    const plotCode = normalizeAreaCode(activePlot.location || activePlot.project || '') || clffMatch?.area.code || null;
+    const plotAreaName = clffMatch?.area.name?.toLowerCase() || areaName?.toLowerCase() || '';
+
     if (aiData) {
-      return {
-        floor: aiData.marketFloorPsf || 0,
-        avg: aiData.marketAvgPsf || 0,
-        ceiling: aiData.marketCeilingPsf || 0,
-      };
+      // Try per-area market bench first (from areaTransactions)
+      if (aiData.areaTransactions && typeof aiData.areaTransactions === 'object') {
+        for (const [key, val] of Object.entries(aiData.areaTransactions)) {
+          const txnCode = normalizeAreaCode(key);
+          const keyLower = key.toLowerCase();
+          if ((txnCode && plotCode && txnCode === plotCode) || (plotAreaName && (keyLower.includes(plotAreaName) || plotAreaName.includes(keyLower)))) {
+            const areaTxn = val as any;
+            if (areaTxn.marketFloorPsf || areaTxn.marketAvgPsf || areaTxn.marketCeilingPsf) {
+              return { floor: areaTxn.marketFloorPsf || 0, avg: areaTxn.marketAvgPsf || 0, ceiling: areaTxn.marketCeilingPsf || 0 };
+            }
+            // Derive from per-area PSF data
+            if (areaTxn.unitPsf) {
+              const psfs = Object.values(areaTxn.unitPsf).filter((v: any) => typeof v === 'number' && v > 0) as number[];
+              if (psfs.length > 0) {
+                return { floor: Math.min(...psfs), avg: Math.round(psfs.reduce((a, b) => a + b, 0) / psfs.length), ceiling: Math.max(...psfs) };
+              }
+            }
+          }
+        }
+      }
+
+      // Single-area file: use top-level market data
+      const hasMultiAreaData = aiData.areaTransactions && Object.keys(aiData.areaTransactions).length > 1;
+      if (!hasMultiAreaData) {
+        return {
+          floor: aiData.marketFloorPsf || 0,
+          avg: aiData.marketAvgPsf || 0,
+          ceiling: aiData.marketCeilingPsf || 0,
+        };
+      }
     }
-    // CLFF or anchor fallback — derive from PSF values
+
+    // CLFF or anchor fallback
     if (effectiveClff) {
       const m = effectiveClff.market;
       const psfs = [m.studioPsfAvg, m.oneBrPsfAvg, m.twoBrPsfAvg, m.threeBrPsfAvg].filter(Boolean) as number[];
@@ -415,7 +473,7 @@ export function DecisionConfidence({ plot, comparisonPlots = [], isFullscreen, o
       return { floor, avg, ceiling };
     }
     return { floor: 0, avg: 0, ceiling: 0 };
-  }, [areaReport, effectiveClff]);
+  }, [areaReport, effectiveClff, activePlot, clffMatch, areaName]);
 
 
   const fs = useMemo(() => {
@@ -1127,6 +1185,158 @@ export function DecisionConfidence({ plot, comparisonPlots = [], isFullscreen, o
                   </div>
                 )}
               </Section>
+
+              {/* Competitor Unit Mix Breakdown */}
+              {areaComps.length > 0 && (
+                <Section title={`Competitor Unit Mix Breakdown — ${areaName}`} badge={`${areaComps.length} projects`}>
+                  <div className="overflow-x-auto">
+                    <Table>
+                      <TableHeader>
+                        <TableRow>
+                          {['Project', 'Units', 'Studio %', '1BR %', '2BR %', '3BR %', 'Dominant Type'].map(h => (
+                            <TableHead key={h} className="text-[10px] text-right first:text-left whitespace-nowrap">{h}</TableHead>
+                          ))}
+                        </TableRow>
+                      </TableHeader>
+                      <TableBody>
+                        {areaComps.map((c: any) => {
+                          const mixes = [
+                            { type: 'Studio', pct: c.studioP || 0 },
+                            { type: '1BR', pct: c.br1P || 0 },
+                            { type: '2BR', pct: c.br2P || 0 },
+                            { type: '3BR', pct: c.br3P || 0 },
+                          ];
+                          const dominant = mixes.reduce((a, b) => a.pct > b.pct ? a : b);
+                          return (
+                            <TableRow key={c.name}>
+                              <TableCell className="text-xs font-medium py-1.5 whitespace-nowrap">{c.name}</TableCell>
+                              <TableCell className="text-xs text-right font-mono py-1.5">{c.units || '—'}</TableCell>
+                              <TableCell className={`text-xs text-right py-1.5 ${dominant.type === 'Studio' ? 'font-bold text-primary' : ''}`}>{c.studioP || 0}%</TableCell>
+                              <TableCell className={`text-xs text-right py-1.5 ${dominant.type === '1BR' ? 'font-bold text-primary' : ''}`}>{c.br1P || 0}%</TableCell>
+                              <TableCell className={`text-xs text-right py-1.5 ${dominant.type === '2BR' ? 'font-bold text-primary' : ''}`}>{c.br2P || 0}%</TableCell>
+                              <TableCell className={`text-xs text-right py-1.5 ${dominant.type === '3BR' ? 'font-bold text-primary' : ''}`}>{c.br3P || 0}%</TableCell>
+                              <TableCell className="text-xs text-right font-bold text-primary py-1.5">{dominant.type} ({dominant.pct}%)</TableCell>
+                            </TableRow>
+                          );
+                        })}
+                      </TableBody>
+                      <TableFooter>
+                        <TableRow>
+                          <TableCell className="text-xs font-bold py-1.5">MARKET AVG</TableCell>
+                          <TableCell className="text-xs text-right font-mono py-1.5">
+                            {areaComps.length > 0 ? fmt(Math.round(areaComps.reduce((s: number, c: any) => s + (c.units || 0), 0) / areaComps.length)) : '—'}
+                          </TableCell>
+                          {(() => {
+                            const avgS = areaComps.length > 0 ? Math.round(areaComps.reduce((s: number, c: any) => s + (c.studioP || 0), 0) / areaComps.length) : 0;
+                            const avg1 = areaComps.length > 0 ? Math.round(areaComps.reduce((s: number, c: any) => s + (c.br1P || 0), 0) / areaComps.length) : 0;
+                            const avg2 = areaComps.length > 0 ? Math.round(areaComps.reduce((s: number, c: any) => s + (c.br2P || 0), 0) / areaComps.length) : 0;
+                            const avg3 = areaComps.length > 0 ? Math.round(areaComps.reduce((s: number, c: any) => s + (c.br3P || 0), 0) / areaComps.length) : 0;
+                            return (
+                              <>
+                                <TableCell className="text-xs text-right font-bold py-1.5">{avgS}%</TableCell>
+                                <TableCell className="text-xs text-right font-bold py-1.5">{avg1}%</TableCell>
+                                <TableCell className="text-xs text-right font-bold py-1.5">{avg2}%</TableCell>
+                                <TableCell className="text-xs text-right font-bold py-1.5">{avg3}%</TableCell>
+                              </>
+                            );
+                          })()}
+                          <TableCell className="text-xs text-right py-1.5">—</TableCell>
+                        </TableRow>
+                      </TableFooter>
+                    </Table>
+                  </div>
+                </Section>
+              )}
+
+              {/* Pricing Benchmarks */}
+              <Section title={`Pricing Benchmarks — ${areaName}`}>
+                <div className="overflow-x-auto">
+                  <Table>
+                    <TableHeader>
+                      <TableRow>
+                        {['Metric', 'Studio', '1 Bedroom', '2 Bedroom', '3 Bedroom'].map(h => (
+                          <TableHead key={h} className="text-[10px] text-right first:text-left">{h}</TableHead>
+                        ))}
+                      </TableRow>
+                    </TableHeader>
+                    <TableBody>
+                      {[
+                        { metric: 'Avg PSF', vals: [areaTxnData.avgPsf.studio, areaTxnData.avgPsf.br1, areaTxnData.avgPsf.br2, areaTxnData.avgPsf.br3] },
+                        { metric: 'Median PSF', vals: [areaTxnData.medianPsf.studio, areaTxnData.medianPsf.br1, areaTxnData.medianPsf.br2, areaTxnData.medianPsf.br3] },
+                        { metric: 'Avg Size (sqft)', vals: [areaTxnData.avgSize.studio, areaTxnData.avgSize.br1, areaTxnData.avgSize.br2, areaTxnData.avgSize.br3] },
+                        { metric: 'Avg Price', vals: [areaTxnData.avgPrice.studio, areaTxnData.avgPrice.br1, areaTxnData.avgPrice.br2, areaTxnData.avgPrice.br3] },
+                        { metric: 'Transactions', vals: [areaTxnData.count.studio, areaTxnData.count.br1, areaTxnData.count.br2, areaTxnData.count.br3] },
+                      ].map(row => (
+                        <TableRow key={row.metric}>
+                          <TableCell className="text-xs font-medium py-1.5">{row.metric}</TableCell>
+                          {row.vals.map((v, i) => (
+                            <TableCell key={i} className="text-xs text-right font-mono py-1.5">
+                              {row.metric === 'Avg Price' ? (v ? fmtA(v) : '—') :
+                               row.metric.includes('PSF') ? (v ? `AED ${fmt(v)}` : '—') :
+                               row.metric === 'Avg Size (sqft)' ? (v ? `${fmt(v)} sqft` : '—') :
+                               (v ? fmt(v) : '—')}
+                            </TableCell>
+                          ))}
+                        </TableRow>
+                      ))}
+                    </TableBody>
+                  </Table>
+                </div>
+                {areaComps.length > 0 && (
+                  <div className="mt-3">
+                    <h4 className="text-xs font-bold text-muted-foreground uppercase tracking-wider mb-2">Competitor PSF Range</h4>
+                    <div className="grid grid-cols-3 gap-2">
+                      <div className="data-card text-center py-2">
+                        <div className="text-[10px] text-muted-foreground">Floor</div>
+                        <div className="text-sm font-bold font-mono text-foreground">AED {fmt(Math.min(...areaComps.filter((c: any) => c.psf).map((c: any) => c.psf)) || 0)}</div>
+                      </div>
+                      <div className="data-card text-center py-2 border-primary/40">
+                        <div className="text-[10px] text-muted-foreground">Average</div>
+                        <div className="text-sm font-bold font-mono text-primary">AED {fmt(Math.round(areaComps.filter((c: any) => c.psf).reduce((s: number, c: any) => s + c.psf, 0) / (areaComps.filter((c: any) => c.psf).length || 1)))}</div>
+                      </div>
+                      <div className="data-card text-center py-2">
+                        <div className="text-[10px] text-muted-foreground">Ceiling</div>
+                        <div className="text-sm font-bold font-mono text-foreground">AED {fmt(Math.max(...areaComps.filter((c: any) => c.psf).map((c: any) => c.psf)) || 0)}</div>
+                      </div>
+                    </div>
+                  </div>
+                )}
+              </Section>
+
+              {/* Payment Plan Benchmarks */}
+              {areaComps.length > 0 && areaComps.some((c: any) => c.payPlan) && (
+                <Section title={`Payment Plan Benchmarks — ${areaName}`} badge={`${areaComps.filter((c: any) => c.payPlan).length} plans`}>
+                  <div className="overflow-x-auto">
+                    <Table>
+                      <TableHeader>
+                        <TableRow>
+                          {['Project', 'Payment Structure', 'Type'].map(h => (
+                            <TableHead key={h} className="text-[10px] text-right first:text-left">{h}</TableHead>
+                          ))}
+                        </TableRow>
+                      </TableHeader>
+                      <TableBody>
+                        {areaComps.filter((c: any) => c.payPlan).map((c: any) => {
+                          const plan = c.payPlan || '';
+                          const isPostHandover = /post/i.test(plan) || /ph/i.test(plan);
+                          const isHeavyBooking = /^[3-9]0/i.test(plan) || /^[4-9]/i.test(plan.split('/')[0]);
+                          return (
+                            <TableRow key={c.name}>
+                              <TableCell className="text-xs font-medium py-1.5 whitespace-nowrap">{c.name}</TableCell>
+                              <TableCell className="text-xs text-right font-mono py-1.5">{plan}</TableCell>
+                              <TableCell className="text-xs text-right py-1.5">
+                                <Badge variant="outline" className={`text-[9px] ${isPostHandover ? 'border-success/40 text-success' : isHeavyBooking ? 'border-warning/40 text-warning' : 'border-primary/40 text-primary'}`}>
+                                  {isPostHandover ? 'Post-Handover' : isHeavyBooking ? 'Heavy Booking' : 'Standard'}
+                                </Badge>
+                              </TableCell>
+                            </TableRow>
+                          );
+                        })}
+                      </TableBody>
+                    </Table>
+                  </div>
+                </Section>
+              )}
             </>
           )}
 
