@@ -247,8 +247,8 @@ export function FeasibilityCalculator({ plot, sharedParams, onParamsChange }: Fe
           { label: `Marketing (2% GDV)`, value: fs.marketing },
           { label: `Contingency (${params.contingencyPct}% Constr)`, value: fs.contingency },
           { label: `Finance (${params.financePct}% GDV)`, value: fs.financing },
-        ].map(item => (
-          <div key={item.label} className="flex justify-between text-sm">
+        ].map((item, idx) => (
+          <div key={idx} className="flex justify-between text-sm">
             <span className="text-muted-foreground">{item.label}</span>
             <span className="text-foreground font-medium">{fmtA(item.value)}</span>
           </div>
