@@ -143,7 +143,7 @@ export function QuickAddLandModal({ open, onClose, onLandAdded }: QuickAddLandMo
         ...(overrides[pid] || {}),
         owner: editedOwner || undefined,
         contact: editedMobile || undefined,
-        ...(resolvedCoords ? { googleLocation: locationUrl.trim(), lat: resolvedCoords.lat, lng: resolvedCoords.lng } : {}),
+        ...(resolvedCoords ? { lat: resolvedCoords.lat, lng: resolvedCoords.lng } : {}),
       };
       localStorage.setItem('hyperplot_listing_overrides', JSON.stringify(overrides));
     } catch { }
