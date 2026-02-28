@@ -1045,7 +1045,7 @@ export function LandMatchingWizard({
                 ) : (
                   <Search className="w-4 h-4" />
                 )}
-                Run Matching (±6% Tolerance)
+                Run Matching
               </Button>
             </div>
           )}

@@ -16,6 +16,19 @@ import {
 } from '@/services/ManualLandService';
 import { PlotData } from '@/services/DDAGISService';
 
+/** Try to extract lat/lng from a Google Maps URL client-side */
+function extractCoordsFromUrl(input: string): { lat: number; lng: number } | null {
+  const atMatch = input.match(/@([-\d.]+),([-\d.]+)/);
+  if (atMatch) return { lat: parseFloat(atMatch[1]), lng: parseFloat(atMatch[2]) };
+  const dataMatch = input.match(/!3d([-\d.]+)!4d([-\d.]+)/);
+  if (dataMatch) return { lat: parseFloat(dataMatch[1]), lng: parseFloat(dataMatch[2]) };
+  const qMatch = input.match(/[?&](?:q|ll|center)=([-\d.]+)(?:%2C|,)([-\d.]+)/);
+  if (qMatch) return { lat: parseFloat(qMatch[1]), lng: parseFloat(qMatch[2]) };
+  const placeMatch = input.match(/\/place\/([-\d.]+),([-\d.]+)/);
+  if (placeMatch) return { lat: parseFloat(placeMatch[1]), lng: parseFloat(placeMatch[2]) };
+  return null;
+}
+
 interface ManualLandFormProps {
   open: boolean;
   onClose: () => void;
@@ -326,34 +339,38 @@ export function ManualLandForm({ open, onClose, onLandSaved, editEntry }: Manual
             <SectionHeader id="location" label="Location & Coordinates" icon={<MapPin className="w-4 h-4 text-secondary" />} />
             {expandedSections.has('location') && (
               <div className="space-y-3 px-1">
-                {/* Location Search */}
+                {/* Google Maps Location */}
                 <div>
-                  <label className="text-xs text-muted-foreground font-medium">Search Location</label>
-                  <div className="flex gap-2 mt-0.5">
-                    <Input
-                      value={locationSearch}
-                      onChange={e => setLocationSearch(e.target.value)}
-                      placeholder="e.g. Jumeirah Garden City, Business Bay..."
-                      className="h-9 text-sm flex-1"
-                      onKeyDown={e => e.key === 'Enter' && (e.preventDefault(), handleGeocode())}
-                    />
-                    <Button variant="outline" size="sm" onClick={handleGeocode} disabled={isGeocoding} className="gap-1.5 h-9 shrink-0">
-                      {isGeocoding ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Search className="w-3.5 h-3.5" />}
-                      {isGeocoding ? 'Searching...' : 'Find'}
-                    </Button>
-                  </div>
-                  <p className="text-[10px] text-muted-foreground mt-0.5">Type a location name and click Find to auto-fill coordinates</p>
-                </div>
-                <div className="grid grid-cols-2 gap-3">
-                  <div>
-                    <label className="text-xs text-muted-foreground font-medium">Latitude *</label>
-                    <Input type="number" step="0.000001" value={entry.latitude} onChange={e => updateField('latitude', parseFloat(e.target.value) || 0)} className="h-9 text-sm mt-0.5" />
-                    <FieldError field="latitude" />
-                  </div>
-                  <div>
-                    <label className="text-xs text-muted-foreground font-medium">Longitude *</label>
-                    <Input type="number" step="0.000001" value={entry.longitude} onChange={e => updateField('longitude', parseFloat(e.target.value) || 0)} className="h-9 text-sm mt-0.5" />
-                  </div>
+                  <label className="text-xs text-muted-foreground font-medium flex items-center gap-1.5">
+                    <MapPin className="w-3.5 h-3.5 text-primary" />
+                    Google Maps Location *
+                  </label>
+                  <Input
+                    value={locationSearch}
+                    onChange={e => {
+                      setLocationSearch(e.target.value);
+                      // Try instant client-side extraction
+                      const coords = extractCoordsFromUrl(e.target.value);
+                      if (coords) {
+                        updateField('latitude', coords.lat);
+                        updateField('longitude', coords.lng);
+                        miniMapInstanceRef.current?.setView([coords.lat, coords.lng], 16);
+                        markerRef.current?.setLatLng([coords.lat, coords.lng]);
+                      }
+                    }}
+                    placeholder="Paste Google Maps URL..."
+                    className="h-9 text-sm mt-0.5"
+                  />
+                  {entry.latitude !== 25.2048 || entry.longitude !== 55.2708 ? (
+                    <p className="text-[10px] text-success mt-0.5 flex items-center gap-1">
+                      ✓ Location set: {entry.latitude.toFixed(6)}, {entry.longitude.toFixed(6)}
+                    </p>
+                  ) : (
+                    <p className="text-[10px] text-muted-foreground mt-0.5">
+                      Open Google Maps → right-click the plot → copy the URL from your browser bar
+                    </p>
+                  )}
+                  <FieldError field="latitude" />
                 </div>
 
                 {/* Mini Map */}
