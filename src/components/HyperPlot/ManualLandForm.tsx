@@ -235,29 +235,49 @@ export function ManualLandForm({ open, onClose, onLandSaved, editEntry }: Manual
     toast.success(`Polygon drawn with ${polygonPoints.length} points`);
   };
 
-  const handleGeocode = async () => {
-    const query = locationSearch.trim() || entry.areaName.trim();
-    if (!query) {
-      toast.error('Enter a location or area name first');
+  const handleResolveLocation = async () => {
+    const url = locationSearch.trim();
+    if (!url) {
+      toast.error('Paste a Google Maps URL first');
       return;
     }
+
+    // Try client-side first
+    const clientCoords = extractCoordsFromUrl(url);
+    if (clientCoords) {
+      setEntry(prev => ({ ...prev, latitude: clientCoords.lat, longitude: clientCoords.lng }));
+      miniMapInstanceRef.current?.setView([clientCoords.lat, clientCoords.lng], 16);
+      markerRef.current?.setLatLng([clientCoords.lat, clientCoords.lng]);
+      toast.success(`Location resolved: ${clientCoords.lat.toFixed(6)}, ${clientCoords.lng.toFixed(6)}`);
+      return;
+    }
+
+    // Fallback to edge function for short links
     setIsGeocoding(true);
     try {
-      const searchQuery = query.toLowerCase().includes('uae') || query.toLowerCase().includes('dubai') || query.toLowerCase().includes('abu dhabi') || query.toLowerCase().includes('sharjah') ? query : `${query}, UAE`;
-      const res = await fetch(`https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(searchQuery)}&limit=1&countrycodes=ae`);
-      const data = await res.json();
-      if (data.length > 0) {
-        const lat = parseFloat(parseFloat(data[0].lat).toFixed(6));
-        const lng = parseFloat(parseFloat(data[0].lon).toFixed(6));
+      const resp = await fetch(`${import.meta.env.VITE_SUPABASE_URL}/functions/v1/resolve-url`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY}`,
+        },
+        body: JSON.stringify({ url }),
+      });
+      const data = await resp.json();
+      if (data.lat && data.lng) {
+        const lat = parseFloat(data.lat.toFixed(6));
+        const lng = parseFloat(data.lng.toFixed(6));
         setEntry(prev => ({ ...prev, latitude: lat, longitude: lng }));
         miniMapInstanceRef.current?.setView([lat, lng], 16);
         markerRef.current?.setLatLng([lat, lng]);
-        toast.success(`Found: ${data[0].display_name.split(',').slice(0, 3).join(',')}`);
+        toast.success(`Location resolved: ${lat.toFixed(6)}, ${lng.toFixed(6)}`);
       } else {
-        toast.error('Location not found. Try a different name or enter coordinates manually.');
+        toast.error(data.error === 'short_url'
+          ? 'Could not resolve short URL. Open the link in your browser, then copy the full URL.'
+          : data.error || 'Could not resolve location.');
       }
     } catch {
-      toast.error('Geocoding failed. Check your connection.');
+      toast.error('Failed to resolve location URL.');
     } finally {
       setIsGeocoding(false);
     }
@@ -345,29 +365,36 @@ export function ManualLandForm({ open, onClose, onLandSaved, editEntry }: Manual
                     <MapPin className="w-3.5 h-3.5 text-primary" />
                     Google Maps Location *
                   </label>
-                  <Input
-                    value={locationSearch}
-                    onChange={e => {
-                      setLocationSearch(e.target.value);
-                      // Try instant client-side extraction
-                      const coords = extractCoordsFromUrl(e.target.value);
-                      if (coords) {
-                        updateField('latitude', coords.lat);
-                        updateField('longitude', coords.lng);
-                        miniMapInstanceRef.current?.setView([coords.lat, coords.lng], 16);
-                        markerRef.current?.setLatLng([coords.lat, coords.lng]);
-                      }
-                    }}
-                    placeholder="Paste Google Maps URL..."
-                    className="h-9 text-sm mt-0.5"
-                  />
+                  <div className="flex gap-2 mt-0.5">
+                    <Input
+                      value={locationSearch}
+                      onChange={e => {
+                        setLocationSearch(e.target.value);
+                        // Try instant client-side extraction
+                        const coords = extractCoordsFromUrl(e.target.value);
+                        if (coords) {
+                          updateField('latitude', coords.lat);
+                          updateField('longitude', coords.lng);
+                          miniMapInstanceRef.current?.setView([coords.lat, coords.lng], 16);
+                          markerRef.current?.setLatLng([coords.lat, coords.lng]);
+                        }
+                      }}
+                      placeholder="Paste Google Maps URL..."
+                      className="h-9 text-sm flex-1"
+                      onKeyDown={e => e.key === 'Enter' && (e.preventDefault(), handleResolveLocation())}
+                    />
+                    <Button variant="outline" size="sm" onClick={handleResolveLocation} disabled={isGeocoding} className="gap-1.5 h-9 shrink-0">
+                      {isGeocoding ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Search className="w-3.5 h-3.5" />}
+                      {isGeocoding ? 'Resolving...' : 'Resolve'}
+                    </Button>
+                  </div>
                   {entry.latitude !== 25.2048 || entry.longitude !== 55.2708 ? (
                     <p className="text-[10px] text-success mt-0.5 flex items-center gap-1">
                       ✓ Location set: {entry.latitude.toFixed(6)}, {entry.longitude.toFixed(6)}
                     </p>
                   ) : (
                     <p className="text-[10px] text-muted-foreground mt-0.5">
-                      Open Google Maps → right-click the plot → copy the URL from your browser bar
+                      Paste a Google Maps URL and click Resolve (short links supported)
                     </p>
                   )}
                   <FieldError field="latitude" />
