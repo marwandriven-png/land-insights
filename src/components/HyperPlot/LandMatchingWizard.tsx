@@ -1063,7 +1063,7 @@ export function LandMatchingWizard({
                 <p className="text-xs text-muted-foreground">
                   {matchResults.length > 0
                     ? `${matchResults.length} lands · ${selectedMatchIds.size} selected`
-                    : 'No matching land found within tolerance'}
+                    : inputMode === 'location' ? 'No plots found within the search radius' : 'No matching land found within tolerance'}
                 </p>
               </div>
 
