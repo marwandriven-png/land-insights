@@ -625,9 +625,9 @@ export function LandMatchingWizard({
                     </div>
                     <input
                       type="range"
-                      min="100"
+                      min="1"
                       max="5000"
-                      step="100"
+                      step="1"
                       value={locationRadius}
                       onChange={(e) => setLocationRadius(parseInt(e.target.value, 10))}
                       className="w-full h-2 bg-muted/50 rounded-lg appearance-none cursor-pointer accent-primary"

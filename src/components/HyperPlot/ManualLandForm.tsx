@@ -276,7 +276,7 @@ export function ManualLandForm({ open, onClose, onLandSaved, editEntry }: Manual
         <div className="flex items-center justify-between p-5 border-b border-border/50 shrink-0">
           <div className="flex items-center gap-2">
             <Plus className="w-5 h-5 text-primary" />
-            <h2 className="text-lg font-bold text-foreground">{editEntry ? 'Edit Listing' : 'Create Listing'}</h2>
+            <h2 className="text-lg font-bold text-foreground">{editEntry ? 'Edit Plot' : 'Add Plot'}</h2>
             <Badge className="bg-warning/20 text-warning border-warning/30 text-xs">Manual Entry</Badge>
           </div>
           <button onClick={onClose} className="p-1.5 rounded-lg hover:bg-muted/50"><X className="w-5 h-5 text-muted-foreground" /></button>

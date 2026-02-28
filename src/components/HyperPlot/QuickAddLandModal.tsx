@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Search, Loader2, Check, Plus } from 'lucide-react';
+import { Search, Loader2, Check, Plus, MapPin } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -9,17 +9,31 @@ import { gisService, PlotData } from '@/services/DDAGISService';
 import { syncListingToSheet } from '@/services/SheetSyncService';
 import { saveManualLand, createDefaultManualLand } from '@/services/ManualLandService';
 
-
-
 interface QuickAddLandModalProps {
   open: boolean;
   onClose: () => void;
   onLandAdded: (plotId: string, ownerName?: string, mobile?: string, plot?: PlotData) => void;
 }
 
+/** Try to extract lat/lng from a Google Maps URL client-side */
+function extractCoordsFromUrl(input: string): { lat: number; lng: number } | null {
+  const atMatch = input.match(/@([-\d.]+),([-\d.]+)/);
+  if (atMatch) return { lat: parseFloat(atMatch[1]), lng: parseFloat(atMatch[2]) };
+  const dataMatch = input.match(/!3d([-\d.]+)!4d([-\d.]+)/);
+  if (dataMatch) return { lat: parseFloat(dataMatch[1]), lng: parseFloat(dataMatch[2]) };
+  const qMatch = input.match(/[?&](?:q|ll|center)=([-\d.]+)(?:%2C|,)([-\d.]+)/);
+  if (qMatch) return { lat: parseFloat(qMatch[1]), lng: parseFloat(qMatch[2]) };
+  const placeMatch = input.match(/\/place\/([-\d.]+),([-\d.]+)/);
+  if (placeMatch) return { lat: parseFloat(placeMatch[1]), lng: parseFloat(placeMatch[2]) };
+  return null;
+}
+
 export function QuickAddLandModal({ open, onClose, onLandAdded }: QuickAddLandModalProps) {
   const [plotNumber, setPlotNumber] = useState('');
+  const [locationUrl, setLocationUrl] = useState('');
   const [isSearching, setIsSearching] = useState(false);
+  const [isResolvingLocation, setIsResolvingLocation] = useState(false);
+  const [resolvedCoords, setResolvedCoords] = useState<{ lat: number; lng: number } | null>(null);
 
   const [gisPlot, setGisPlot] = useState<PlotData | null>(null);
   const [gisError, setGisError] = useState<string | null>(null);
@@ -31,18 +45,58 @@ export function QuickAddLandModal({ open, onClose, onLandAdded }: QuickAddLandMo
 
   const handleReset = () => {
     setPlotNumber('');
-
+    setLocationUrl('');
+    setResolvedCoords(null);
     setGisPlot(null);
     setGisError(null);
     setEditedOwner('');
     setEditedMobile('');
     setStep('input');
     setIsSearching(false);
+    setIsResolvingLocation(false);
   };
 
   const handleClose = () => {
     handleReset();
     onClose();
+  };
+
+  const resolveLocation = async (): Promise<{ lat: number; lng: number } | null> => {
+    const url = locationUrl.trim();
+    if (!url) return null;
+
+    // Try client-side first
+    const clientCoords = extractCoordsFromUrl(url);
+    if (clientCoords) {
+      setResolvedCoords(clientCoords);
+      return clientCoords;
+    }
+
+    // Fallback to edge function for short links
+    setIsResolvingLocation(true);
+    try {
+      const resp = await fetch(`${import.meta.env.VITE_SUPABASE_URL}/functions/v1/resolve-url`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY}`,
+        },
+        body: JSON.stringify({ url }),
+      });
+      const data = await resp.json();
+      if (data.lat && data.lng) {
+        const coords = { lat: data.lat, lng: data.lng };
+        setResolvedCoords(coords);
+        return coords;
+      }
+      toast({ title: 'Location Error', description: data.error || 'Could not resolve location. Use a full Google Maps URL with coordinates visible.' });
+      return null;
+    } catch {
+      toast({ title: 'Error', description: 'Failed to resolve location URL.' });
+      return null;
+    } finally {
+      setIsResolvingLocation(false);
+    }
   };
 
   const handleSearch = async () => {
@@ -55,7 +109,6 @@ export function QuickAddLandModal({ open, onClose, onLandAdded }: QuickAddLandMo
     setGisError(null);
 
     try {
-      // 1. Fetch plot data from GIS/DDA
       let fetchedPlot: PlotData | null = null;
       try {
         fetchedPlot = await gisService.fetchPlotById(plotNumber.trim());
@@ -65,7 +118,10 @@ export function QuickAddLandModal({ open, onClose, onLandAdded }: QuickAddLandMo
         setGisError('Could not fetch plot from DDA GIS.');
       }
 
-
+      // If we have a location URL but no resolved coords yet, resolve now
+      if (locationUrl.trim() && !resolvedCoords) {
+        await resolveLocation();
+      }
 
       setStep('confirm');
     } catch (err) {
@@ -80,7 +136,6 @@ export function QuickAddLandModal({ open, onClose, onLandAdded }: QuickAddLandMo
     const pid = plotNumber.trim();
     markPlotListed(pid);
 
-    // Save override data
     try {
       const stored = localStorage.getItem('hyperplot_listing_overrides');
       const overrides = stored ? JSON.parse(stored) : {};
@@ -88,11 +143,11 @@ export function QuickAddLandModal({ open, onClose, onLandAdded }: QuickAddLandMo
         ...(overrides[pid] || {}),
         owner: editedOwner || undefined,
         contact: editedMobile || undefined,
+        ...(resolvedCoords ? { googleLocation: locationUrl.trim(), lat: resolvedCoords.lat, lng: resolvedCoords.lng } : {}),
       };
       localStorage.setItem('hyperplot_listing_overrides', JSON.stringify(overrides));
     } catch { }
 
-    // Always provide a PlotData object – use GIS data if available, otherwise create a minimal fallback
     const plotToPass: PlotData = gisPlot || {
       id: pid,
       area: 0,
@@ -100,8 +155,8 @@ export function QuickAddLandModal({ open, onClose, onLandAdded }: QuickAddLandMo
       floors: 'N/A',
       zoning: 'N/A',
       location: '',
-      x: 0,
-      y: 0,
+      x: resolvedCoords?.lng || 0,
+      y: resolvedCoords?.lat || 0,
       color: '#8b5cf6',
       status: 'Available',
       constructionCost: 800,
@@ -113,8 +168,6 @@ export function QuickAddLandModal({ open, onClose, onLandAdded }: QuickAddLandMo
       verificationDate: new Date().toISOString(),
     };
 
-    // Persist as ManualLandEntry so the plot survives page refresh
-    // (GIS plots fetched individually may not be in the initial batch)
     const manualEntry = createDefaultManualLand();
     manualEntry.plotNumber = pid;
     manualEntry.isDraft = false;
@@ -125,12 +178,15 @@ export function QuickAddLandModal({ open, onClose, onLandAdded }: QuickAddLandMo
       manualEntry.zoning = gisPlot.zoning;
       manualEntry.areaName = gisPlot.project || gisPlot.location || '';
     }
+    if (resolvedCoords) {
+      manualEntry.latitude = resolvedCoords.lat;
+      manualEntry.longitude = resolvedCoords.lng;
+    }
     saveManualLand(manualEntry);
 
     onLandAdded(pid, editedOwner, editedMobile, plotToPass);
-    toast({ title: 'Listing Created', description: `${pid} has been added to your listings.` });
+    toast({ title: 'Plot Added', description: `${pid} has been added to your listings.` });
 
-    // Sync new listing to Google Sheet (append if not found)
     syncListingToSheet(pid, {
       owner: editedOwner,
       contact: editedMobile,
@@ -153,7 +209,7 @@ export function QuickAddLandModal({ open, onClose, onLandAdded }: QuickAddLandMo
         <div className="flex items-center justify-between p-5 border-b border-border/50">
           <div className="flex items-center gap-2">
             <Plus className="w-5 h-5 text-primary" />
-            <h2 className="text-lg font-bold text-foreground">Create Listing</h2>
+            <h2 className="text-lg font-bold text-foreground">Add Plot</h2>
           </div>
           <button onClick={handleClose} className="text-muted-foreground hover:text-foreground text-xl">&times;</button>
         </div>
@@ -174,9 +230,41 @@ export function QuickAddLandModal({ open, onClose, onLandAdded }: QuickAddLandMo
                   Will auto-fetch plot data from DDA GIS
                 </p>
               </div>
-              <Button onClick={handleSearch} disabled={isSearching} className="w-full gap-2">
-                {isSearching ? <Loader2 className="w-4 h-4 animate-spin" /> : <Search className="w-4 h-4" />}
-                {isSearching ? 'Fetching Data...' : 'Search & Create'}
+
+              {/* Google Maps Location */}
+              <div>
+                <Label className="text-sm font-medium flex items-center gap-1.5">
+                  <MapPin className="w-3.5 h-3.5 text-primary" />
+                  Google Maps Location
+                </Label>
+                <Input
+                  value={locationUrl}
+                  onChange={e => {
+                    setLocationUrl(e.target.value);
+                    setResolvedCoords(null);
+                    // Try instant client-side extraction
+                    const coords = extractCoordsFromUrl(e.target.value);
+                    if (coords) setResolvedCoords(coords);
+                  }}
+                  placeholder="Paste Google Maps URL..."
+                  className="mt-1 text-sm"
+                />
+                {resolvedCoords && (
+                  <p className="text-[10px] text-success mt-1 flex items-center gap-1">
+                    <Check className="w-3 h-3" />
+                    Location resolved: {resolvedCoords.lat.toFixed(6)}, {resolvedCoords.lng.toFixed(6)}
+                  </p>
+                )}
+                {!resolvedCoords && (
+                  <p className="text-[10px] text-muted-foreground mt-1">
+                    Open Google Maps → right-click the plot → copy the URL from your browser bar
+                  </p>
+                )}
+              </div>
+
+              <Button onClick={handleSearch} disabled={isSearching || isResolvingLocation} className="w-full gap-2">
+                {isSearching || isResolvingLocation ? <Loader2 className="w-4 h-4 animate-spin" /> : <Search className="w-4 h-4" />}
+                {isSearching ? 'Fetching Data...' : isResolvingLocation ? 'Resolving Location...' : 'Search & Add'}
               </Button>
             </>
           )}
@@ -204,7 +292,18 @@ export function QuickAddLandModal({ open, onClose, onLandAdded }: QuickAddLandMo
                 </div>
               )}
 
-
+              {/* Resolved Location */}
+              {resolvedCoords && (
+                <div className="p-3 rounded-lg bg-primary/10 border border-primary/30">
+                  <div className="flex items-center gap-1.5">
+                    <MapPin className="w-4 h-4 text-primary" />
+                    <span className="text-xs font-semibold text-primary">Location Set</span>
+                    <span className="text-[10px] text-muted-foreground ml-auto">
+                      {resolvedCoords.lat.toFixed(6)}, {resolvedCoords.lng.toFixed(6)}
+                    </span>
+                  </div>
+                </div>
+              )}
 
               <div>
                 <Label className="text-sm font-medium">Owner Name</Label>
@@ -231,7 +330,7 @@ export function QuickAddLandModal({ open, onClose, onLandAdded }: QuickAddLandMo
                 </Button>
                 <Button onClick={handleConfirm} className="flex-1 gap-2">
                   <Check className="w-4 h-4" />
-                  Confirm & Create
+                  Confirm & Add
                 </Button>
               </div>
             </>
