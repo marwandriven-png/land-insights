@@ -323,14 +323,19 @@ export function DecisionConfidence({ plot, comparisonPlots = [], isFullscreen, o
   const areaComps = useMemo(() => {
     const comps = (scopedAiData?.comparables || []) as any[];
 
-    // STRICT AREA FILTERING: only same-area comparables survive
+    // STRICT AREA FILTERING: re-verify each comparable against the plot's area code
     return comps.filter((c) => {
       const name = c.name?.toString() || '';
       if (!name.trim()) return false;
       if (/transaction|txn/i.test(name) || /^[0-9\-_]+$/.test(name)) return false;
+      // Double-check: comparable must have area/location that matches the plot's area code
+      if (plotAreaCode) {
+        const scope = [c.area, c.location].filter(Boolean).join(' ');
+        if (scope && !matchesAreaCode(scope, plotAreaCode)) return false;
+      }
       return true;
     });
-  }, [scopedAiData]);
+  }, [scopedAiData, plotAreaCode]);
 
   const areaTxnData = useMemo(() => {
     const safeObj = (val: any, fallback: Record<string, number>) => {
@@ -866,7 +871,7 @@ export function DecisionConfidence({ plot, comparisonPlots = [], isFullscreen, o
               </Section>
 
               {/* Sales Transactions Reference */}
-              <Section title={`${areaName} Sales Transactions`} badge={`${areaTxnData.count.total || '—'} total`}>
+              <Section title={`${areaName} Sales Transactions (Area-Only)`} badge={areaTxnData.count.total ? `${areaTxnData.count.total} txns` : scopedAiData?.isStrictlyScoped ? 'Scoped' : 'No area data'}>
                 <div className="overflow-x-auto">
                   <Table>
                     <TableHeader>
