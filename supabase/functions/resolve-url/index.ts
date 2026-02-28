@@ -74,13 +74,52 @@ serve(async (req) => {
                 method: 'GET',
                 redirect: 'follow',
                 signal: controller.signal,
-                headers: { 'User-Agent': 'Googlebot/2.1 (+http://www.google.com/bot.html)' }
+                headers: {
+                    // Try to mimic a mobile browser for better maps redirects or Googlebot
+                    'User-Agent': 'Mozilla/5.0 (macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36'
+                }
             });
             clearTimeout(timeout);
 
-            const finalUrl = response.url;
+            let finalUrl = response.url;
             const body = await response.text();
             console.log(`Resolved: status=${response.status}, url=${finalUrl.substring(0, 150)}, body=${body.length}`);
+
+            // Handle Firebase Dynamic Links / JavaScript-based redirects which return 200 OK but contain <meta refresh> or window.location
+            if (response.ok && (finalUrl.includes('maps.app.goo.gl') || finalUrl.includes('goo.gl'))) {
+                const html = body;
+
+                // Try meta refresh
+                const metaRefreshMatch = html.match(/<meta[^>]*?content=["'][^"']*?url=([^"']+)["'][^>]*?>/i) ||
+                    html.match(/<meta[^>]*?http-equiv=["']refresh["'][^>]*?content=["'][^"']*?url=([^"']+)["'][^>]*?>/i);
+
+                // Try JS redirects
+                const jsRedirectMatch = html.match(/window\.location\.replace\(['"]([^'"]+)['"]\)/) ||
+                    html.match(/window\.location\.assign\(['"]([^'"]+)['"]\)/) ||
+                    html.match(/window\.location\s*=\s*['"]([^'"]+)['"]/);
+
+                // Try Firebase dynamic link intents
+                const androidFallbackMatch = html.match(/<meta[^>]*?property=["']al:android:url["'][^>]*?content=["'](.*?)["'][^>]*?>/i);
+                const iosFallbackMatch = html.match(/<meta[^>]*?property=["']al:ios:url["'][^>]*?content=["'](.*?)["'][^>]*?>/i);
+
+                if (metaRefreshMatch && metaRefreshMatch[1]) {
+                    finalUrl = metaRefreshMatch[1].replace(/&amp;/g, '&');
+                } else if (jsRedirectMatch && jsRedirectMatch[1]) {
+                    finalUrl = jsRedirectMatch[1];
+                } else if (androidFallbackMatch && androidFallbackMatch[1]) {
+                    finalUrl = androidFallbackMatch[1].replace(/&amp;/g, '&');
+                } else if (iosFallbackMatch && iosFallbackMatch[1]) {
+                    finalUrl = iosFallbackMatch[1].replace(/&amp;/g, '&');
+                }
+
+                // If it resolved to an intent URL with a fallback or deep link, try to parse it
+                if (finalUrl.startsWith('intent://') || finalUrl.includes('intent:')) {
+                    const linkMatch = finalUrl.match(/(?:link|fallback_url)=([^&]+)/);
+                    if (linkMatch && linkMatch[1]) {
+                        finalUrl = decodeURIComponent(linkMatch[1]);
+                    }
+                }
+            }
 
             // Try final URL
             coords = extractCoords(finalUrl);
