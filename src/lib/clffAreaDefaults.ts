@@ -85,6 +85,13 @@ export const CLFF_AREAS: Record<string, CLFFAreaProfile> = {
     recommendedMix: { studio: 0.35, br1: 0.35, br2: 0.25, br3: 0.05 },
     keyNote: 'Only area with significant commercial/office rental income; corporate tenant demand',
   },
+  BUKADRA: {
+    code: 'BUKADRA', name: 'Bukadra', zoneType: 'RESIDENTIAL', subZone: 'Ras Al Khor',
+    marketTier: 'MID_HIGH', far: 4.0, buaMultiplier: 1.45, constructionPsf: 430,
+    sellablePct: 95, serviceCharge: 'AED 15–18',
+    recommendedMix: { studio: 0.30, br1: 0.40, br2: 0.22, br3: 0.08 },
+    keyNote: 'Strategic location near Ras Al Khor; end-user focus with growing developer interest',
+  },
 };
 
 // ─── Canonical Area Alias Map ─────────────────────────────────────────────────
@@ -124,6 +131,10 @@ export const AREA_ALIAS_MAP: Record<string, string> = {
   // MEYDAN
   'meydan': 'MEYDAN',
   'meydan horizon': 'MEYDAN',
+
+  // BUKADRA
+  'bukadra': 'BUKADRA',
+  'ras al khor industrial': 'BUKADRA',
 };
 
 /**
@@ -193,6 +204,13 @@ export const CLFF_MARKET_DATA: Record<string, CLFFMarketData> = {
     avgRentPsfYr: 79, rentalContracts: 2034, grossYieldEst: 6.5,
     dataSource: 'DLD + Ejari',
   },
+  BUKADRA: {
+    areaCode: 'BUKADRA', period: 'FEB_2026',
+    salesTransactions: 180, offPlanPct: 88.0,
+    studioPsfAvg: 1650, oneBrPsfAvg: 1580, twoBrPsfAvg: 1420, threeBrPsfAvg: 1350,
+    avgRentPsfYr: 78, rentalContracts: 950, grossYieldEst: 5.6,
+    dataSource: 'DLD + Reelly',
+  },
 };
 
 // ─── Cost Categories (Bukadra Reference Model) ───────────────────────────
@@ -242,6 +260,7 @@ export function matchCLFFArea(location: string): { area: CLFFAreaProfile; market
     [['sports city', 'dsc'], 'DSC'],
     [['meydan'], 'MEYDAN'],
     [['industrial city', 'saih shuaib', 'dic'], 'DIC'],
+    [['bukadra', 'ras al khor industrial'], 'BUKADRA'],
   ];
 
   for (const [keywords, code] of matchers) {
