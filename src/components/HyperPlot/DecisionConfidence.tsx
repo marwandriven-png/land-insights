@@ -171,6 +171,12 @@ const toPct = (value: unknown): number => {
   return n > 0 && n <= 1 ? Math.round(n * 100) : Math.round(n);
 };
 
+const normalizeMixPct = (value: unknown): number => {
+  const pct = toPct(value);
+  if (!Number.isFinite(pct) || pct <= 0 || pct > 100) return 0;
+  return pct;
+};
+
 const normalizePayPlan = (value: unknown): string | null => {
   if (!value) return null;
   if (typeof value === 'string') {
@@ -193,6 +199,18 @@ const normalizePayPlan = (value: unknown): string | null => {
   return null;
 };
 
+const deriveComparablePsf = (raw: any): number | undefined => {
+  const explicit = toNum(raw?.psf ?? raw?.avgPsf ?? raw?.avg_psf ?? raw?.pricePsf ?? raw?.price_psf);
+  if (explicit && explicit > 0) return explicit;
+
+  const byUnit = [raw?.studioP, raw?.br1P, raw?.br2P, raw?.br3P]
+    .map((v) => toNum(v))
+    .filter((v): v is number => v != null && v > 100);
+
+  if (!byUnit.length) return undefined;
+  return Math.round(byUnit.reduce((sum, v) => sum + v, 0) / byUnit.length);
+};
+
 const normalizeComparable = (raw: any) => {
   const unitMix = raw?.unitMix || raw?.unit_mix || raw?.mix || {};
   return {
@@ -202,11 +220,11 @@ const normalizeComparable = (raw: any) => {
     plotSqft: toNum(raw?.plotSqft ?? raw?.plotSizeSqft ?? raw?.plot_size_sqft ?? raw?.plotAreaSqft) ?? undefined,
     units: toNum(raw?.units ?? raw?.totalUnits ?? raw?.unitCount ?? raw?.unit_count) ?? undefined,
     bua: toNum(raw?.bua ?? raw?.sellableArea ?? raw?.sellable_area ?? raw?.gfa) ?? undefined,
-    psf: toNum(raw?.psf ?? raw?.avgPsf ?? raw?.avg_psf ?? raw?.pricePsf ?? raw?.price_psf) ?? undefined,
-    studioP: toPct(raw?.studioP ?? raw?.studio_pct ?? unitMix?.studio ?? unitMix?.studioP),
-    br1P: toPct(raw?.br1P ?? raw?.oneBrP ?? raw?.br1_pct ?? unitMix?.br1 ?? unitMix?.oneBr),
-    br2P: toPct(raw?.br2P ?? raw?.twoBrP ?? raw?.br2_pct ?? unitMix?.br2 ?? unitMix?.twoBr),
-    br3P: toPct(raw?.br3P ?? raw?.threeBrP ?? raw?.br3_pct ?? unitMix?.br3 ?? unitMix?.threeBr),
+    psf: deriveComparablePsf(raw),
+    studioP: normalizeMixPct(raw?.studioMix ?? raw?.studioPct ?? raw?.studio_mix ?? raw?.studioP ?? raw?.studio_pct ?? unitMix?.studio ?? unitMix?.studioP),
+    br1P: normalizeMixPct(raw?.br1Mix ?? raw?.br1Pct ?? raw?.br1_mix ?? raw?.br1P ?? raw?.oneBrP ?? raw?.br1_pct ?? unitMix?.br1 ?? unitMix?.oneBr),
+    br2P: normalizeMixPct(raw?.br2Mix ?? raw?.br2Pct ?? raw?.br2_mix ?? raw?.br2P ?? raw?.twoBrP ?? raw?.br2_pct ?? unitMix?.br2 ?? unitMix?.twoBr),
+    br3P: normalizeMixPct(raw?.br3Mix ?? raw?.br3Pct ?? raw?.br3_mix ?? raw?.br3P ?? raw?.threeBrP ?? raw?.br3_pct ?? unitMix?.br3 ?? unitMix?.threeBr),
     payPlan: normalizePayPlan(raw?.payPlan ?? raw?.paymentPlan ?? raw?.payment_plan ?? raw?.plan),
   };
 };
@@ -308,6 +326,8 @@ export function DecisionConfidence({ plot, comparisonPlots = [], isFullscreen, o
     return resolvePlotAreaCode(location, plan?.landName, clffMatch?.area.code || null);
   }, [activePlot, plan?.landName, clffMatch?.area.code]);
 
+  const scopedAreaCode = plotAreaCode || clffMatch?.area.code || anchorMatch?.area.code || null;
+
   const areaReport = useMemo(() => {
     try {
       const stored = localStorage.getItem('hyperplot_area_research_files');
@@ -318,13 +338,13 @@ export function DecisionConfidence({ plot, comparisonPlots = [], isFullscreen, o
         .filter(f => f.aiParsed && f.marketData)
         .map(f => {
           const withArea = { ...(f.marketData as any), areaName: f.areaName };
-          const scoped = getAreaScopedMarketData(withArea, plotAreaCode);
+          const scoped = getAreaScopedMarketData(withArea, scopedAreaCode);
           const hasScopedData = !!scoped && (
             (Array.isArray(scoped.comparables) && scoped.comparables.length > 0) ||
             !!scoped.areaTxn ||
             !!scoped.unitPsf
           );
-          const areaNameMatch = matchesAreaCode(f.areaName, plotAreaCode);
+          const areaNameMatch = matchesAreaCode(f.areaName, scopedAreaCode);
           return { file: f, withArea, hasScopedData, areaNameMatch };
         })
         .filter(c => c.hasScopedData || c.areaNameMatch);
@@ -332,9 +352,9 @@ export function DecisionConfidence({ plot, comparisonPlots = [], isFullscreen, o
       if (candidates.length === 0) return null;
 
       const best = candidates.sort((a, b) => Number(b.hasScopedData) - Number(a.hasScopedData))[0];
-      // Resolve display name from plotAreaCode, NOT the file name (which may be multi-area)
-      const resolvedName = plotAreaCode && CLFF_AREAS[plotAreaCode]
-        ? CLFF_AREAS[plotAreaCode].name
+      // Resolve display name from scoped area code, NOT the file name (which may be multi-area)
+      const resolvedName = scopedAreaCode && CLFF_AREAS[scopedAreaCode]
+        ? CLFF_AREAS[scopedAreaCode].name
         : best.file.areaName;
       return {
         areaName: resolvedName,
@@ -344,7 +364,7 @@ export function DecisionConfidence({ plot, comparisonPlots = [], isFullscreen, o
     } catch {
       return null;
     }
-  }, [plotAreaCode]);
+  }, [scopedAreaCode]);
 
   // Has data if either AI-parsed upload, CLFF area match, OR anchor area fallback
   const hasAreaData = !!areaReport || !!clffMatch || !!anchorMatch;
@@ -353,15 +373,15 @@ export function DecisionConfidence({ plot, comparisonPlots = [], isFullscreen, o
   // Effective CLFF/anchor for fallback resolution (restored anchor fallback)
   const effectiveClff = clffMatch || anchorMatch;
 
-  // Always resolve display name from plotAreaCode when available (prevents consolidated name leak)
-  const areaName = (plotAreaCode && CLFF_AREAS[plotAreaCode]?.name)
+  // Always resolve display name from scopedAreaCode when available (prevents consolidated name leak)
+  const areaName = (scopedAreaCode && CLFF_AREAS[scopedAreaCode]?.name)
     || areaReport?.areaName || clffMatch?.area.name || anchorMatch?.area.name || 'Unknown Area';
   const isStrictMatch = !!areaReport || !!clffMatch;
 
   const scopedAiData = useMemo(() => {
     const aiData = (areaReport as any)?.aiMarketData;
-    return getAreaScopedMarketData(aiData as any, plotAreaCode);
-  }, [areaReport, plotAreaCode]);
+    return getAreaScopedMarketData(aiData as any, scopedAreaCode);
+  }, [areaReport, scopedAreaCode]);
 
   // Extract area-specific market data: AI upload > CLFF > Anchor > empty
   // CRITICAL: User overrides (effectiveOverrides) are applied AFTER this, so they always win
@@ -395,16 +415,16 @@ export function DecisionConfidence({ plot, comparisonPlots = [], isFullscreen, o
       if (!name.trim()) return false;
       if (/transaction|txn/i.test(name) || /^[0-9\-_]+$/.test(name)) return false;
 
-      if (plotAreaCode) {
+      if (scopedAreaCode) {
         const scope = [c.area, c.location, c.project].filter(Boolean).join(' ');
         const scopeCodes = extractAreaCodes(scope);
         if (scopeCodes.length > 1) return false;
-        if (scopeCodes.length === 1 && scopeCodes[0] !== plotAreaCode) return false;
+        if (scopeCodes.length === 1 && scopeCodes[0] !== scopedAreaCode) return false;
       }
 
       return true;
     });
-  }, [scopedAiData, plotAreaCode]);
+  }, [scopedAiData, scopedAreaCode]);
 
   const areaCompsWithPlans = useMemo(
     () => areaComps.filter((c: any) => typeof c.payPlan === 'string' && c.payPlan.trim().length > 0),
@@ -412,29 +432,37 @@ export function DecisionConfidence({ plot, comparisonPlots = [], isFullscreen, o
   );
 
   const areaTxnData = useMemo(() => {
+    const fallbackMarket = effectiveClff?.market;
+    const fallbackPsf = {
+      studio: fallbackMarket?.studioPsfAvg || 0,
+      br1: fallbackMarket?.oneBrPsfAvg || 0,
+      br2: fallbackMarket?.twoBrPsfAvg || 0,
+      br3: fallbackMarket?.threeBrPsfAvg || 0,
+    };
+
     const safeObj = (val: any, fallback: Record<string, number>) => {
       if (val && typeof val === 'object') return { ...fallback, ...val };
       return fallback;
     };
+
     if (scopedAiData) {
       return {
-        avgPsf: safeObj(scopedAiData.unitPsf, ZERO_UNIT),
+        avgPsf: safeObj(scopedAiData.unitPsf, fallbackPsf),
         medianPsf: safeObj(scopedAiData.medianPsf, ZERO_UNIT),
         avgSize: safeObj(scopedAiData.unitSizes, ZERO_UNIT),
         avgPrice: safeObj(scopedAiData.avgPrices, ZERO_UNIT),
-        count: safeObj(scopedAiData.txnCount, ZERO_COUNT),
+        count: safeObj(scopedAiData.txnCount, { ...ZERO_COUNT, total: fallbackMarket?.salesTransactions || 0 }),
       };
     }
 
     // CLFF or anchor fallback
-    if (effectiveClff) {
-      const m = effectiveClff.market;
+    if (fallbackMarket) {
       return {
-        avgPsf: { studio: m.studioPsfAvg || 0, br1: m.oneBrPsfAvg || 0, br2: m.twoBrPsfAvg || 0, br3: m.threeBrPsfAvg || 0 },
+        avgPsf: fallbackPsf,
         medianPsf: ZERO_UNIT,
         avgSize: ZERO_UNIT,
         avgPrice: ZERO_UNIT,
-        count: { studio: 0, br1: 0, br2: 0, br3: 0, total: m.salesTransactions },
+        count: { studio: 0, br1: 0, br2: 0, br3: 0, total: fallbackMarket.salesTransactions },
       };
     }
 
@@ -1412,11 +1440,14 @@ export function DecisionConfidence({ plot, comparisonPlots = [], isFullscreen, o
                     <h4 className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-3">Payment Plan Distribution</h4>
                     <div className="space-y-2">
                       {(() => {
-                        const plans = areaCompsWithPlans.map((c: any) => c.payPlan as string);
+                        const plans = areaCompsWithPlans
+                          .map((c: any) => (typeof c.payPlan === 'string' ? c.payPlan.trim() : ''))
+                          .filter((p: string) => p.length > 0);
+
                         if (!plans.length) {
                           return (
                             <div className="text-xs text-muted-foreground">
-                              Default: {Object.entries(fs.payPlan).map(([k, v]) => `${v}%`).join('/')} (Booking/Construction/Handover)
+                              Default: {Object.entries(fs.payPlan).map(([, v]) => `${v}%`).join('/')} (Booking/Construction/Handover)
                             </div>
                           );
                         }
@@ -1427,12 +1458,13 @@ export function DecisionConfidence({ plot, comparisonPlots = [], isFullscreen, o
                         }, {});
 
                         return Object.entries(occurrences).map(([plan, count]) => {
-                          const pctOfTotal = ((count as number) / plans.length) * 100;
+                          const safeCount = Number(count) || 0;
+                          const pctOfTotal = plans.length ? Math.max(0, Math.min(100, (safeCount / plans.length) * 100)) : 0;
                           return (
                             <div key={plan} className="mb-2">
-                              <div className="flex justify-between text-xs mb-1">
-                                <span>{plan}</span>
-                                <span className="font-semibold">{count as number} Projects ({Math.round(pctOfTotal)}%)</span>
+                              <div className="flex justify-between text-xs mb-1 gap-2">
+                                <span className="truncate">{plan}</span>
+                                <span className="font-semibold whitespace-nowrap">{safeCount} Projects ({Math.round(pctOfTotal)}%)</span>
                               </div>
                               <div className="h-1.5 bg-muted/50 rounded-full overflow-hidden">
                                 <div className="h-full rounded-full bg-primary" style={{ width: `${pctOfTotal}%` }} />

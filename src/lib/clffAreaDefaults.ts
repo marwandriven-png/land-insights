@@ -110,6 +110,8 @@ export const AREA_ALIAS_MAP: Record<string, string> = {
   'dubai land residential': 'DLRC',
   'dubailand residential complex': 'DLRC',
   'dubailand residential': 'DLRC',
+  'dubai residence complex': 'DLRC',
+  'dubai residential complex': 'DLRC',
 
   // ALSATWA – Al Satwa / Jumeirah Garden City
   'al satwa': 'ALSATWA',
