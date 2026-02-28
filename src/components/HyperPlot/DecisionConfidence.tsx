@@ -275,8 +275,12 @@ export function DecisionConfidence({ plot, comparisonPlots = [], isFullscreen, o
       if (candidates.length === 0) return null;
 
       const best = candidates.sort((a, b) => Number(b.hasScopedData) - Number(a.hasScopedData))[0];
+      // Resolve display name from plotAreaCode, NOT the file name (which may be multi-area)
+      const resolvedName = plotAreaCode && CLFF_AREAS[plotAreaCode]
+        ? CLFF_AREAS[plotAreaCode].name
+        : best.file.areaName;
       return {
-        areaName: best.file.areaName,
+        areaName: resolvedName,
         uploadedOnly: true,
         aiMarketData: best.withArea,
       } as AreaReport & { uploadedOnly?: boolean; aiMarketData?: Record<string, unknown> | null };
@@ -292,7 +296,9 @@ export function DecisionConfidence({ plot, comparisonPlots = [], isFullscreen, o
   // Effective CLFF/anchor for fallback resolution (restored anchor fallback)
   const effectiveClff = clffMatch || anchorMatch;
 
-  const areaName = areaReport?.areaName || clffMatch?.area.name || anchorMatch?.area.name || 'Unknown Area';
+  // Always resolve display name from plotAreaCode when available (prevents consolidated name leak)
+  const areaName = (plotAreaCode && CLFF_AREAS[plotAreaCode]?.name)
+    || areaReport?.areaName || clffMatch?.area.name || anchorMatch?.area.name || 'Unknown Area';
   const isStrictMatch = !!areaReport || !!clffMatch;
 
   const scopedAiData = useMemo(() => {
