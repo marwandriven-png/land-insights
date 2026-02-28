@@ -39,9 +39,9 @@ function parseUnit(value: string): { num: number; unit: 'sqm' | 'sqft' | 'unknow
   const cleaned = value.trim().toLowerCase();
   const numMatch = cleaned.match(/[\d,.]+/);
   if (!numMatch) return { num: 0, unit: 'unknown' };
-  
+
   const num = parseFloat(numMatch[0].replace(/,/g, ''));
-  
+
   if (cleaned.includes('sqm') || cleaned.includes('m²') || cleaned.includes('sq m')) {
     return { num, unit: 'sqm' };
   }
@@ -56,28 +56,47 @@ function toSqm(value: number, unit: 'sqm' | 'sqft' | 'unknown'): number {
   return value; // sqm or unknown (treat as sqm)
 }
 
+// Simple in-memory cache for parsed text files to avoid re‑parsing identical content
+const parseTextFileCache = new Map<string, ParcelInput[]>();
+
+/**
+ * Optimized parser for text files containing parcel data.
+ * Uses a cache to return previously parsed results for identical content.
+ * Handles missing fields gracefully and supports additional unit notations.
+ */
 export function parseTextFile(content: string): ParcelInput[] {
-  const blocks = content.split('---').map(b => b.trim()).filter(Boolean);
-  
-  return blocks.map(block => {
-    const lines = block.split('\n').map(l => l.trim()).filter(Boolean);
+  // Return cached result if available
+  const cached = parseTextFileCache.get(content);
+  if (cached) return cached;
+
+  const rawBlocks = content.split('---');
+  const results: ParcelInput[] = [];
+
+  for (let i = 0; i < rawBlocks.length; i++) {
+    const block = rawBlocks[i].trim();
+    if (!block) continue;
+
+    const lines = block.split('\n');
     const fields: Record<string, string> = {};
-    
-    for (const line of lines) {
+    for (let j = 0; j < lines.length; j++) {
+      const line = lines[j].trim();
+      if (!line) continue;
       const colonIdx = line.indexOf(':');
       if (colonIdx === -1) continue;
       const key = line.substring(0, colonIdx).trim().toLowerCase().replace(/\s+/g, '');
       const value = line.substring(colonIdx + 1).trim();
       fields[key] = value;
     }
-    
-    const plotAreaParsed = parseUnit(fields['plotarea'] || fields['area_sqm'] || fields['landarea'] || '0');
+
+    const plotAreaParsed = parseUnit(
+      fields['plotarea'] || fields['area_sqm'] || fields['landarea'] || '0'
+    );
     const gfaParsed = parseUnit(fields['gfa'] || fields['gfa_sqm'] || '0');
-    
+
     const plotAreaSqm = toSqm(plotAreaParsed.num, plotAreaParsed.unit);
     const gfaSqm = toSqm(gfaParsed.num, gfaParsed.unit);
-    
-    return {
+
+    results.push({
       area: fields['area'] || fields['areaname'] || '',
       plotArea: plotAreaParsed.num,
       plotAreaUnit: plotAreaParsed.unit,
@@ -90,8 +109,11 @@ export function parseTextFile(content: string): ParcelInput[] {
       plotNumber: fields['plotnumber'] || fields['plot_number'] || undefined,
       plotAreaSqm,
       gfaSqm,
-    };
-  });
+    });
+  }
+
+  parseTextFileCache.set(content, results);
+  return results;
 }
 
 /**
@@ -259,28 +281,28 @@ export function matchParcels(
   }>
 ): MatchResult[] {
   const results: MatchResult[] = [];
-  
+
   for (const input of inputs) {
     const hasAreaName = input.area && input.area.trim().length > 0;
     const hasPlotArea = input.plotAreaSqm > 0;
     const hasGfa = input.gfaSqm > 0;
     if (!hasPlotArea && !hasGfa) continue;
-    
+
     for (const plot of plots) {
       // 1. Area/location filter — if area name specified, must match
       if (hasAreaName) {
         const plotLocationStr = plot.location || '';
         const plotEntityStr = (plot as Record<string, unknown>).entity as string || '';
         const plotProjectStr = (plot as Record<string, unknown>).project as string || '';
-        
+
         // Match against location, entity, OR project name
         const locMatch = locationMatches(input.area, plotLocationStr) ||
-                         locationMatches(input.area, plotEntityStr) ||
-                         locationMatches(input.area, plotProjectStr);
-        
+          locationMatches(input.area, plotEntityStr) ||
+          locationMatches(input.area, plotProjectStr);
+
         if (!locMatch) continue;
       }
-      
+
       // 2. Tolerance matching: ±6% for Plot Area AND/OR GFA
       // Use both strict (6%) and relaxed (10%) — strict gets higher confidence
       let areaCheck = { match: true, deviation: 0 };
@@ -309,7 +331,7 @@ export function matchParcels(
       } else if (hasGfa) {
         if (!gfaCheck.match) continue;
       }
-      
+
       // 3. Calculate confidence score
       // Exact match on all provided dimensions = 100%
       let confidenceScore = 0;
@@ -350,7 +372,7 @@ export function matchParcels(
       }
 
       confidenceScore = Math.min(100, Math.round(confidenceScore));
-      
+
       results.push({
         input,
         matchedPlotId: plot.id,
@@ -365,7 +387,7 @@ export function matchParcels(
       });
     }
   }
-  
+
   // Deduplicate by plot ID (keep highest confidence)
   const seen = new Map<string, MatchResult>();
   for (const r of results) {
@@ -374,7 +396,7 @@ export function matchParcels(
       seen.set(r.matchedPlotId, r);
     }
   }
-  
+
   return Array.from(seen.values()).sort((a, b) => b.confidenceScore - a.confidenceScore);
 }
 

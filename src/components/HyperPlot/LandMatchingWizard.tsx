@@ -641,7 +641,10 @@ export function LandMatchingWizard({
                         // 1. Resolve URL
                         const resolveRes = await fetch(`${import.meta.env.VITE_SUPABASE_URL}/functions/v1/resolve-url`, {
                           method: 'POST',
-                          headers: { 'Content-Type': 'application/json' },
+                          headers: {
+                            'Authorization': `Bearer ${import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY}`,
+                            'Content-Type': 'application/json'
+                          },
                           body: JSON.stringify({ url: locationUrl })
                         });
 
@@ -664,21 +667,35 @@ export function LandMatchingWizard({
                           return;
                         }
 
-                        // 3. Convert PlotData to MatchResult
-                        const mockInput: ParcelInput = {
-                          area: `Radius ${locationRadius}m`,
-                          plotAreaSqm: 0,
-                          gfaSqm: 0
-                        };
+                        // Create parsed inputs from the spatial results for the matching step
+                        const inputs: ParcelInput[] = apiPlots.map(plot => ({
+                          area: plot.id,
+                          plotArea: plot.area || 0,
+                          plotAreaUnit: 'sqm',
+                          plotAreaSqm: plot.area || 0,
+                          gfa: plot.gfa || 0,
+                          gfaUnit: 'sqm',
+                          gfaSqm: plot.gfa || 0,
+                          heightFloors: plot.floors ? parseInt(plot.floors.replace(/[^0-9]/g, ''), 10) || 0 : 0,
+                          zoning: plot.zoning || '',
+                          use: '',
+                          far: 0,
+                          plotNumber: plot.id
+                        }));
 
-                        let results: MatchResult[] = apiPlots.map(ap => ({
-                          input: mockInput,
-                          matchedPlotId: ap.id,
-                          matchedPlotArea: ap.area,
-                          matchedGfa: ap.gfa,
-                          matchedZoning: ap.zoning,
-                          matchedStatus: ap.status,
-                          matchedLocation: ap.location,
+                        setParsedInputs(inputs);
+                        setStep('matching');
+
+                        // Since we already fetched from the API based on location,
+                        // we treat the API results themselves as the exact matches.
+                        let results: MatchResult[] = inputs.map((input, i) => ({
+                          input,
+                          matchedPlotId: apiPlots[i].id,
+                          matchedPlotArea: apiPlots[i].area,
+                          matchedGfa: apiPlots[i].gfa,
+                          matchedZoning: apiPlots[i].zoning,
+                          matchedStatus: apiPlots[i].status,
+                          matchedLocation: apiPlots[i].location,
                           areaDeviation: 0,
                           gfaDeviation: 0,
                           confidenceScore: 100
@@ -860,44 +877,46 @@ export function LandMatchingWizard({
               )}
 
               {/* Google Sheet connector */}
-              <div className="space-y-2 pt-2 border-t border-border/30">
-                <label className="text-xs font-semibold text-muted-foreground uppercase tracking-wide flex items-center gap-1.5">
-                  <Link2 className="w-3.5 h-3.5" />
-                  Google Sheet Cross-Check (Optional)
-                </label>
-                <div className="flex gap-2">
-                  <Input
-                    value={sheetId}
-                    onChange={(e) => setSheetId(e.target.value)}
-                    placeholder="Spreadsheet ID"
-                    className="text-xs"
-                  />
-                  <Button
-                    size="sm"
-                    variant={sheetConnected ? 'outline' : 'default'}
-                    onClick={handleConnectSheet}
-                    disabled={isConnectingSheet || !sheetId.trim()}
-                    className="shrink-0 gap-1.5"
-                  >
-                    {isConnectingSheet ? (
-                      <Loader2 className="w-3.5 h-3.5 animate-spin" />
-                    ) : sheetConnected ? (
-                      <CheckCircle className="w-3.5 h-3.5 text-success" />
-                    ) : (
-                      <Link2 className="w-3.5 h-3.5" />
-                    )}
-                    {sheetConnected ? 'Linked' : 'Connect'}
-                  </Button>
+              {inputMode !== 'location' && (
+                <div className="space-y-2 pt-2 border-t border-border/30">
+                  <label className="text-xs font-semibold text-muted-foreground uppercase tracking-wide flex items-center gap-1.5">
+                    <Link2 className="w-3.5 h-3.5" />
+                    Google Sheet Cross-Check (Optional)
+                  </label>
+                  <div className="flex gap-2">
+                    <Input
+                      value={sheetId}
+                      onChange={(e) => setSheetId(e.target.value)}
+                      placeholder="Spreadsheet ID"
+                      className="text-xs"
+                    />
+                    <Button
+                      size="sm"
+                      variant={sheetConnected ? 'outline' : 'default'}
+                      onClick={handleConnectSheet}
+                      disabled={isConnectingSheet || !sheetId.trim()}
+                      className="shrink-0 gap-1.5"
+                    >
+                      {isConnectingSheet ? (
+                        <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                      ) : sheetConnected ? (
+                        <CheckCircle className="w-3.5 h-3.5 text-success" />
+                      ) : (
+                        <Link2 className="w-3.5 h-3.5" />
+                      )}
+                      {sheetConnected ? 'Linked' : 'Connect'}
+                    </Button>
+                  </div>
+                  {sheetConnected && (
+                    <Input
+                      value={sheetName}
+                      onChange={(e) => setSheetName(e.target.value)}
+                      placeholder="Sheet name (default: Sheet1)"
+                      className="text-xs"
+                    />
+                  )}
                 </div>
-                {sheetConnected && (
-                  <Input
-                    value={sheetName}
-                    onChange={(e) => setSheetName(e.target.value)}
-                    placeholder="Sheet name (default: Sheet1)"
-                    className="text-xs"
-                  />
-                )}
-              </div>
+              )}
             </div>
           )}
 

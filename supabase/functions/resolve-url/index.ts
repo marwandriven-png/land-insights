@@ -35,7 +35,10 @@ serve(async (req) => {
         console.log(`Final resolved URL: ${finalUrl}`);
 
         // Attempt to extract lat/lng from URL format: /@25.1234,55.1234,
-        const match = finalUrl.match(/@([-\d.]+),([-\d.]+)/);
+        // Attempt to extract lat/lng from URL format: /@25.1234,55.1234, or /place/25.1234,55.1234
+        const atMatch = finalUrl.match(/@([-\d.]+),([-\d.]+)/);
+        const placeMatch = finalUrl.match(/\/place\/([-\d.]+),([-\d.]+)/);
+        const match = atMatch || placeMatch;
 
         if (match) {
             const lat = parseFloat(match[1]);

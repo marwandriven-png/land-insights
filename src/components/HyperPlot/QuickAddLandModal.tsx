@@ -9,11 +9,7 @@ import { gisService, PlotData } from '@/services/DDAGISService';
 import { syncListingToSheet } from '@/services/SheetSyncService';
 import { saveManualLand, createDefaultManualLand } from '@/services/ManualLandService';
 
-interface SheetMatch {
-  ownerName: string;
-  mobile: string;
-  rawData: Record<string, string>;
-}
+
 
 interface QuickAddLandModalProps {
   open: boolean;
@@ -24,7 +20,7 @@ interface QuickAddLandModalProps {
 export function QuickAddLandModal({ open, onClose, onLandAdded }: QuickAddLandModalProps) {
   const [plotNumber, setPlotNumber] = useState('');
   const [isSearching, setIsSearching] = useState(false);
-  const [sheetMatch, setSheetMatch] = useState<SheetMatch | null>(null);
+
   const [gisPlot, setGisPlot] = useState<PlotData | null>(null);
   const [gisError, setGisError] = useState<string | null>(null);
   const [editedOwner, setEditedOwner] = useState('');
@@ -35,7 +31,7 @@ export function QuickAddLandModal({ open, onClose, onLandAdded }: QuickAddLandMo
 
   const handleReset = () => {
     setPlotNumber('');
-    setSheetMatch(null);
+
     setGisPlot(null);
     setGisError(null);
     setEditedOwner('');
@@ -69,53 +65,7 @@ export function QuickAddLandModal({ open, onClose, onLandAdded }: QuickAddLandMo
         setGisError('Could not fetch plot from DDA GIS.');
       }
 
-      // 2. Cross-check Google Sheet (optional)
-      // Try both storage keys: wizard uses hp_sheetId, settings uses hyperplot_sheet_url
-      const sheetUrl = localStorage.getItem('hp_sheetId') || localStorage.getItem('hyperplot_sheet_url') || '';
-      const sheetName = localStorage.getItem('hp_sheetName') || '';
-      if (sheetUrl) {
-        try {
-          const response = await fetch(
-            `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/sheets-proxy?action=lookup`,
-            {
-              method: 'POST',
-              headers: {
-                'Authorization': `Bearer ${import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY}`,
-                'Content-Type': 'application/json',
-              },
-              body: JSON.stringify({
-                spreadsheetId: sheetUrl,
-                sheetName: sheetName || undefined,
-                plotNumbers: [plotNumber.trim()],
-              }),
-            }
-          );
 
-          const data = await response.json();
-          if (!data.error) {
-            const match = data.matches?.[plotNumber.trim()];
-            if (match) {
-              const ownerKeys = ['owner', 'owner name', 'name', 'owner_reference', 'owner reference', 'owner ref'];
-              const mobileKeys = ['mobile', 'phone', 'contact', 'phone number', 'contact number', 'mobile number'];
-
-              let ownerName = '';
-              let mobile = '';
-              for (const key of ownerKeys) {
-                if (match[key]) { ownerName = match[key]; break; }
-              }
-              for (const key of mobileKeys) {
-                if (match[key]) { mobile = match[key]; break; }
-              }
-
-              setSheetMatch({ ownerName, mobile, rawData: match });
-              setEditedOwner(ownerName);
-              setEditedMobile(mobile);
-            }
-          }
-        } catch (err) {
-          console.error('Sheet lookup error:', err);
-        }
-      }
 
       setStep('confirm');
     } catch (err) {
@@ -140,7 +90,7 @@ export function QuickAddLandModal({ open, onClose, onLandAdded }: QuickAddLandMo
         contact: editedMobile || undefined,
       };
       localStorage.setItem('hyperplot_listing_overrides', JSON.stringify(overrides));
-    } catch {}
+    } catch { }
 
     // Always provide a PlotData object – use GIS data if available, otherwise create a minimal fallback
     const plotToPass: PlotData = gisPlot || {
@@ -191,7 +141,7 @@ export function QuickAddLandModal({ open, onClose, onLandAdded }: QuickAddLandMo
       status: 'Available',
     }).then(ok => {
       if (ok) toast({ title: 'Sheet Synced', description: `${pid} synced to Google Sheet.` });
-    }).catch(() => {});
+    }).catch(() => { });
 
     handleClose();
   };
@@ -221,7 +171,7 @@ export function QuickAddLandModal({ open, onClose, onLandAdded }: QuickAddLandMo
                   onKeyDown={e => e.key === 'Enter' && handleSearch()}
                 />
                 <p className="text-[10px] text-muted-foreground mt-1">
-                  Will auto-fetch plot data from DDA GIS &amp; cross-check Google Sheet
+                  Will auto-fetch plot data from DDA GIS
                 </p>
               </div>
               <Button onClick={handleSearch} disabled={isSearching} className="w-full gap-2">
@@ -254,20 +204,7 @@ export function QuickAddLandModal({ open, onClose, onLandAdded }: QuickAddLandMo
                 </div>
               )}
 
-              {/* Sheet Match */}
-              {sheetMatch ? (
-                <div className="p-3 rounded-lg bg-primary/10 border border-primary/30">
-                  <div className="flex items-center gap-1.5 mb-1">
-                    <Check className="w-4 h-4 text-primary" />
-                    <span className="text-sm font-semibold text-primary">Google Sheet Match</span>
-                  </div>
-                  <p className="text-xs text-muted-foreground">Owner and contact auto-filled from sheet.</p>
-                </div>
-              ) : (
-                <div className="p-3 rounded-lg bg-muted/30 border border-border/50">
-                  <span className="text-xs text-muted-foreground">No Google Sheet match. Enter details manually.</span>
-                </div>
-              )}
+
 
               <div>
                 <Label className="text-sm font-medium">Owner Name</Label>
@@ -289,7 +226,7 @@ export function QuickAddLandModal({ open, onClose, onLandAdded }: QuickAddLandMo
               </div>
 
               <div className="flex gap-2">
-                <Button variant="outline" onClick={() => { setStep('input'); setGisPlot(null); setSheetMatch(null); setGisError(null); }} className="flex-1">
+                <Button variant="outline" onClick={() => { setStep('input'); setGisPlot(null); setGisError(null); }} className="flex-1">
                   Back
                 </Button>
                 <Button onClick={handleConfirm} className="flex-1 gap-2">
