@@ -64,11 +64,14 @@ export function getAreaScopedMarketData(aiData: AnyRecord | null | undefined, pl
     };
   }
 
+  // STRICT: Filter comparables by area code match only
   const filteredComparables = comparables.filter((comp: AnyRecord) => {
-    const scope = [comp?.area, comp?.location, comp?.name].filter(Boolean).join(' ');
+    // Must have an explicit area field that matches the plot code
+    const scope = [comp?.area, comp?.location].filter(Boolean).join(' ');
     return matchesAreaCode(scope, plotCode);
   });
 
+  // Look up per-area transaction data
   let areaTxn: AnyRecord | null = null;
   if (areaTransactions) {
     for (const [key, value] of Object.entries(areaTransactions)) {
@@ -82,19 +85,24 @@ export function getAreaScopedMarketData(aiData: AnyRecord | null | undefined, pl
   const hasMultiAreaTxn = !!areaTransactions && Object.keys(areaTransactions).length > 1;
   const topLevelLooksScoped = matchesAreaCode(aiData.areaName || aiData.areaCode || '', plotCode);
 
+  // STRICT: Only use top-level data when document is single-area AND matches the plot
+  // ❌ NEVER fall back to consolidated averages when multi-area document
   const canUseTopLevel = !hasMultiAreaTxn && topLevelLooksScoped;
 
+  // For multi-area docs: ONLY per-area transaction data survives, no top-level fallback
   return {
     comparables: filteredComparables,
     areaTxn,
-    unitPsf: areaTxn?.unitPsf || (canUseTopLevel ? aiData.unitPsf : null),
-    unitSizes: areaTxn?.unitSizes || (canUseTopLevel ? aiData.unitSizes : null),
-    unitRents: canUseTopLevel ? aiData.unitRents : null,
-    avgPrices: areaTxn?.avgPrices || (canUseTopLevel ? aiData.avgPrices : null),
-    medianPsf: areaTxn?.medianPsf || (canUseTopLevel ? aiData.medianPsf : null),
-    txnCount: areaTxn?.txnCount || (canUseTopLevel ? aiData.txnCount : null),
-    marketFloorPsf: areaTxn?.marketFloorPsf || (canUseTopLevel ? aiData.marketFloorPsf : null),
-    marketAvgPsf: areaTxn?.marketAvgPsf || (canUseTopLevel ? aiData.marketAvgPsf : null),
-    marketCeilingPsf: areaTxn?.marketCeilingPsf || (canUseTopLevel ? aiData.marketCeilingPsf : null),
+    unitPsf: areaTxn?.unitPsf ?? (canUseTopLevel ? aiData.unitPsf : null),
+    unitSizes: areaTxn?.unitSizes ?? (canUseTopLevel ? aiData.unitSizes : null),
+    unitRents: areaTxn?.unitRents ?? (canUseTopLevel ? aiData.unitRents : null),
+    avgPrices: areaTxn?.avgPrices ?? (canUseTopLevel ? aiData.avgPrices : null),
+    medianPsf: areaTxn?.medianPsf ?? (canUseTopLevel ? aiData.medianPsf : null),
+    txnCount: areaTxn?.txnCount ?? (canUseTopLevel ? aiData.txnCount : null),
+    marketFloorPsf: areaTxn?.marketFloorPsf ?? (canUseTopLevel ? aiData.marketFloorPsf : null),
+    marketAvgPsf: areaTxn?.marketAvgPsf ?? (canUseTopLevel ? aiData.marketAvgPsf : null),
+    marketCeilingPsf: areaTxn?.marketCeilingPsf ?? (canUseTopLevel ? aiData.marketCeilingPsf : null),
+    isMultiArea: hasMultiAreaTxn,
+    isStrictlyScoped: !!areaTxn || canUseTopLevel,
   };
 }
