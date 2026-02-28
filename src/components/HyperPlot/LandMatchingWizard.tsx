@@ -597,12 +597,12 @@ export function LandMatchingWizard({
                 <div className="space-y-4">
                   <div className="space-y-1.5">
                     <Label className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">
-                      Google Maps URL or Coordinates <span className="text-destructive">*</span>
+                      Google Maps Location Link <span className="text-destructive">*</span>
                     </Label>
                     <Input
                       value={locationUrl}
                       onChange={(e) => setLocationUrl(e.target.value)}
-                      placeholder="e.g. https://maps.app.goo.gl/... or 25.2048,55.2708"
+                      placeholder="e.g. https://maps.app.goo.gl/abc123 or https://www.google.com/maps/..."
                       className="text-sm"
                       onKeyDown={(e) => {
                         if (e.key === 'Enter' && locationUrl.trim()) {
@@ -612,7 +612,7 @@ export function LandMatchingWizard({
                       }}
                     />
                     <p className="text-[10px] text-muted-foreground">
-                      Paste a Google Maps link, or enter lat,lng coordinates directly
+                      Paste any Google Maps link — short or full URL
                     </p>
                   </div>
 
@@ -644,6 +644,13 @@ export function LandMatchingWizard({
                     onClick={async () => {
                       const input = locationUrl.trim();
                       if (!input) return;
+
+                      // Validate it looks like a URL
+                      if (!input.startsWith('http')) {
+                        setError('Please paste a Google Maps URL (starting with https://)');
+                        return;
+                      }
+
                       setIsProcessing(true);
                       setError(null);
                       setStep('matching');
@@ -652,23 +659,14 @@ export function LandMatchingWizard({
                         let lat: number | null = null;
                         let lng: number | null = null;
 
-                        // Check if input is direct coordinates (lat,lng)
-                        const directMatch = input.match(/^([-\d.]+)\s*,\s*([-\d.]+)$/);
-                        if (directMatch) {
-                          lat = parseFloat(directMatch[1]);
-                          lng = parseFloat(directMatch[2]);
+                        // Try extracting coords from full Google Maps URL client-side first
+                        const atMatch = input.match(/@([-\d.]+),([-\d.]+)/);
+                        if (atMatch) {
+                          lat = parseFloat(atMatch[1]);
+                          lng = parseFloat(atMatch[2]);
                         }
 
-                        // Check if input contains /@lat,lng pattern (full Google Maps URL)
-                        if (!lat) {
-                          const atMatch = input.match(/@([-\d.]+),([-\d.]+)/);
-                          if (atMatch) {
-                            lat = parseFloat(atMatch[1]);
-                            lng = parseFloat(atMatch[2]);
-                          }
-                        }
-
-                        // If still no coords, use resolve-url edge function for short URLs
+                        // For short URLs (goo.gl, maps.app.goo.gl), resolve via edge function
                         if (!lat) {
                           const resolveRes = await fetch(`${import.meta.env.VITE_SUPABASE_URL}/functions/v1/resolve-url`, {
                             method: 'POST',
@@ -681,7 +679,7 @@ export function LandMatchingWizard({
 
                           if (!resolveRes.ok) {
                             const errData = await resolveRes.json().catch(() => ({}));
-                            throw new Error(errData.error || 'Failed to resolve URL');
+                            throw new Error(errData.error || 'Failed to resolve Google Maps URL');
                           }
                           const resData = await resolveRes.json();
                           if (resData.error) throw new Error(resData.error);
@@ -689,7 +687,7 @@ export function LandMatchingWizard({
                           lng = resData.lng;
                         }
 
-                        if (!lat || !lng) throw new Error('Could not extract coordinates. Try pasting coordinates directly (e.g. 25.2048,55.2708)');
+                        if (!lat || !lng) throw new Error('Could not extract location from the Google Maps link');
 
                         // Query spatial search
                         const { gisService } = await import('@/services/DDAGISService');
@@ -747,7 +745,7 @@ export function LandMatchingWizard({
                     disabled={!locationUrl.trim() || isProcessing}
                   >
                     {isProcessing ? <Loader2 className="w-4 h-4 animate-spin" /> : <MapPin className="w-4 h-4" />}
-                    {isProcessing ? 'Searching...' : 'Spatial Search'}
+                    {isProcessing ? 'Resolving Location...' : 'Search Nearby Plots'}
                   </Button>
                 </div>
               )}
