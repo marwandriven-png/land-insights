@@ -1,4 +1,5 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
+import { postProcessMarketData } from "./postprocess.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -222,7 +223,8 @@ IMPORTANT: Extract ALL developments/projects mentioned as comparables. Include e
       });
     }
 
-    const marketData = JSON.parse(toolCall.function.arguments);
+    const rawMarketData = JSON.parse(toolCall.function.arguments);
+    const marketData = postProcessMarketData(rawMarketData, fileContent);
     console.log(`Extracted market data for "${areaName}":`, JSON.stringify(marketData).slice(0, 500));
 
     return new Response(JSON.stringify({ success: true, areaName, marketData }), {
