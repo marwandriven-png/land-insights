@@ -1298,25 +1298,37 @@ export function DecisionConfidence({ plot, comparisonPlots = [], isFullscreen, o
                   </Table>
                 </div>
                 {
-                  areaComps.length > 0 && (
-                    <div className="mt-3">
-                      <h4 className="text-xs font-bold text-muted-foreground uppercase tracking-wider mb-2">Competitor PSF Range</h4>
-                      <div className="grid grid-cols-3 gap-2">
-                        <div className="data-card text-center py-2">
-                          <div className="text-[10px] text-muted-foreground">Floor</div>
-                          <div className="text-sm font-bold font-mono text-foreground">AED {fmt(Math.min(...areaComps.filter((c: any) => c.psf).map((c: any) => c.psf)) || 0)}</div>
-                        </div>
-                        <div className="data-card text-center py-2 border-primary/40">
-                          <div className="text-[10px] text-muted-foreground">Average</div>
-                          <div className="text-sm font-bold font-mono text-primary">AED {fmt(Math.round(areaComps.filter((c: any) => c.psf).reduce((s: number, c: any) => s + c.psf, 0) / (areaComps.filter((c: any) => c.psf).length || 1)))}</div>
-                        </div>
-                        <div className="data-card text-center py-2">
-                          <div className="text-[10px] text-muted-foreground">Ceiling</div>
-                          <div className="text-sm font-bold font-mono text-foreground">AED {fmt(Math.max(...areaComps.filter((c: any) => c.psf).map((c: any) => c.psf)) || 0)}</div>
+                  areaComps.length > 0 && (() => {
+                    const compPsfValues = areaComps
+                      .map((c: any) => (typeof c.psf === 'number' ? c.psf : null))
+                      .filter((v): v is number => v != null && v > 0);
+
+                    if (!compPsfValues.length) return null;
+
+                    const floor = Math.min(...compPsfValues);
+                    const ceiling = Math.max(...compPsfValues);
+                    const avg = Math.round(compPsfValues.reduce((s, v) => s + v, 0) / compPsfValues.length);
+
+                    return (
+                      <div className="mt-3">
+                        <h4 className="text-xs font-bold text-muted-foreground uppercase tracking-wider mb-2">Competitor PSF Range</h4>
+                        <div className="grid grid-cols-3 gap-2">
+                          <div className="data-card text-center py-2">
+                            <div className="text-[10px] text-muted-foreground">Floor</div>
+                            <div className="text-sm font-bold font-mono text-foreground">AED {fmt(floor)}</div>
+                          </div>
+                          <div className="data-card text-center py-2 border-primary/40">
+                            <div className="text-[10px] text-muted-foreground">Average</div>
+                            <div className="text-sm font-bold font-mono text-primary">AED {fmt(avg)}</div>
+                          </div>
+                          <div className="data-card text-center py-2">
+                            <div className="text-[10px] text-muted-foreground">Ceiling</div>
+                            <div className="text-sm font-bold font-mono text-foreground">AED {fmt(ceiling)}</div>
+                          </div>
                         </div>
                       </div>
-                    </div>
-                  )
+                    );
+                  })()
                 }
               </Section >
 
