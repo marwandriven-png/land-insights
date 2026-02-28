@@ -5,31 +5,37 @@ const corsHeaders = {
     'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
 };
 
-// Try to extract coordinates from a URL string
-function extractCoords(urlStr: string): { lat: number; lng: number } | null {
+function dmsToDecimal(deg: number, min: number, sec: number, dir: string): number {
+    const decimal = deg + min / 60 + sec / 3600;
+    return (dir === 'S' || dir === 'W') ? -decimal : decimal;
+}
+
+function extractCoords(text: string): { lat: number; lng: number } | null {
     // /@25.1234,55.1234
-    const atMatch = urlStr.match(/@([-\d.]+),([-\d.]+)/);
+    const atMatch = text.match(/@([-\d.]+),([-\d.]+)/);
     if (atMatch) return { lat: parseFloat(atMatch[1]), lng: parseFloat(atMatch[2]) };
 
     // /place/25.1234,55.1234
-    const placeMatch = urlStr.match(/\/place\/([-\d.]+),([-\d.]+)/);
+    const placeMatch = text.match(/\/place\/([-\d.]+),([-\d.]+)/);
     if (placeMatch) return { lat: parseFloat(placeMatch[1]), lng: parseFloat(placeMatch[2]) };
 
-    // ?q=25.1234,55.1234 or ?ll=25.1234,55.1234
-    try {
-        const urlObj = new URL(urlStr);
-        const q = urlObj.searchParams.get('q') || urlObj.searchParams.get('ll');
-        if (q) {
-            const parts = q.split(',');
-            if (parts.length === 2 && !isNaN(parseFloat(parts[0])) && !isNaN(parseFloat(parts[1]))) {
-                return { lat: parseFloat(parts[0]), lng: parseFloat(parts[1]) };
-            }
-        }
-    } catch { /* not a valid URL */ }
+    // ?q=25.1234,55.1234 or similar
+    const qMatch = text.match(/[?&](?:q|ll|center)=([-\d.]+)(?:%2C|,)([-\d.]+)/);
+    if (qMatch) return { lat: parseFloat(qMatch[1]), lng: parseFloat(qMatch[2]) };
 
-    // Direct coords format: 25.1234,55.1234 (just numbers)
-    const directMatch = urlStr.match(/^([-\d.]+),([-\d.]+)$/);
-    if (directMatch) return { lat: parseFloat(directMatch[1]), lng: parseFloat(directMatch[2]) };
+    // !3d25.1234!4d55.1234
+    const dataMatch = text.match(/!3d([-\d.]+)!4d([-\d.]+)/);
+    if (dataMatch) return { lat: parseFloat(dataMatch[1]), lng: parseFloat(dataMatch[2]) };
+
+    // DMS: 25°13'08.2"N 55°16'29.8"E (various quote styles)
+    const dmsPattern = /(\d+)°(\d+)['''′](\d+(?:\.\d+)?)["""″]([NS])\s+(\d+)°(\d+)['''′](\d+(?:\.\d+)?)["""″]([EW])/;
+    const dmsMatch = text.match(dmsPattern);
+    if (dmsMatch) {
+        return {
+            lat: dmsToDecimal(parseInt(dmsMatch[1]), parseInt(dmsMatch[2]), parseFloat(dmsMatch[3]), dmsMatch[4]),
+            lng: dmsToDecimal(parseInt(dmsMatch[5]), parseInt(dmsMatch[6]), parseFloat(dmsMatch[7]), dmsMatch[8]),
+        };
+    }
 
     return null;
 }
@@ -51,105 +57,58 @@ serve(async (req) => {
 
         console.log(`Resolving URL: ${url}`);
 
-        // Check if input already contains coordinates directly
-        const directCoords = extractCoords(url);
-        if (directCoords) {
-            console.log(`Direct coordinates found: ${directCoords.lat}, ${directCoords.lng}`);
-            return new Response(JSON.stringify({ ...directCoords, finalUrl: url }), {
+        // Quick check: can we extract coords from the URL itself?
+        let coords = extractCoords(url);
+        if (coords) {
+            return new Response(JSON.stringify({ ...coords, finalUrl: url }), {
                 headers: { ...corsHeaders, 'Content-Type': 'application/json' }
             });
         }
 
-        // Strategy 1: Follow redirects manually to capture intermediate URLs
-        let currentUrl = url;
-        let coords: { lat: number; lng: number } | null = null;
+        // Single fast fetch with Googlebot UA (most likely to get redirect)
+        const controller = new AbortController();
+        const timeout = setTimeout(() => controller.abort(), 8000);
 
-        for (let i = 0; i < 5; i++) {
-            const controller = new AbortController();
-            const timeout = setTimeout(() => controller.abort(), 5000);
-
-            try {
-                const response = await fetch(currentUrl, {
-                    method: 'GET',
-                    redirect: 'manual', // Don't auto-follow, inspect each hop
-                    signal: controller.signal,
-                    headers: {
-                        'User-Agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36'
-                    }
-                });
-                clearTimeout(timeout);
-
-                const location = response.headers.get('location');
-                console.log(`Hop ${i}: ${response.status} → ${location?.substring(0, 200) || '(no redirect)'}`);
-
-                if (location) {
-                    coords = extractCoords(location);
-                    if (coords) {
-                        console.log(`Found coordinates at hop ${i}: ${coords.lat}, ${coords.lng}`);
-                        return new Response(JSON.stringify({ ...coords, finalUrl: location }), {
-                            headers: { ...corsHeaders, 'Content-Type': 'application/json' }
-                        });
-                    }
-                    currentUrl = location.startsWith('http') ? location : new URL(location, currentUrl).href;
-                } else {
-                    // No more redirects, check final URL
-                    coords = extractCoords(response.url || currentUrl);
-                    if (coords) {
-                        return new Response(JSON.stringify({ ...coords, finalUrl: response.url || currentUrl }), {
-                            headers: { ...corsHeaders, 'Content-Type': 'application/json' }
-                        });
-                    }
-
-                    // Try reading response body for meta refresh or embedded coords
-                    const body = await response.text();
-                    const metaMatch = body.match(/content="[^"]*url=(https?:\/\/[^"]+)"/i);
-                    if (metaMatch) {
-                        coords = extractCoords(metaMatch[1]);
-                        if (coords) {
-                            return new Response(JSON.stringify({ ...coords, finalUrl: metaMatch[1] }), {
-                                headers: { ...corsHeaders, 'Content-Type': 'application/json' }
-                            });
-                        }
-                    }
-                    break;
-                }
-            } catch (e) {
-                clearTimeout(timeout);
-                console.log(`Hop ${i} failed: ${e}`);
-                break;
-            }
-        }
-
-        // Strategy 2: Follow redirects automatically as fallback
         try {
-            const controller = new AbortController();
-            const timeout = setTimeout(() => controller.abort(), 8000);
             const response = await fetch(url, {
                 method: 'GET',
                 redirect: 'follow',
                 signal: controller.signal,
-                headers: {
-                    'User-Agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36'
-                }
+                headers: { 'User-Agent': 'Googlebot/2.1 (+http://www.google.com/bot.html)' }
             });
             clearTimeout(timeout);
 
             const finalUrl = response.url;
-            console.log(`Final resolved URL: ${finalUrl}`);
+            const body = await response.text();
+            console.log(`Resolved: status=${response.status}, url=${finalUrl.substring(0, 150)}, body=${body.length}`);
 
+            // Try final URL
             coords = extractCoords(finalUrl);
             if (coords) {
+                console.log(`Coords from URL: ${coords.lat}, ${coords.lng}`);
+                return new Response(JSON.stringify({ ...coords, finalUrl }), {
+                    headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+                });
+            }
+
+            // Try body (Google Maps full page has DMS in <h1> or coords in data)
+            coords = extractCoords(body);
+            if (coords) {
+                console.log(`Coords from body: ${coords.lat}, ${coords.lng}`);
                 return new Response(JSON.stringify({ ...coords, finalUrl }), {
                     headers: { ...corsHeaders, 'Content-Type': 'application/json' }
                 });
             }
         } catch (e) {
-            console.log(`Follow redirect failed: ${e}`);
+            clearTimeout(timeout);
+            console.log(`Fetch failed: ${e}`);
         }
 
+        // Short URL couldn't be resolved server-side
         return new Response(JSON.stringify({
-            error: 'Could not extract coordinates from the resolved map link. Try pasting a full Google Maps URL with coordinates visible, or enter coordinates directly (e.g. 25.2048,55.2708).',
-            finalUrl: currentUrl
+            error: 'short_url',
+            message: 'Short Google Maps URLs cannot be resolved directly. Please open the link in your browser, then copy the full URL from the address bar and paste it here.',
+            finalUrl: url
         }), {
             status: 400,
             headers: { ...corsHeaders, 'Content-Type': 'application/json' }
@@ -158,7 +117,6 @@ serve(async (req) => {
     } catch (error: unknown) {
         console.error('Resolve URL Error:', error);
         const errorMessage = error instanceof Error ? error.message : 'Unknown error';
-
         return new Response(JSON.stringify({ error: errorMessage }), {
             status: 500,
             headers: { ...corsHeaders, 'Content-Type': 'application/json' }

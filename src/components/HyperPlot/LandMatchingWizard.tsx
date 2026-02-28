@@ -602,7 +602,7 @@ export function LandMatchingWizard({
                     <Input
                       value={locationUrl}
                       onChange={(e) => setLocationUrl(e.target.value)}
-                      placeholder="e.g. https://maps.app.goo.gl/abc123 or https://www.google.com/maps/..."
+                      placeholder="Paste full Google Maps URL here"
                       className="text-sm"
                       onKeyDown={(e) => {
                         if (e.key === 'Enter' && locationUrl.trim()) {
@@ -612,7 +612,7 @@ export function LandMatchingWizard({
                       }}
                     />
                     <p className="text-[10px] text-muted-foreground">
-                      Paste any Google Maps link — short or full URL
+                      💡 Open location in Google Maps → copy the <strong>full URL</strong> from the address bar (must contain coordinates like <code>@25.xxx,55.xxx</code>)
                     </p>
                   </div>
 
@@ -645,7 +645,6 @@ export function LandMatchingWizard({
                       const input = locationUrl.trim();
                       if (!input) return;
 
-                      // Validate it looks like a URL
                       if (!input.startsWith('http')) {
                         setError('Please paste a Google Maps URL (starting with https://)');
                         return;
@@ -659,35 +658,74 @@ export function LandMatchingWizard({
                         let lat: number | null = null;
                         let lng: number | null = null;
 
-                        // Try extracting coords from full Google Maps URL client-side first
+                        // Client-side coord extraction from full Google Maps URLs
+                        // /@lat,lng pattern
                         const atMatch = input.match(/@([-\d.]+),([-\d.]+)/);
                         if (atMatch) {
                           lat = parseFloat(atMatch[1]);
                           lng = parseFloat(atMatch[2]);
                         }
 
-                        // For short URLs (goo.gl, maps.app.goo.gl), resolve via edge function
+                        // !3dlat!4dlng pattern
                         if (!lat) {
-                          const resolveRes = await fetch(`${import.meta.env.VITE_SUPABASE_URL}/functions/v1/resolve-url`, {
-                            method: 'POST',
-                            headers: {
-                              'Authorization': `Bearer ${import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY}`,
-                              'Content-Type': 'application/json'
-                            },
-                            body: JSON.stringify({ url: input })
-                          });
-
-                          if (!resolveRes.ok) {
-                            const errData = await resolveRes.json().catch(() => ({}));
-                            throw new Error(errData.error || 'Failed to resolve Google Maps URL');
+                          const dataMatch = input.match(/!3d([-\d.]+)!4d([-\d.]+)/);
+                          if (dataMatch) {
+                            lat = parseFloat(dataMatch[1]);
+                            lng = parseFloat(dataMatch[2]);
                           }
-                          const resData = await resolveRes.json();
-                          if (resData.error) throw new Error(resData.error);
-                          lat = resData.lat;
-                          lng = resData.lng;
                         }
 
-                        if (!lat || !lng) throw new Error('Could not extract location from the Google Maps link');
+                        // ?q=lat,lng or ?ll=lat,lng
+                        if (!lat) {
+                          const qMatch = input.match(/[?&](?:q|ll|center)=([-\d.]+)(?:%2C|,)([-\d.]+)/);
+                          if (qMatch) {
+                            lat = parseFloat(qMatch[1]);
+                            lng = parseFloat(qMatch[2]);
+                          }
+                        }
+
+                        // /place/lat,lng
+                        if (!lat) {
+                          const placeMatch = input.match(/\/place\/([-\d.]+),([-\d.]+)/);
+                          if (placeMatch) {
+                            lat = parseFloat(placeMatch[1]);
+                            lng = parseFloat(placeMatch[2]);
+                          }
+                        }
+
+                        // For short URLs, try edge function as fallback
+                        if (!lat) {
+                          try {
+                            const resolveRes = await fetch(`${import.meta.env.VITE_SUPABASE_URL}/functions/v1/resolve-url`, {
+                              method: 'POST',
+                              headers: {
+                                'Authorization': `Bearer ${import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY}`,
+                                'Content-Type': 'application/json'
+                              },
+                              body: JSON.stringify({ url: input })
+                            });
+
+                            if (resolveRes.ok) {
+                              const resData = await resolveRes.json();
+                              if (resData.lat && resData.lng) {
+                                lat = resData.lat;
+                                lng = resData.lng;
+                              }
+                            } else {
+                              const errData = await resolveRes.json().catch(() => ({}));
+                              if (errData.error === 'short_url') {
+                                throw new Error('Short Google Maps URLs (goo.gl) cannot be resolved automatically.\n\nPlease:\n1. Open the short link in your browser\n2. Wait for Google Maps to load\n3. Copy the full URL from the address bar\n4. Paste it here\n\nThe URL should contain @25.xxx,55.xxx');
+                              }
+                            }
+                          } catch (fetchErr: any) {
+                            if (fetchErr.message?.includes('Short Google Maps')) throw fetchErr;
+                            console.warn('Resolve URL fallback failed:', fetchErr);
+                          }
+                        }
+
+                        if (!lat || !lng) {
+                          throw new Error('Could not find coordinates in this URL.\n\nMake sure the URL contains coordinates (e.g. @25.2048,55.2708).\n\nTip: Open the location in Google Maps, then copy the full URL from your browser\'s address bar.');
+                        }
 
                         // Query spatial search
                         const { gisService } = await import('@/services/DDAGISService');
