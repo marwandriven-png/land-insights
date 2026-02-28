@@ -25,17 +25,22 @@ export function extractAreaCodes(input?: string | null): string[] {
   return Array.from(found);
 }
 
+export function extractSingleAreaCode(input?: string | null): string | null {
+  const codes = extractAreaCodes(input || '');
+  return codes.length === 1 ? codes[0] : null;
+}
+
 export function matchesAreaCode(input: string | null | undefined, targetCode: string | null | undefined): boolean {
   if (!input || !targetCode) return false;
   return extractAreaCodes(input).includes(targetCode);
 }
 
 export function resolvePlotAreaCode(location?: string | null, planLandName?: string | null, fallbackCode?: string | null): string | null {
-  const planCodes = extractAreaCodes(planLandName || '');
-  if (planCodes.length > 0) return planCodes[0];
+  const planCode = extractSingleAreaCode(planLandName || '');
+  if (planCode) return planCode;
 
-  const locCodes = extractAreaCodes(location || '');
-  if (locCodes.length > 0) return locCodes[0];
+  const locCode = extractSingleAreaCode(location || '');
+  if (locCode) return locCode;
 
   return fallbackCode || null;
 }
@@ -64,18 +69,23 @@ export function getAreaScopedMarketData(aiData: AnyRecord | null | undefined, pl
     };
   }
 
-  // STRICT: Filter comparables by area code match only
+  // STRICT: Filter comparables by a single resolved area code only
   const filteredComparables = comparables.filter((comp: AnyRecord) => {
-    // Must have an explicit area field that matches the plot code
-    const scope = [comp?.area, comp?.location].filter(Boolean).join(' ');
-    return matchesAreaCode(scope, plotCode);
+    const resolvedComparableCode =
+      extractSingleAreaCode(comp?.area) ||
+      extractSingleAreaCode(comp?.location) ||
+      extractSingleAreaCode(comp?.project) ||
+      extractSingleAreaCode(comp?.name);
+
+    return !!resolvedComparableCode && resolvedComparableCode === plotCode;
   });
 
-  // Look up per-area transaction data
+  // Look up per-area transaction data (single-area keys only)
   let areaTxn: AnyRecord | null = null;
   if (areaTransactions) {
     for (const [key, value] of Object.entries(areaTransactions)) {
-      if (matchesAreaCode(key, plotCode)) {
+      const keyCode = extractSingleAreaCode(key);
+      if (keyCode === plotCode) {
         areaTxn = value as AnyRecord;
         break;
       }
@@ -83,7 +93,8 @@ export function getAreaScopedMarketData(aiData: AnyRecord | null | undefined, pl
   }
 
   const hasMultiAreaTxn = !!areaTransactions && Object.keys(areaTransactions).length > 1;
-  const topLevelLooksScoped = matchesAreaCode(aiData.areaName || aiData.areaCode || '', plotCode);
+  const topLevelCode = extractSingleAreaCode(aiData.areaName || aiData.areaCode || '');
+  const topLevelLooksScoped = topLevelCode === plotCode;
 
   // STRICT: Only use top-level data when document is single-area AND matches the plot
   // ❌ NEVER fall back to consolidated averages when multi-area document

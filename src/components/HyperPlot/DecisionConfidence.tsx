@@ -6,7 +6,7 @@ import { PlotData, AffectionPlanData, gisService } from '@/services/DDAGISServic
 import { FeasibilityParams, DEFAULT_FEASIBILITY_PARAMS } from './FeasibilityCalculator';
 import { calcDSCFeasibility, DSCPlotInput, DSCFeasibilityResult, MixKey, MIX_TEMPLATES, UNIT_SIZES, RENT_PSF_YR, fmt, fmtM, fmtA, pct } from '@/lib/dscFeasibility';
 import { matchCLFFArea, findAnchorArea, normalizeAreaCode, CLFF_AREAS, CLFF_MARKET_DATA, getCLFFOverrides, type CLFFAreaProfile, type CLFFMarketData } from '@/lib/clffAreaDefaults';
-import { getAreaScopedMarketData, resolvePlotAreaCode, matchesAreaCode } from '@/lib/areaResearch';
+import { getAreaScopedMarketData, resolvePlotAreaCode, matchesAreaCode, extractAreaCodes } from '@/lib/areaResearch';
 import { findReportForLocation, AreaReport } from '@/data/areaReports';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Table, TableHeader, TableBody, TableRow, TableHead, TableCell, TableFooter } from '@/components/ui/table';
@@ -153,6 +153,63 @@ function generateComparisonNotes(
 
   return notes;
 }
+
+const toNum = (value: unknown): number | null => {
+  if (typeof value === 'number' && Number.isFinite(value)) return value;
+  if (typeof value === 'string') {
+    const cleaned = value.replace(/[^0-9.-]/g, '');
+    if (!cleaned) return null;
+    const parsed = Number(cleaned);
+    return Number.isFinite(parsed) ? parsed : null;
+  }
+  return null;
+};
+
+const toPct = (value: unknown): number => {
+  const n = toNum(value);
+  if (n == null) return 0;
+  return n > 0 && n <= 1 ? Math.round(n * 100) : Math.round(n);
+};
+
+const normalizePayPlan = (value: unknown): string | null => {
+  if (!value) return null;
+  if (typeof value === 'string') {
+    const trimmed = value.trim();
+    return trimmed.length > 0 ? trimmed : null;
+  }
+  if (Array.isArray(value)) {
+    const parts = value.map((v) => toNum(v)).filter((v): v is number => v != null);
+    return parts.length ? parts.map((v) => Math.round(v)).join('/') : null;
+  }
+  if (typeof value === 'object') {
+    const rec = value as Record<string, unknown>;
+    const booking = toNum(rec.booking ?? rec.downPayment ?? rec.down_payment ?? rec.dp);
+    const construction = toNum(rec.construction ?? rec.constructionLinked ?? rec.construction_linked);
+    const handover = toNum(rec.handover ?? rec.onHandover ?? rec.postHandover ?? rec.post_handover);
+    if (booking != null || construction != null || handover != null) {
+      return `${Math.round(booking ?? 0)}/${Math.round(construction ?? 0)}/${Math.round(handover ?? 0)}`;
+    }
+  }
+  return null;
+};
+
+const normalizeComparable = (raw: any) => {
+  const unitMix = raw?.unitMix || raw?.unit_mix || raw?.mix || {};
+  return {
+    ...raw,
+    name: raw?.name || raw?.project || raw?.projectName || 'Unnamed Project',
+    area: raw?.area || raw?.community || raw?.areaName,
+    plotSqft: toNum(raw?.plotSqft ?? raw?.plotSizeSqft ?? raw?.plot_size_sqft ?? raw?.plotAreaSqft) ?? undefined,
+    units: toNum(raw?.units ?? raw?.totalUnits ?? raw?.unitCount ?? raw?.unit_count) ?? undefined,
+    bua: toNum(raw?.bua ?? raw?.sellableArea ?? raw?.sellable_area ?? raw?.gfa) ?? undefined,
+    psf: toNum(raw?.psf ?? raw?.avgPsf ?? raw?.avg_psf ?? raw?.pricePsf ?? raw?.price_psf) ?? undefined,
+    studioP: toPct(raw?.studioP ?? raw?.studio_pct ?? unitMix?.studio ?? unitMix?.studioP),
+    br1P: toPct(raw?.br1P ?? raw?.oneBrP ?? raw?.br1_pct ?? unitMix?.br1 ?? unitMix?.oneBr),
+    br2P: toPct(raw?.br2P ?? raw?.twoBrP ?? raw?.br2_pct ?? unitMix?.br2 ?? unitMix?.twoBr),
+    br3P: toPct(raw?.br3P ?? raw?.threeBrP ?? raw?.br3_pct ?? unitMix?.br3 ?? unitMix?.threeBr),
+    payPlan: normalizePayPlan(raw?.payPlan ?? raw?.paymentPlan ?? raw?.payment_plan ?? raw?.plan),
+  };
+};
 
 export function DecisionConfidence({ plot, comparisonPlots = [], isFullscreen, onToggleFullscreen, onExitComparison, sharedFeasibilityParams, onFeasibilityParamsChange }: DecisionConfidenceProps) {
   const [activeMix, setActiveMix] = useState<MixKey>('balanced');
@@ -329,19 +386,30 @@ export function DecisionConfidence({ plot, comparisonPlots = [], isFullscreen, o
   const areaComps = useMemo(() => {
     const comps = (scopedAiData?.comparables || []) as any[];
 
-    // STRICT AREA FILTERING: re-verify each comparable against the plot's area code
-    return comps.filter((c) => {
+    // Normalize shape first so all benchmark sections can render consistently
+    const normalized = comps.map(normalizeComparable);
+
+    // STRICT AREA FILTERING: include only same-area projects and reject multi-area scopes
+    return normalized.filter((c) => {
       const name = c.name?.toString() || '';
       if (!name.trim()) return false;
       if (/transaction|txn/i.test(name) || /^[0-9\-_]+$/.test(name)) return false;
-      // Double-check: comparable must have area/location that matches the plot's area code
+
       if (plotAreaCode) {
-        const scope = [c.area, c.location].filter(Boolean).join(' ');
-        if (scope && !matchesAreaCode(scope, plotAreaCode)) return false;
+        const scope = [c.area, c.location, c.project].filter(Boolean).join(' ');
+        const scopeCodes = extractAreaCodes(scope);
+        if (scopeCodes.length > 1) return false;
+        if (scopeCodes.length === 1 && scopeCodes[0] !== plotAreaCode) return false;
       }
+
       return true;
     });
   }, [scopedAiData, plotAreaCode]);
+
+  const areaCompsWithPlans = useMemo(
+    () => areaComps.filter((c: any) => typeof c.payPlan === 'string' && c.payPlan.trim().length > 0),
+    [areaComps]
+  );
 
   const areaTxnData = useMemo(() => {
     const safeObj = (val: any, fallback: Record<string, number>) => {
@@ -1253,8 +1321,8 @@ export function DecisionConfidence({ plot, comparisonPlots = [], isFullscreen, o
               </Section >
 
               {/* Developer & Payment Plan Benchmarks — always render */}
-              <Section title={`Developer & Payment Plan Benchmarks — ${areaName}`} badge={areaComps.some((c: any) => c.payPlan) ? `${areaComps.filter((c: any) => c.payPlan).length} plans` : 'CLFF Default'}>
-                {areaComps.length > 0 && areaComps.some((c: any) => c.payPlan) ? (
+              <Section title={`Developer & Payment Plan Benchmarks — ${areaName}`} badge={areaCompsWithPlans.length > 0 ? `${areaCompsWithPlans.length} plans` : 'CLFF Default'}>
+                {areaCompsWithPlans.length > 0 ? (
                   <div className="overflow-x-auto">
                     <Table>
                       <TableHeader>
@@ -1265,8 +1333,8 @@ export function DecisionConfidence({ plot, comparisonPlots = [], isFullscreen, o
                         </TableRow>
                       </TableHeader>
                       <TableBody>
-                        {areaComps.filter((c: any) => c.payPlan).map((c: any) => {
-                          const plan = c.payPlan || '';
+                        {areaCompsWithPlans.map((c: any) => {
+                          const plan = c.payPlan as string;
                           const isPostHandover = /post/i.test(plan) || /ph/i.test(plan);
                           const isHeavyBooking = /^[3-9]0/i.test(plan) || /^[4-9]/i.test(plan.split('/')[0]);
                           return (
@@ -1332,7 +1400,7 @@ export function DecisionConfidence({ plot, comparisonPlots = [], isFullscreen, o
                     <h4 className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-3">Payment Plan Distribution</h4>
                     <div className="space-y-2">
                       {(() => {
-                        const plans = areaComps.map((c: any) => c.payPlan).filter(Boolean);
+                        const plans = areaCompsWithPlans.map((c: any) => c.payPlan as string);
                         if (!plans.length) {
                           return (
                             <div className="text-xs text-muted-foreground">
@@ -1341,7 +1409,7 @@ export function DecisionConfidence({ plot, comparisonPlots = [], isFullscreen, o
                           );
                         }
 
-                        const occurrences = plans.reduce((acc: any, p: string) => {
+                        const occurrences = plans.reduce((acc: Record<string, number>, p: string) => {
                           acc[p] = (acc[p] || 0) + 1;
                           return acc;
                         }, {});
