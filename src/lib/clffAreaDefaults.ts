@@ -133,8 +133,19 @@ export const AREA_ALIAS_MAP: Record<string, string> = {
  */
 export function normalizeAreaCode(input: string): string | null {
   if (!input) return null;
-  const key = input.trim().toLowerCase();
-  return AREA_ALIAS_MAP[key] ?? null;
+
+  const normalized = input.trim().toLowerCase();
+  if (AREA_ALIAS_MAP[normalized]) return AREA_ALIAS_MAP[normalized];
+
+  const normalizedText = ` ${normalized.replace(/[^a-z0-9]+/g, ' ').trim()} `;
+  for (const [alias, code] of Object.entries(AREA_ALIAS_MAP)) {
+    const aliasText = ` ${alias.replace(/[^a-z0-9]+/g, ' ').trim()} `;
+    if (aliasText.trim() && normalizedText.includes(aliasText)) {
+      return code;
+    }
+  }
+
+  return null;
 }
 
 // ─── Market Data Seed (Feb 2026) ──────────────────────────────────────────

@@ -3,7 +3,8 @@ import { Calculator, DollarSign, TrendingUp, Building2, Edit3, Check } from 'luc
 import { PlotData, AffectionPlanData, gisService } from '@/services/DDAGISService';
 import { Input } from '@/components/ui/input';
 import { calcDSCFeasibility, DSCPlotInput, MIX_TEMPLATES, fmt, fmtM, fmtA, pct, MixKey } from '@/lib/dscFeasibility';
-import { matchCLFFArea, findAnchorArea, normalizeAreaCode, getCLFFOverrides } from '@/lib/clffAreaDefaults';
+import { matchCLFFArea, findAnchorArea, getCLFFOverrides } from '@/lib/clffAreaDefaults';
+import { resolvePlotAreaCode, getAreaScopedMarketData } from '@/lib/areaResearch';
 
 export interface FeasibilityParams {
   constructionPsf: number;
@@ -44,7 +45,7 @@ function toDSCInput(plot: PlotData, plan: AffectionPlanData | null): DSCPlotInpu
     name: plot.project || plot.location || plot.id,
     area: areaSqft,
     ratio,
-    height: plan?.maxHeight || plot.maxHeight ? `${plot.maxHeight}m` : plot.floors,
+    height: plan?.maxHeight || (plot.maxHeight ? `${plot.maxHeight}m` : plot.floors),
     zone: plan?.mainLanduse || plot.zoning,
     constraints: plan?.generalNotes || '',
   };
@@ -57,42 +58,43 @@ function toDSCInput(plot: PlotData, plan: AffectionPlanData | null): DSCPlotInpu
  */
 function resolveAreaMarketOverrides(plot: PlotData): Record<string, unknown> {
   const location = plot.location || plot.project || '';
-  // Normalize the location for consistent lookup
-  const normalizedCode = normalizeAreaCode(location);
+  const normalizedCode = resolvePlotAreaCode(location);
 
-  // 1. Check AI-parsed uploads (normalize both stored area name and incoming location)
+  // 1. Check AI-parsed uploads and use STRICT area-scoped payload
   try {
     const stored = localStorage.getItem('hyperplot_area_research_files');
     if (stored) {
       const files = JSON.parse(stored) as Array<{ areaName: string; aiParsed?: boolean; marketData?: Record<string, unknown> }>;
-      const loc = location.toLowerCase();
 
-      const matchingFiles = files.filter(f => {
-        if (!f.aiParsed || !f.marketData) return false;
-        const storedArea = f.areaName.toLowerCase();
+      for (const f of files) {
+        if (!f.aiParsed || !f.marketData) continue;
 
-        // Normalize-based match: if both resolve to the same CLFF code, they match
-        const storedCode = normalizeAreaCode(f.areaName);
-        if (storedCode && normalizedCode && storedCode === normalizedCode) return true;
+        const scoped = getAreaScopedMarketData(
+          { ...(f.marketData as any), areaName: f.areaName },
+          normalizedCode
+        );
 
-        // Substring match fallback
-        return loc.includes(storedArea) || storedArea.includes(loc);
-      });
+        if (!scoped) continue;
+        const hasScopedData =
+          !!scoped.unitPsf ||
+          !!scoped.unitSizes ||
+          !!scoped.unitRents ||
+          !!scoped.areaTxn;
 
-      if (matchingFiles.length > 0) {
-        const aiData = matchingFiles[0].marketData as any;
+        if (!hasScopedData) continue;
+
         const result: Record<string, unknown> = {};
-        if (aiData?.unitPsf) result.unitPsf = aiData.unitPsf;
-        if (aiData?.unitSizes) result.unitSizes = aiData.unitSizes;
-        if (aiData?.unitRents) result.unitRents = aiData.unitRents;
-        if (aiData?.constructionPsf) result.constructionPsf = aiData.constructionPsf;
-        if (aiData?.landCostPsf) result.landCostPsf = aiData.landCostPsf;
+        if (scoped.unitPsf) result.unitPsf = scoped.unitPsf;
+        if (scoped.unitSizes) result.unitSizes = scoped.unitSizes;
+        if (scoped.unitRents) result.unitRents = scoped.unitRents;
+        if ((f.marketData as any)?.constructionPsf) result.constructionPsf = (f.marketData as any).constructionPsf;
+        if ((f.marketData as any)?.landCostPsf) result.landCostPsf = (f.marketData as any).landCostPsf;
         return result;
       }
     }
   } catch { }
 
-  // 2. CLFF exact match (using normalized code or keyword scan)
+  // 2. CLFF exact match
   const clffMatch = matchCLFFArea(location);
   if (clffMatch) return getCLFFOverrides(clffMatch.area.code);
 

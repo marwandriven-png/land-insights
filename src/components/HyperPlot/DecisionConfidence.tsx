@@ -6,6 +6,7 @@ import { PlotData, AffectionPlanData, gisService } from '@/services/DDAGISServic
 import { FeasibilityParams, DEFAULT_FEASIBILITY_PARAMS } from './FeasibilityCalculator';
 import { calcDSCFeasibility, DSCPlotInput, DSCFeasibilityResult, MixKey, MIX_TEMPLATES, UNIT_SIZES, RENT_PSF_YR, fmt, fmtM, fmtA, pct } from '@/lib/dscFeasibility';
 import { matchCLFFArea, findAnchorArea, normalizeAreaCode, CLFF_AREAS, CLFF_MARKET_DATA, getCLFFOverrides, type CLFFAreaProfile, type CLFFMarketData } from '@/lib/clffAreaDefaults';
+import { getAreaScopedMarketData, resolvePlotAreaCode, matchesAreaCode } from '@/lib/areaResearch';
 import { findReportForLocation, AreaReport } from '@/data/areaReports';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Table, TableHeader, TableBody, TableRow, TableHead, TableCell, TableFooter } from '@/components/ui/table';
@@ -36,7 +37,7 @@ function toDSCInput(plot: PlotData, plan: AffectionPlanData | null): DSCPlotInpu
     name: plot.project || plot.location || plot.id,
     area: areaSqft,
     ratio,
-    height: plan?.maxHeight || plot.maxHeight ? `${plot.maxHeight}m` : plot.floors,
+    height: plan?.maxHeight || (plot.maxHeight ? `${plot.maxHeight}m` : plot.floors),
     zone: plan?.mainLanduse || plot.zoning,
     constraints: plan?.generalNotes || (plan?.maxPlotCoverage ? `Max coverage ${plan.maxPlotCoverage}%` : 'Standard guidelines'),
   };
@@ -244,46 +245,44 @@ export function DecisionConfidence({ plot, comparisonPlots = [], isFullscreen, o
     return findAnchorArea(location);
   }, [activePlot, clffMatch]);
 
-  const areaReport = useMemo(() => {
+  const plotAreaCode = useMemo(() => {
     const location = activePlot.location || activePlot.project || '';
-    // Resolve the plot's normalized CLFF code for cross-matching
-    const plotCode = normalizeAreaCode(location) || (clffMatch?.area.code) || null;
+    return resolvePlotAreaCode(location, plan?.landName, clffMatch?.area.code || null);
+  }, [activePlot, plan?.landName, clffMatch?.area.code]);
 
+  const areaReport = useMemo(() => {
     try {
       const stored = localStorage.getItem('hyperplot_area_research_files');
-      if (stored) {
-        const files = JSON.parse(stored) as Array<{ areaName: string; aiParsed?: boolean; marketData?: Record<string, unknown> }>;
+      if (!stored) return null;
 
-        const matchingFiles = files.filter(f => {
-          if (!f.aiParsed || !f.marketData) return false;
+      const files = JSON.parse(stored) as Array<{ areaName: string; aiParsed?: boolean; marketData?: Record<string, unknown> }>;
+      const candidates = files
+        .filter(f => f.aiParsed && f.marketData)
+        .map(f => {
+          const withArea = { ...(f.marketData as any), areaName: f.areaName };
+          const scoped = getAreaScopedMarketData(withArea, plotAreaCode);
+          const hasScopedData = !!scoped && (
+            (Array.isArray(scoped.comparables) && scoped.comparables.length > 0) ||
+            !!scoped.areaTxn ||
+            !!scoped.unitPsf
+          );
+          const areaNameMatch = matchesAreaCode(f.areaName, plotAreaCode);
+          return { file: f, withArea, hasScopedData, areaNameMatch };
+        })
+        .filter(c => c.hasScopedData || c.areaNameMatch);
 
-          // Primary: Normalize both names — if they resolve to the same CLFF code, they match
-          const fileCode = normalizeAreaCode(f.areaName);
-          if (fileCode && plotCode && fileCode === plotCode) return true;
+      if (candidates.length === 0) return null;
 
-          // Secondary: Check if AI-parsed marketData contains area-specific data
-          // that matches our plot code (for consolidated multi-area files)
-          const md = f.marketData as any;
-          if (md?.areaCode && plotCode) {
-            const mdCode = normalizeAreaCode(md.areaCode);
-            if (mdCode === plotCode) return true;
-          }
-
-          // Tertiary: Substring match as last resort
-          const area = f.areaName.toLowerCase().trim();
-          const target = location.toLowerCase().trim();
-          return area === target ||
-            target.includes(area) || area.includes(target);
-        });
-
-        if (matchingFiles.length > 0) {
-          const bestMatch = matchingFiles.sort((a, b) => a.areaName.length - b.areaName.length)[0];
-          return { areaName: bestMatch.areaName, uploadedOnly: true, aiMarketData: bestMatch.marketData } as AreaReport & { uploadedOnly?: boolean; aiMarketData?: Record<string, unknown> | null };
-        }
-      }
-    } catch { }
-    return null;
-  }, [activePlot, clffMatch]);
+      const best = candidates.sort((a, b) => Number(b.hasScopedData) - Number(a.hasScopedData))[0];
+      return {
+        areaName: best.file.areaName,
+        uploadedOnly: true,
+        aiMarketData: best.withArea,
+      } as AreaReport & { uploadedOnly?: boolean; aiMarketData?: Record<string, unknown> | null };
+    } catch {
+      return null;
+    }
+  }, [plotAreaCode]);
 
   // Has data if either AI-parsed upload OR CLFF area match
   const hasAreaData = !!areaReport || !!clffMatch;
@@ -295,120 +294,57 @@ export function DecisionConfidence({ plot, comparisonPlots = [], isFullscreen, o
   const areaName = areaReport?.areaName || clffMatch?.area.name || anchorMatch?.area.name || 'Unknown Area';
   const isStrictMatch = !!areaReport || !!clffMatch;
 
+  const scopedAiData = useMemo(() => {
+    const aiData = (areaReport as any)?.aiMarketData;
+    return getAreaScopedMarketData(aiData as any, plotAreaCode);
+  }, [areaReport, plotAreaCode]);
+
   // Extract area-specific market data: AI upload > CLFF > Anchor > empty
   // CRITICAL: User overrides (effectiveOverrides) are applied AFTER this, so they always win
   const areaMarketOverrides = useMemo(() => {
-    const aiData = (areaReport as any)?.aiMarketData;
-    if (aiData) {
+    if (scopedAiData) {
       const result: Record<string, unknown> = {};
-      if (aiData.unitPsf) result.unitPsf = aiData.unitPsf;
-      if (aiData.unitSizes) result.unitSizes = aiData.unitSizes;
-      if (aiData.unitRents) result.unitRents = aiData.unitRents;
-      if (aiData.constructionPsf) result.constructionPsf = aiData.constructionPsf;
-      if (aiData.landCostPsf) result.landCostPsf = aiData.landCostPsf;
-      return result;
+      if (scopedAiData.unitPsf) result.unitPsf = scopedAiData.unitPsf;
+      if (scopedAiData.unitSizes) result.unitSizes = scopedAiData.unitSizes;
+      if (scopedAiData.unitRents) result.unitRents = scopedAiData.unitRents;
+      if ((areaReport as any)?.aiMarketData?.constructionPsf) result.constructionPsf = (areaReport as any).aiMarketData.constructionPsf;
+      if ((areaReport as any)?.aiMarketData?.landCostPsf) result.landCostPsf = (areaReport as any).aiMarketData.landCostPsf;
+      if (Object.keys(result).length > 0) return result;
     }
     // Fall back to CLFF or anchor area defaults
     if (effectiveClff) return getCLFFOverrides(effectiveClff.area.code);
     return {};
-  }, [areaReport, effectiveClff]);
+  }, [scopedAiData, areaReport, effectiveClff]);
 
   const ZERO_UNIT = { studio: 0, br1: 0, br2: 0, br3: 0 };
   const ZERO_COUNT = { studio: 0, br1: 0, br2: 0, br3: 0, total: 0 };
 
   const areaComps = useMemo(() => {
-    const aiData = (areaReport as any)?.aiMarketData;
-    const comps = (aiData?.comparables || []) as any[];
-    const plotCode = normalizeAreaCode(activePlot.location || activePlot.project || '') || clffMatch?.area.code || null;
-    const plotAreaName = clffMatch?.area.name?.toLowerCase() || areaName?.toLowerCase() || '';
+    const comps = (scopedAiData?.comparables || []) as any[];
 
-    // STRICT AREA FILTERING: Only include projects from the SAME normalized area
-    return comps.filter(c => {
+    // STRICT AREA FILTERING: only same-area comparables survive
+    return comps.filter((c) => {
       const name = c.name?.toString() || '';
-      if (!name || name.trim() === '') return false;
-
-      // Exclude transaction-like entries
-      const isTransaction = /transaction/i.test(name) || /txn/i.test(name) || /^[0-9\-_]+$/.test(name);
-      if (isTransaction) return false;
-
-      // MANDATORY: If comparable has an area field, it MUST match the plot's area
-      const compArea = (c.area || c.location || '').toString();
-      if (compArea) {
-        const compCode = normalizeAreaCode(compArea);
-        if (plotCode && compCode) {
-          // Both resolve → must match exactly
-          return compCode === plotCode;
-        }
-        // Fuzzy: substring match against known area name
-        const compLower = compArea.toLowerCase();
-        if (plotAreaName) {
-          return compLower.includes(plotAreaName) || plotAreaName.includes(compLower);
-        }
-      }
-
-      // If NO area field on comparable and we have a multi-area file, EXCLUDE it
-      // (can't verify area membership → safer to exclude)
-      if (!compArea && comps.length > 10) return false;
-
+      if (!name.trim()) return false;
+      if (/transaction|txn/i.test(name) || /^[0-9\-_]+$/.test(name)) return false;
       return true;
     });
-  }, [areaReport, activePlot, clffMatch, areaName]);
+  }, [scopedAiData]);
 
   const areaTxnData = useMemo(() => {
-    const aiData = (areaReport as any)?.aiMarketData;
     const safeObj = (val: any, fallback: Record<string, number>) => {
       if (val && typeof val === 'object') return { ...fallback, ...val };
       return fallback;
     };
 
-    if (aiData) {
-      const plotCode = normalizeAreaCode(activePlot.location || activePlot.project || '') || clffMatch?.area.code || null;
-      const plotAreaName = clffMatch?.area.name?.toLowerCase() || areaName?.toLowerCase() || '';
-
-      // STRICT: Try per-area transaction breakdowns FIRST
-      let areaSpecificTxn: any = null;
-      if (aiData.areaTransactions && typeof aiData.areaTransactions === 'object') {
-        for (const [key, val] of Object.entries(aiData.areaTransactions)) {
-          const txnCode = normalizeAreaCode(key);
-          if (txnCode && plotCode && txnCode === plotCode) {
-            areaSpecificTxn = val;
-            break;
-          }
-          // Fuzzy match by area name
-          if (!txnCode && plotAreaName) {
-            const keyLower = key.toLowerCase();
-            if (keyLower.includes(plotAreaName) || plotAreaName.includes(keyLower)) {
-              areaSpecificTxn = val;
-              break;
-            }
-          }
-        }
-      }
-
-      // If we found area-specific transactions, use them exclusively
-      if (areaSpecificTxn) {
-        return {
-          avgPsf: safeObj(areaSpecificTxn.unitPsf, ZERO_UNIT),
-          medianPsf: safeObj(areaSpecificTxn.medianPsf, ZERO_UNIT),
-          avgSize: safeObj(areaSpecificTxn.unitSizes, ZERO_UNIT),
-          avgPrice: safeObj(areaSpecificTxn.avgPrices, ZERO_UNIT),
-          count: safeObj(areaSpecificTxn.txnCount, ZERO_COUNT),
-        };
-      }
-
-      // If NO areaTransactions exist but we have a single-area file, use top-level data
-      const hasMultiAreaData = aiData.areaTransactions && Object.keys(aiData.areaTransactions).length > 1;
-      if (!hasMultiAreaData) {
-        return {
-          avgPsf: safeObj(aiData.unitPsf, ZERO_UNIT),
-          medianPsf: safeObj(aiData.medianPsf, ZERO_UNIT),
-          avgSize: safeObj(aiData.unitSizes, ZERO_UNIT),
-          avgPrice: safeObj(aiData.avgPrices, ZERO_UNIT),
-          count: safeObj(aiData.txnCount, ZERO_COUNT),
-        };
-      }
-
-      // Multi-area file but couldn't match → fall through to CLFF
+    if (scopedAiData) {
+      return {
+        avgPsf: safeObj(scopedAiData.unitPsf, ZERO_UNIT),
+        medianPsf: safeObj(scopedAiData.medianPsf, ZERO_UNIT),
+        avgSize: safeObj(scopedAiData.unitSizes, ZERO_UNIT),
+        avgPrice: safeObj(scopedAiData.avgPrices, ZERO_UNIT),
+        count: safeObj(scopedAiData.txnCount, ZERO_COUNT),
+      };
     }
 
     // CLFF or anchor fallback
@@ -422,43 +358,35 @@ export function DecisionConfidence({ plot, comparisonPlots = [], isFullscreen, o
         count: { studio: 0, br1: 0, br2: 0, br3: 0, total: m.salesTransactions },
       };
     }
+
     return { avgPsf: ZERO_UNIT, medianPsf: ZERO_UNIT, avgSize: ZERO_UNIT, avgPrice: ZERO_UNIT, count: ZERO_COUNT };
-  }, [areaReport, effectiveClff, activePlot, clffMatch, areaName]);
+  }, [scopedAiData, effectiveClff]);
 
   const areaMarketBench = useMemo(() => {
-    const aiData = (areaReport as any)?.aiMarketData;
-    const plotCode = normalizeAreaCode(activePlot.location || activePlot.project || '') || clffMatch?.area.code || null;
-    const plotAreaName = clffMatch?.area.name?.toLowerCase() || areaName?.toLowerCase() || '';
+    if (scopedAiData) {
+      const floor = scopedAiData.marketFloorPsf || 0;
+      const avg = scopedAiData.marketAvgPsf || 0;
+      const ceiling = scopedAiData.marketCeilingPsf || 0;
 
-    if (aiData) {
-      // Try per-area market bench first (from areaTransactions)
-      if (aiData.areaTransactions && typeof aiData.areaTransactions === 'object') {
-        for (const [key, val] of Object.entries(aiData.areaTransactions)) {
-          const txnCode = normalizeAreaCode(key);
-          const keyLower = key.toLowerCase();
-          if ((txnCode && plotCode && txnCode === plotCode) || (plotAreaName && (keyLower.includes(plotAreaName) || plotAreaName.includes(keyLower)))) {
-            const areaTxn = val as any;
-            if (areaTxn.marketFloorPsf || areaTxn.marketAvgPsf || areaTxn.marketCeilingPsf) {
-              return { floor: areaTxn.marketFloorPsf || 0, avg: areaTxn.marketAvgPsf || 0, ceiling: areaTxn.marketCeilingPsf || 0 };
-            }
-            // Derive from per-area PSF data
-            if (areaTxn.unitPsf) {
-              const psfs = Object.values(areaTxn.unitPsf).filter((v: any) => typeof v === 'number' && v > 0) as number[];
-              if (psfs.length > 0) {
-                return { floor: Math.min(...psfs), avg: Math.round(psfs.reduce((a, b) => a + b, 0) / psfs.length), ceiling: Math.max(...psfs) };
-              }
-            }
-          }
-        }
+      if (floor || avg || ceiling) {
+        return { floor, avg, ceiling };
       }
 
-      // Single-area file: use top-level market data
-      const hasMultiAreaData = aiData.areaTransactions && Object.keys(aiData.areaTransactions).length > 1;
-      if (!hasMultiAreaData) {
+      const txnPsf = Object.values(scopedAiData.unitPsf || {}).filter((v: any) => typeof v === 'number' && v > 0) as number[];
+      if (txnPsf.length > 0) {
         return {
-          floor: aiData.marketFloorPsf || 0,
-          avg: aiData.marketAvgPsf || 0,
-          ceiling: aiData.marketCeilingPsf || 0,
+          floor: Math.min(...txnPsf),
+          avg: Math.round(txnPsf.reduce((a, b) => a + b, 0) / txnPsf.length),
+          ceiling: Math.max(...txnPsf),
+        };
+      }
+
+      const compPsf = (scopedAiData.comparables || []).map((c: any) => c.psf).filter((v: any) => typeof v === 'number' && v > 0) as number[];
+      if (compPsf.length > 0) {
+        return {
+          floor: Math.min(...compPsf),
+          avg: Math.round(compPsf.reduce((a, b) => a + b, 0) / compPsf.length),
+          ceiling: Math.max(...compPsf),
         };
       }
     }
@@ -472,8 +400,9 @@ export function DecisionConfidence({ plot, comparisonPlots = [], isFullscreen, o
       const ceiling = psfs.length > 0 ? Math.max(...psfs) : 0;
       return { floor, avg, ceiling };
     }
+
     return { floor: 0, avg: 0, ceiling: 0 };
-  }, [areaReport, effectiveClff, activePlot, clffMatch, areaName]);
+  }, [scopedAiData, effectiveClff]);
 
 
   const fs = useMemo(() => {

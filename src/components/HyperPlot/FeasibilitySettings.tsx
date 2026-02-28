@@ -18,6 +18,8 @@ interface AreaFile {
   uploadedAt: string;
   textContent?: string;
   aiParsed?: boolean;
+  aiStatus?: string;
+  aiError?: string;
   marketData?: Record<string, unknown>;
 }
 
@@ -78,6 +80,7 @@ function AreaResearchUpload() {
         areaName: areaNameInput.trim(),
         uploadedAt: new Date().toISOString(),
         textContent: textContent.slice(0, 50000), // Cap at 50k chars
+        aiStatus: 'parsing',
       });
     }
     if (newFiles.length) {
@@ -87,18 +90,29 @@ function AreaResearchUpload() {
       setAreaNameInput('');
       toast.success(`${newFiles.length} file(s) added — sending to AI for analysis...`);
       // Trigger AI parsing for each new file
-      for (const nf of newFiles) {
-        parseWithAI(nf, updated, openaiKey);
-      }
+      await Promise.all(newFiles.map((nf) => parseWithAI(nf, openaiKey)));
     }
   };
 
-  const parseWithAI = async (file: AreaFile, currentFiles: AreaFile[], apiKey?: string) => {
-    const keyToUse = apiKey || localStorage.getItem(OPENAI_KEY_STORAGE) || '';
+  const parseWithAI = async (file: AreaFile, apiKey?: string) => {
+    const keyToUse = (apiKey || localStorage.getItem(OPENAI_KEY_STORAGE) || '').trim();
+
+    if (!keyToUse) {
+      const failed = files.map(f => f.id === file.id ? { ...f, aiStatus: 'error', aiError: 'OpenAI key required', aiParsed: false } : f);
+      setFiles(failed);
+      saveAreaFiles(failed);
+      toast.error('OpenAI API key is required to parse research files');
+      return;
+    }
+
     if (!file.textContent) {
+      const failed = files.map(f => f.id === file.id ? { ...f, aiStatus: 'error', aiError: 'No readable text content', aiParsed: false } : f);
+      setFiles(failed);
+      saveAreaFiles(failed);
       toast.error(`No readable content in ${file.name}`);
       return;
     }
+
     try {
       const resp = await fetch(`${import.meta.env.VITE_SUPABASE_URL}/functions/v1/parse-area-research`, {
         method: 'POST',
@@ -109,18 +123,23 @@ function AreaResearchUpload() {
         body: JSON.stringify({
           fileContent: file.textContent,
           areaName: file.areaName,
-          ...(keyToUse ? { openaiApiKey: keyToUse } : {}),
+          openaiApiKey: keyToUse,
         }),
       });
+
       if (!resp.ok) {
         const err = await resp.json().catch(() => ({ error: 'AI parsing failed' }));
+        const failed = loadAreaFiles().map(f => f.id === file.id ? { ...f, aiStatus: 'error', aiError: err.error || 'AI parsing failed', aiParsed: false } : f);
+        setFiles(failed);
+        saveAreaFiles(failed);
         toast.error(err.error || 'AI parsing failed');
         return;
       }
+
       const data = await resp.json();
       if (data.success && data.marketData) {
-        const updated = currentFiles.map(f =>
-          f.id === file.id ? { ...f, aiParsed: true, marketData: data.marketData } : f
+        const updated = loadAreaFiles().map(f =>
+          f.id === file.id ? { ...f, aiParsed: true, aiStatus: 'parsed', aiError: undefined, marketData: data.marketData } : f
         );
         setFiles(updated);
         saveAreaFiles(updated);
@@ -128,7 +147,10 @@ function AreaResearchUpload() {
       }
     } catch (e) {
       console.error('AI parse error:', e);
-      toast.error(`Failed to parse ${file.name} with AI`);
+      const failed = loadAreaFiles().map(f => f.id === file.id ? { ...f, aiStatus: 'error', aiError: 'Network or parser error', aiParsed: false } : f);
+      setFiles(failed);
+      saveAreaFiles(failed);
+      toast.error(`Failed to parse ${file.name} with OpenAI`);
     }
   };
 
@@ -186,7 +208,8 @@ function AreaResearchUpload() {
           </button>
         </div>
         <p className="text-[10px] text-muted-foreground leading-relaxed">
-          Used to parse uploaded Word documents. If left blank, the server-side AI key is used instead.
+          Used to parse uploaded Word documents via OpenAI.
+          This key is required for parsing in this environment.
           Get a key at <a href="https://platform.openai.com/api-keys" target="_blank" rel="noreferrer" className="text-primary underline">platform.openai.com</a>.
         </p>
       </div>
@@ -239,11 +262,15 @@ function AreaResearchUpload() {
               <div className="flex-1 min-w-0">
                 <div className="flex items-center gap-2">
                   <p className="text-xs font-medium text-foreground truncate">{f.name}</p>
-                  {f.aiParsed ? (
+                  {f.aiParsed || f.aiStatus === 'parsed' ? (
                     <span className="flex items-center gap-1 text-[10px] text-success font-medium">
                       <CheckCircle2 className="w-3 h-3" /> AI Parsed
                     </span>
-                  ) : f.textContent ? (
+                  ) : f.aiStatus === 'error' ? (
+                    <span className="flex items-center gap-1 text-[10px] text-destructive font-medium" title={f.aiError || 'Parsing failed'}>
+                      <X className="w-3 h-3" /> Parse failed
+                    </span>
+                  ) : f.aiStatus === 'parsing' ? (
                     <span className="flex items-center gap-1 text-[10px] text-muted-foreground font-medium">
                       <Loader2 className="w-3 h-3 animate-spin" /> Parsing...
                     </span>
