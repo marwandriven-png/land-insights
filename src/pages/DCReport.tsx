@@ -1,7 +1,8 @@
 import { useState, useMemo, useEffect, useRef, useCallback } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import { Shield, Lock, Eye, Calendar, Printer, Building2, TrendingUp, DollarSign, BarChart3, MapPin, Share2, ChevronRight, Check, FileText, Phone, Mail, User, CheckCircle, ArrowRight, AlertTriangle } from 'lucide-react';
+import { Shield, Lock, Eye, Calendar, Printer, Building2, TrendingUp, DollarSign, BarChart3, MapPin, Share2, ChevronRight, Check, FileText, Phone, Mail, User, CheckCircle, ArrowRight, AlertTriangle, Download, Search } from 'lucide-react';
 import xEstateLogo from '@/assets/X-Estate_Logo.svg';
+import xEstateLogoIcon from '@/assets/X-EstateLogo-Icon.png';
 import teaserBg from '@/assets/teaser-bg.jpg';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -9,8 +10,10 @@ import { Progress } from '@/components/ui/progress';
 import { Switch } from '@/components/ui/switch';
 import { Table, TableHeader, TableBody, TableRow, TableHead, TableCell, TableFooter } from '@/components/ui/table';
 import { calcDSCFeasibility, DSCPlotInput, DSCFeasibilityResult, MixKey, MIX_TEMPLATES, COMPS, UNIT_SIZES, RENT_PSF_YR, TXN_AVG_PSF, TXN_COUNT, fmt, fmtM, fmtA, pct } from '@/lib/dscFeasibility';
+import { AnalysisSummary } from '@/components/HyperPlot/AnalysisSummary';
 import { DCShareLink, loadShareLinks, saveShareLinks } from '@/components/HyperPlot/DCShareModal';
 import { supabase } from '@/integrations/supabase/client';
+import { useScrollReveal } from '@/hooks/useScrollReveal';
 
 function mapToLink(r: any): DCShareLink {
   return {
@@ -46,19 +49,6 @@ function useCountUp(target: number, duration = 1200, enabled = true) {
   return value;
 }
 
-// ─── Scroll-triggered animation hook ───
-function useScrollReveal(threshold = 0.15) {
-  const ref = useRef<HTMLDivElement>(null);
-  const [visible, setVisible] = useState(false);
-  useEffect(() => {
-    const el = ref.current;
-    if (!el) return;
-    const obs = new IntersectionObserver(([e]) => { if (e.isIntersecting) { setVisible(true); obs.disconnect(); } }, { threshold });
-    obs.observe(el);
-    return () => obs.disconnect();
-  }, [threshold]);
-  return { ref, visible };
-}
 
 // ─── 3D Card wrapper ───
 function Card3D({ children, className = '', style = {} }: { children: React.ReactNode; className?: string; style?: React.CSSProperties }) {
@@ -201,9 +191,8 @@ function RegistrationStep({ onComplete, linkId }: { onComplete: () => void; link
         <div className="flex items-center justify-center gap-0 mb-8">
           {[1, 2, 3].map((s, i) => (
             <div key={s} className="flex items-center">
-              <div className={`w-10 h-10 rounded-full flex items-center justify-center text-sm font-bold transition-all ${
-                s <= 2 ? 'bg-gradient-to-br from-cyan-400 to-teal-500 text-black shadow-lg' : 'text-white/30 border border-white/10'
-              }`} style={s <= 2 ? { boxShadow: '0 0 15px rgba(6,182,212,0.3)' } : { background: 'rgba(255,255,255,0.05)' }}>{s}</div>
+              <div className={`w-10 h-10 rounded-full flex items-center justify-center text-sm font-bold transition-all ${s <= 2 ? 'bg-gradient-to-br from-cyan-400 to-teal-500 text-black shadow-lg' : 'text-white/30 border border-white/10'
+                }`} style={s <= 2 ? { boxShadow: '0 0 15px rgba(6,182,212,0.3)' } : { background: 'rgba(255,255,255,0.05)' }}>{s}</div>
               {i < 2 && <div className={`w-16 h-0.5 ${s < 2 ? 'bg-gradient-to-r from-cyan-400 to-teal-500' : ''}`} style={s >= 2 ? { background: 'rgba(255,255,255,0.1)' } : {}} />}
             </div>
           ))}
@@ -296,8 +285,8 @@ function NDAStep({ onAccept }: { onAccept: () => void }) {
           <div className="rounded-xl p-5 text-base leading-relaxed font-mono max-h-56 overflow-y-auto space-y-4 scrollbar-thin" style={{ color: 'rgba(255,255,255,0.6)', border: '1px solid rgba(255,255,255,0.08)', background: 'rgba(0,0,0,0.4)' }}>
             <p className="text-cyan-400/80 font-bold text-sm tracking-wider">CONFIDENTIALITY AND NON-DISCLOSURE AGREEMENT</p>
             <p>This Confidentiality and Non-Disclosure Agreement ("Agreement") is entered into as of <span className="text-white font-semibold">{new Date().toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' })}</span>.</p>
-            <p><span className="text-cyan-400/60 font-bold text-xs tracking-wider">PARTIES:</span><br/>Disclosing Party: The Investment Sponsor ("Sponsor")<br/>Receiving Party: Company ("Recipient")</p>
-            <p><span className="text-cyan-400/60 font-bold text-xs tracking-wider">PROJECT:</span> Confidential Real Estate Investment Opportunity<br/><span className="text-cyan-400/60 font-bold text-xs tracking-wider">ASSET LOCATION:</span> Dubai Sports City, Dubai, United Arab Emirates</p>
+            <p><span className="text-cyan-400/60 font-bold text-xs tracking-wider">PARTIES:</span><br />Disclosing Party: The Investment Sponsor ("Sponsor")<br />Receiving Party: Company ("Recipient")</p>
+            <p><span className="text-cyan-400/60 font-bold text-xs tracking-wider">PROJECT:</span> Confidential Real Estate Investment Opportunity<br /><span className="text-cyan-400/60 font-bold text-xs tracking-wider">ASSET LOCATION:</span> Dubai Sports City, Dubai, United Arab Emirates</p>
             <p><span className="text-white/80 font-semibold">1. CONFIDENTIAL INFORMATION:</span> All financial projections, feasibility analyses, development parameters, unit mix strategies, pricing models, and related data shared through this platform.</p>
             <p><span className="text-white/80 font-semibold">2. OBLIGATIONS:</span> The Recipient agrees to maintain strict confidentiality and not disclose, reproduce, or distribute any information without prior written consent.</p>
             <p><span className="text-white/80 font-semibold">3. TERM:</span> This Agreement shall remain in effect for a period of two (2) years from the date of execution.</p>
@@ -357,7 +346,7 @@ function TeaserPage({ link, fs, onRequestAccess }: { link: DCShareLink; fs: DSCF
           <div className="inline-flex items-center gap-2 px-4 py-1.5 rounded-full mb-8 animate-fade-in" style={{ border: '1px solid rgba(6,182,212,0.3)', background: 'rgba(6,182,212,0.1)' }}>
             <span className="text-xs text-cyan-400 font-semibold uppercase tracking-widest">🏆 Decision Confidence</span>
           </div>
-          
+
           <h1 className="text-5xl md:text-7xl font-black mb-3 tracking-tight leading-none animate-fade-in uppercase bg-gradient-to-b from-white to-white/60 bg-clip-text text-transparent">
             Confidential
           </h1>
@@ -415,95 +404,6 @@ function TeaserPage({ link, fs, onRequestAccess }: { link: DCShareLink; fs: DSCF
     </div>
   );
 }
-
-// ─── Key Strengths & Risk Mitigation Summary ───
-function AnalysisSummary({ fs, mixTemplate }: { fs: DSCFeasibilityResult; mixTemplate: typeof MIX_TEMPLATES.balanced }) {
-  const { ref: ref1, visible: v1 } = useScrollReveal(0.1);
-  const { ref: ref2, visible: v2 } = useScrollReveal(0.1);
-  const { ref: ref3, visible: v3 } = useScrollReveal(0.1);
-
-  const breakEvenPsf = Math.round(fs.totalCost / fs.sellableArea);
-  const marketAvgPsf = 1565;
-  const safetyMargin = Math.round(((marketAvgPsf - breakEvenPsf) / marketAvgPsf) * 100);
-
-  const strengths = [
-    `${pct(fs.roi)} ROI significantly exceeds market average (25-30%)`,
-    `${pct(fs.grossMargin)} profit margin provides healthy buffer against market volatility`,
-    `Break-even at AED ${fmt(breakEvenPsf)} PSF vs market AED ${fmt(marketAvgPsf)} (${safetyMargin}% safety margin)`,
-    `${mixTemplate.label} unit mix reduces absorption risk and targets broad market segment`,
-    `${(fs.grossYield * 100).toFixed(1)}% yield attractive to institutional investors`,
-  ];
-
-  const risks = [
-    `Sensitivity analysis confirms viability even at -5% price decline`,
-    `Only becomes marginal at -10% price drop (unlikely scenario)`,
-    `Market floor (AED ${fmt(Math.round(fs.sens[0]?.revenue ? fs.avgPsf * 0.9 : 1452))}) remains ${Math.round(((fs.avgPsf * 0.9 - breakEvenPsf) / breakEvenPsf) * 100)}% above break-even`,
-    `Dubai South infrastructure investment supports long-term price appreciation`,
-    `Flexible unit mix allows pivot to investor-focused if market shifts`,
-  ];
-
-  const nextSteps = [
-    { num: '01', title: 'Secure Acquisition', desc: `Target land cost at ${pct(fs.landCost / fs.grossSales)} of GDV (AED ${fmtM(fs.landCost)})` },
-    { num: '02', title: 'Pre-sales Strategy', desc: 'Launch phase 1 to test price elasticity and market response' },
-    { num: '03', title: 'Unit Mix Finalization', desc: 'Confirm based on pre-sales feedback and absorption rates' },
-    { num: '04', title: 'Monitor DSC Pipeline', desc: 'Track absorption rates quarterly to optimize pricing strategy' },
-  ];
-
-  return (
-    <>
-      {/* Proceed button */}
-      <div ref={ref1} className={`mb-10 transition-all duration-700 ${v1 ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-12'}`}>
-        <div className="rounded-2xl p-8 text-center" style={{ background: 'linear-gradient(135deg, rgba(17,24,39,0.9), rgba(17,24,39,0.6))', border: '1px solid #1f2937', backdropFilter: 'blur(10px)' }}>
-          <Button className="h-14 px-16 text-lg font-bold gap-3 text-black rounded-xl transition-all hover:scale-[1.02]" style={{ background: 'linear-gradient(to right, #06b6d4, #14b8a6)', boxShadow: '0 10px 40px rgba(6,182,212,0.25)' }}>
-            <Check className="w-6 h-6" /> PROCEED
-          </Button>
-          <p className="text-base mt-4" style={{ color: 'rgba(255,255,255,0.5)' }}>
-            With <span className="font-bold text-white">{mixTemplate.label}</span> Strategy
-          </p>
-        </div>
-      </div>
-
-      {/* Key Strengths & Risk Mitigation */}
-      <div ref={ref2} className={`grid grid-cols-1 lg:grid-cols-2 gap-6 mb-10 transition-all duration-700 ${v2 ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-12'}`}>
-        <Card3D className="rounded-2xl p-7" style={{ background: 'linear-gradient(135deg, rgba(17,24,39,0.9), rgba(17,24,39,0.6))', border: '1px solid rgba(20,184,166,0.2)', backdropFilter: 'blur(10px)' }}>
-          <h4 className="text-lg font-bold uppercase tracking-wider mb-5 text-teal-400">Key Strengths</h4>
-          <div className="space-y-4">
-            {strengths.map((s, i) => (
-              <div key={i} className="flex items-start gap-3">
-                <CheckCircle className="w-5 h-5 text-teal-400 shrink-0 mt-0.5" />
-                <span className="text-sm leading-relaxed" style={{ color: 'rgba(255,255,255,0.65)' }}>{s}</span>
-              </div>
-            ))}
-          </div>
-        </Card3D>
-
-        <Card3D className="rounded-2xl p-7" style={{ background: 'linear-gradient(135deg, rgba(17,24,39,0.9), rgba(17,24,39,0.6))', border: '1px solid rgba(6,182,212,0.2)', backdropFilter: 'blur(10px)' }}>
-          <h4 className="text-lg font-bold uppercase tracking-wider mb-5 text-cyan-400">Risk Mitigation</h4>
-          <div className="space-y-4">
-            {risks.map((r, i) => (
-              <div key={i} className="flex items-start gap-3">
-                <ArrowRight className="w-5 h-5 text-cyan-400 shrink-0 mt-0.5" />
-                <span className="text-sm leading-relaxed" style={{ color: 'rgba(255,255,255,0.65)' }}>{r}</span>
-              </div>
-            ))}
-          </div>
-        </Card3D>
-      </div>
-
-      {/* Next Steps */}
-      <div ref={ref3} className={`grid grid-cols-2 lg:grid-cols-4 gap-4 mb-8 transition-all duration-700 ${v3 ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-12'}`}>
-        {nextSteps.map((step, i) => (
-          <Card3D key={i} className="rounded-xl p-5" style={{ background: 'linear-gradient(135deg, rgba(17,24,39,0.9), rgba(17,24,39,0.6))', border: '1px solid #1f2937', backdropFilter: 'blur(10px)' }}>
-            <div className="text-3xl font-black font-mono mb-2 text-cyan-400" style={{ textShadow: '0 0 15px rgba(6,182,212,0.3)' }}>{step.num}</div>
-            <h5 className="text-base font-bold text-white mb-1">{step.title}</h5>
-            <p className="text-xs leading-relaxed" style={{ color: 'rgba(255,255,255,0.4)' }}>{step.desc}</p>
-          </Card3D>
-        ))}
-      </div>
-    </>
-  );
-}
-
 export default function DCReport() {
   const { linkId } = useParams<{ linkId: string }>();
   const navigate = useNavigate();
@@ -747,11 +647,10 @@ export default function DCReport() {
               <button
                 key={k}
                 onClick={() => setActiveTab(k)}
-                className={`py-3 px-5 text-sm font-semibold border-b-2 transition-all flex items-center gap-1.5 ${
-                  activeTab === k
-                    ? 'text-cyan-400 border-cyan-400'
-                    : 'border-transparent hover:text-gray-300'
-                }`}
+                className={`py-3 px-5 text-sm font-semibold border-b-2 transition-all flex items-center gap-1.5 ${activeTab === k
+                  ? 'text-cyan-400 border-cyan-400'
+                  : 'border-transparent hover:text-gray-300'
+                  }`}
                 style={activeTab !== k ? { color: '#6b7280' } : {}}
               >
                 <span>{icon}</span> {l}
@@ -921,38 +820,146 @@ export default function DCReport() {
         )}
 
         {activeTab === 'benchmarks' && (
-          <Section title="DSC Market Benchmarks" badge={`${COMPS.length} projects`}>
-            <div className="overflow-x-auto rounded-xl" style={tableWrapStyle}>
-              <Table>
-                <TableHeader>
-                  <TableRow style={{ borderBottom: '1px solid #1f2937' }}>
-                    {['Project', 'Developer', 'Units', 'BUA', 'PSF', 'Handover', 'Payment', 'Studio%', '1BR%', '2BR%'].map(h => (
-                      <TableHead key={h} className="text-xs text-right first:text-left whitespace-nowrap" style={{ color: '#9ca3af' }}>{h}</TableHead>
-                    ))}
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {COMPS.map(c => (
-                    <TableRow key={c.name} style={{ borderBottom: '1px solid rgba(31,41,55,0.5)' }}>
-                      <TableCell className="text-sm font-medium py-2 text-white">{c.name}</TableCell>
-                      <TableCell className="text-sm text-right py-2" style={{ color: '#9ca3af' }}>{c.developer}</TableCell>
-                      <TableCell className="text-sm text-right font-mono py-2 text-white">{c.units}</TableCell>
-                      <TableCell className="text-sm text-right font-mono py-2 text-white">{fmt(c.bua)}</TableCell>
-                      <TableCell className="text-sm text-right font-mono py-2 text-cyan-400">AED {fmt(c.psf)}</TableCell>
-                      <TableCell className="text-sm text-right py-2" style={{ color: '#9ca3af' }}>{c.handover}</TableCell>
-                      <TableCell className="text-sm text-right py-2" style={{ color: '#9ca3af' }}>{c.payPlan}</TableCell>
-                      <TableCell className="text-sm text-right py-2 text-white">{c.studioP}%</TableCell>
-                      <TableCell className="text-sm text-right py-2 text-white">{c.br1P}%</TableCell>
-                      <TableCell className="text-sm text-right py-2 text-white">{c.br2P}%</TableCell>
+          <>
+            <Section title="DSC Market Benchmarks" badge={`${COMPS.length} projects`}>
+              <div className="overflow-x-auto rounded-xl" style={tableWrapStyle}>
+                <Table>
+                  <TableHeader>
+                    <TableRow style={{ borderBottom: '1px solid #1f2937' }}>
+                      {['Project', 'Developer', 'Units', 'BUA', 'PSF', 'Handover', 'Payment'].map(h => (
+                        <TableHead key={h} className="text-xs text-right first:text-left whitespace-nowrap" style={{ color: '#9ca3af' }}>{h}</TableHead>
+                      ))}
                     </TableRow>
-                  ))}
-                </TableBody>
-              </Table>
-            </div>
-            <div className="mt-3 p-3 rounded-lg text-xs" style={{ background: 'rgba(17,24,39,0.5)', border: '1px solid #1f2937', color: '#9ca3af' }}>
-              <strong className="text-white">Market Intelligence:</strong> DSC sales avg AED 1,565/sqft ({TXN_COUNT.total} txns) · Rental avg AED 86/sqft/yr
-            </div>
-          </Section>
+                  </TableHeader>
+                  <TableBody>
+                    {COMPS.map((c: any) => (
+                      <TableRow key={c.name} style={{ borderBottom: '1px solid rgba(31,41,55,0.5)' }}>
+                        <TableCell className="text-sm font-medium py-2 text-white">{c.name}</TableCell>
+                        <TableCell className="text-sm text-right py-2" style={{ color: '#9ca3af' }}>{c.developer}</TableCell>
+                        <TableCell className="text-sm text-right font-mono py-2 text-white">{c.units}</TableCell>
+                        <TableCell className="text-sm text-right font-mono py-2 text-white">{fmt(c.bua)}</TableCell>
+                        <TableCell className="text-sm text-right font-mono py-2 text-cyan-400">AED {fmt(c.psf)}</TableCell>
+                        <TableCell className="text-sm text-right py-2" style={{ color: '#9ca3af' }}>{c.handover}</TableCell>
+                        <TableCell className="text-sm text-right py-2" style={{ color: '#9ca3af' }}>{c.payPlan}</TableCell>
+                      </TableRow>
+                    ))}
+                  </TableBody>
+                </Table>
+              </div>
+            </Section>
+
+            {COMPS.length > 0 && (
+              <Section title="Competitor Unit Mix Breakdown" badge="Market Average">
+                <div className="overflow-x-auto rounded-xl" style={tableWrapStyle}>
+                  <Table>
+                    <TableHeader>
+                      <TableRow style={{ borderBottom: '1px solid #1f2937' }}>
+                        <TableHead className="text-xs text-left" style={{ color: '#9ca3af' }}>Project</TableHead>
+                        <TableHead className="text-xs text-right" style={{ color: '#9ca3af' }}>Studio</TableHead>
+                        <TableHead className="text-xs text-right" style={{ color: '#9ca3af' }}>1 Bed</TableHead>
+                        <TableHead className="text-xs text-right" style={{ color: '#9ca3af' }}>2 Bed</TableHead>
+                        <TableHead className="text-xs text-right" style={{ color: '#9ca3af' }}>3 Bed</TableHead>
+                      </TableRow>
+                    </TableHeader>
+                    <TableBody>
+                      {COMPS.map((c: any) => (
+                        <TableRow key={c.name} style={{ borderBottom: '1px solid rgba(31,41,55,0.5)' }}>
+                          <TableCell className="text-sm font-medium py-2 text-white">{c.name}</TableCell>
+                          <TableCell className="text-sm text-right py-2 text-white">{c.studioP || 0}%</TableCell>
+                          <TableCell className="text-sm text-right py-2 text-white">{c.br1P || 0}%</TableCell>
+                          <TableCell className="text-sm text-right py-2 text-white">{c.br2P || 0}%</TableCell>
+                          <TableCell className="text-sm text-right py-2 text-white">{c.br3P || 0}%</TableCell>
+                        </TableRow>
+                      ))}
+                    </TableBody>
+                    <TableFooter>
+                      {(() => {
+                        const count = COMPS.length;
+                        const avgS = Math.round(COMPS.reduce((a: number, c: any) => a + (c.studioP || 0), 0) / count);
+                        const avg1 = Math.round(COMPS.reduce((a: number, c: any) => a + (c.br1P || 0), 0) / count);
+                        const avg2 = Math.round(COMPS.reduce((a: number, c: any) => a + (c.br2P || 0), 0) / count);
+                        const avg3 = Math.round(COMPS.reduce((a: number, c: any) => a + (c.br3P || 0), 0) / count);
+                        return (
+                          <TableRow style={{ background: 'rgba(6,182,212,0.1)', borderTop: '1px solid rgba(6,182,212,0.3)' }}>
+                            <TableCell className="text-sm font-bold py-3 text-cyan-400">Market Average</TableCell>
+                            <TableCell className="text-sm text-right font-bold py-3 text-cyan-400">{avgS}%</TableCell>
+                            <TableCell className="text-sm text-right font-bold py-3 text-cyan-400">{avg1}%</TableCell>
+                            <TableCell className="text-sm text-right font-bold py-3 text-cyan-400">{avg2}%</TableCell>
+                            <TableCell className="text-sm text-right font-bold py-3 text-cyan-400">{avg3}%</TableCell>
+                          </TableRow>
+                        );
+                      })()}
+                    </TableFooter>
+                  </Table>
+                </div>
+              </Section>
+            )}
+
+            <Section title="Pricing & Payment Benchmarks">
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <Card3D className="rounded-xl p-5" style={{ background: 'rgba(17,24,39,0.5)', border: '1px solid #1f2937' }}>
+                  <h4 className="text-xs font-semibold uppercase tracking-wider mb-4" style={{ color: '#9ca3af' }}>Market Pricing Benchmarks</h4>
+                  <div className="flex gap-2 flex-wrap mb-4">
+                    {(() => {
+                      const psfs = COMPS.map((c: any) => c.psf).filter(Boolean);
+                      const floor = psfs.length ? Math.min(...psfs) : 0;
+                      const ceiling = psfs.length ? Math.max(...psfs) : 0;
+                      const avg = psfs.length ? Math.round(psfs.reduce((a: number, b: number) => a + b, 0) / psfs.length) : 0;
+                      return (
+                        <>
+                          <div className="flex-1 rounded-lg p-3 text-center" style={{ background: 'rgba(255,255,255,0.03)' }}>
+                            <div className="text-[10px] uppercase mb-1" style={{ color: '#6b7280' }}>Market Floor</div>
+                            <div className="text-lg font-bold font-mono text-white">AED {fmt(floor)}</div>
+                          </div>
+                          <div className="flex-1 rounded-lg p-3 text-center" style={{ background: 'rgba(6,182,212,0.1)', border: '1px solid rgba(6,182,212,0.3)' }}>
+                            <div className="text-[10px] text-cyan-400 uppercase mb-1 font-bold">Market Average</div>
+                            <div className="text-lg font-bold font-mono text-cyan-400">AED {fmt(avg)}</div>
+                          </div>
+                          <div className="flex-1 rounded-lg p-3 text-center" style={{ background: 'rgba(255,255,255,0.03)' }}>
+                            <div className="text-[10px] uppercase mb-1" style={{ color: '#6b7280' }}>Market Ceiling</div>
+                            <div className="text-lg font-bold font-mono text-white">AED {fmt(ceiling)}</div>
+                          </div>
+                        </>
+                      );
+                    })()}
+                  </div>
+                  <div className="text-[10px] p-3 rounded" style={{ background: 'rgba(255,255,255,0.02)', color: '#9ca3af' }}>
+                    💡 Based on actual area transactions and verified comparable projects.
+                  </div>
+                </Card3D>
+
+                <Card3D className="rounded-xl p-5" style={{ background: 'rgba(17,24,39,0.5)', border: '1px solid #1f2937' }}>
+                  <h4 className="text-xs font-semibold uppercase tracking-wider mb-4" style={{ color: '#9ca3af' }}>Payment Plan Distribution</h4>
+                  <div className="space-y-3">
+                    {(() => {
+                      const plans = COMPS.map((c: any) => c.payPlan).filter(Boolean);
+                      if (!plans.length) return <div className="text-xs" style={{ color: '#6b7280' }}>No payment plan data extracted</div>;
+
+                      const occurrences = plans.reduce((acc: any, p: string) => {
+                        acc[p] = (acc[p] || 0) + 1;
+                        return acc;
+                      }, {});
+
+                      return Object.entries(occurrences).map(([plan, count]) => {
+                        const pctOfTotal = ((count as number) / plans.length) * 100;
+                        return (
+                          <div key={plan}>
+                            <div className="flex justify-between text-xs mb-1">
+                              <span className="text-white">{plan}</span>
+                              <span className="font-semibold text-cyan-400">{count as number} Projects ({Math.round(pctOfTotal)}%)</span>
+                            </div>
+                            <div className="h-2 rounded-full overflow-hidden" style={{ background: 'rgba(255,255,255,0.1)' }}>
+                              <div className="h-full rounded-full" style={{ width: `${pctOfTotal}%`, background: 'linear-gradient(90deg, #06b6d4, #14b8a6)' }} />
+                            </div>
+                          </div>
+                        );
+                      });
+                    })()}
+                  </div>
+                </Card3D>
+              </div>
+            </Section>
+          </>
         )}
 
         {activeTab === 'sensitivity' && (
@@ -984,8 +991,8 @@ export default function DCReport() {
                           <TableCell className="text-right py-2">
                             <span className="text-xs font-bold px-2 py-1 rounded-full" style={
                               s.margin >= 0.25 ? { color: '#10b981', background: 'rgba(16,185,129,0.1)', border: '1px solid rgba(16,185,129,0.3)' }
-                              : s.margin >= 0.15 ? { color: '#f59e0b', background: 'rgba(245,158,11,0.1)', border: '1px solid rgba(245,158,11,0.3)' }
-                              : { color: '#ef4444', background: 'rgba(239,68,68,0.1)', border: '1px solid rgba(239,68,68,0.3)' }
+                                : s.margin >= 0.15 ? { color: '#f59e0b', background: 'rgba(245,158,11,0.1)', border: '1px solid rgba(245,158,11,0.3)' }
+                                  : { color: '#ef4444', background: 'rgba(239,68,68,0.1)', border: '1px solid rgba(239,68,68,0.3)' }
                             }>
                               {s.margin >= 0.25 ? '✓ VIABLE' : s.margin >= 0.15 ? '⚠ MARGINAL' : '✗ LOSS'}
                             </span>

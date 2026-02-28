@@ -89,7 +89,7 @@ interface LandMatchingWizardProps {
 }
 
 type WizardStep = 'upload' | 'parsing' | 'matching' | 'results';
-type InputMode = 'form' | 'text';
+type InputMode = 'form' | 'text' | 'location';
 
 export function LandMatchingWizard({
   isOpen,
@@ -121,6 +121,10 @@ export function LandMatchingWizard({
   const [formGfaUnit, setFormGfaUnit] = useState<'sqm' | 'sqft'>('sqm');
   const [formZoning, setFormZoning] = useState('');
   const [formFloors, setFormFloors] = useState('');
+
+  // Location search state
+  const [locationUrl, setLocationUrl] = useState('');
+  const [locationRadius, setLocationRadius] = useState<number>(1000);
 
   const canQuickSearch = (
     (formPlotArea.trim().length > 0 && parseFloat(formPlotArea) > 0) ||
@@ -261,7 +265,7 @@ export function LandMatchingWizard({
     try {
       // Try structured parsing first
       let inputs = parseTextFile(textContent);
-      
+
       // If structured parsing fails, try smart free-form parsing
       if (inputs.length === 0 || inputs.every(i => i.plotAreaSqm === 0 && i.gfaSqm === 0)) {
         inputs = parseFreeFormText(textContent);
@@ -281,10 +285,10 @@ export function LandMatchingWizard({
       }
 
       setParsedInputs(inputs);
-      
+
       // Auto-run matching immediately instead of showing intermediate step
       setStep('matching');
-      
+
       try {
         let results = matchParcels(inputs, plots);
 
@@ -541,11 +545,10 @@ export function LandMatchingWizard({
           {(['upload', 'parsing', 'matching', 'results'] as WizardStep[]).map((s, i) => (
             <div
               key={s}
-              className={`flex-1 h-1.5 rounded-full transition-colors ${
-                i <= ['upload', 'parsing', 'matching', 'results'].indexOf(step)
-                  ? 'bg-primary'
-                  : 'bg-muted/50'
-              }`}
+              className={`flex-1 h-1.5 rounded-full transition-colors ${i <= ['upload', 'parsing', 'matching', 'results'].indexOf(step)
+                ? 'bg-primary'
+                : 'bg-muted/50'
+                }`}
             />
           ))}
         </div>
@@ -566,23 +569,142 @@ export function LandMatchingWizard({
               <div className="flex gap-1 p-1 bg-muted/30 rounded-lg">
                 <button
                   onClick={() => setInputMode('form')}
-                  className={`flex-1 flex items-center justify-center gap-1.5 py-2 rounded-md text-xs font-medium transition-colors ${
-                    inputMode === 'form' ? 'bg-primary text-primary-foreground' : 'text-muted-foreground hover:text-foreground'
-                  }`}
+                  className={`flex-1 flex items-center justify-center gap-1.5 py-2 rounded-md text-xs font-medium transition-colors ${inputMode === 'form' ? 'bg-primary text-primary-foreground' : 'text-muted-foreground hover:text-foreground'
+                    }`}
                 >
                   <LayoutGrid className="w-3.5 h-3.5" />
                   Quick Search
                 </button>
                 <button
                   onClick={() => setInputMode('text')}
-                  className={`flex-1 flex items-center justify-center gap-1.5 py-2 rounded-md text-xs font-medium transition-colors ${
-                    inputMode === 'text' ? 'bg-primary text-primary-foreground' : 'text-muted-foreground hover:text-foreground'
-                  }`}
+                  className={`flex-1 flex items-center justify-center gap-1.5 py-2 rounded-md text-xs font-medium transition-colors ${inputMode === 'text' ? 'bg-primary text-primary-foreground' : 'text-muted-foreground hover:text-foreground'
+                    }`}
                 >
                   <FileText className="w-3.5 h-3.5" />
                   Text / File
                 </button>
+                <button
+                  onClick={() => setInputMode('location')}
+                  className={`flex-1 flex items-center justify-center gap-1.5 py-2 rounded-md text-xs font-medium transition-colors ${inputMode === 'location' ? 'bg-primary text-primary-foreground' : 'text-muted-foreground hover:text-foreground'
+                    }`}
+                >
+                  <MapPin className="w-3.5 h-3.5" />
+                  Location
+                </button>
               </div>
+
+              {inputMode === 'location' && (
+                <div className="space-y-4">
+                  <div className="space-y-1.5">
+                    <Label className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">
+                      Google Maps URL <span className="text-destructive">*</span>
+                    </Label>
+                    <Input
+                      value={locationUrl}
+                      onChange={(e) => setLocationUrl(e.target.value)}
+                      placeholder="e.g. https://maps.app.goo.gl/..."
+                      className="text-sm"
+                    />
+                  </div>
+
+                  <div className="space-y-1.5">
+                    <div className="flex justify-between items-center">
+                      <Label className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">
+                        Search Radius
+                      </Label>
+                      <span className="text-xs font-mono text-cyan-400">{locationRadius}m</span>
+                    </div>
+                    <input
+                      type="range"
+                      min="100"
+                      max="5000"
+                      step="100"
+                      value={locationRadius}
+                      onChange={(e) => setLocationRadius(parseInt(e.target.value, 10))}
+                      className="w-full h-2 bg-muted/50 rounded-lg appearance-none cursor-pointer accent-cyan-400"
+                    />
+                    <div className="flex justify-between text-[10px] text-muted-foreground">
+                      <span>100m</span>
+                      <span>5km</span>
+                    </div>
+                  </div>
+
+                  <Button
+                    className="w-full gap-2"
+                    onClick={async () => {
+                      if (!locationUrl.trim()) return;
+                      setIsProcessing(true);
+                      setError(null);
+                      setStep('matching');
+
+                      try {
+                        // 1. Resolve URL
+                        const resolveRes = await fetch(`${import.meta.env.VITE_SUPABASE_URL}/functions/v1/resolve-url`, {
+                          method: 'POST',
+                          headers: { 'Content-Type': 'application/json' },
+                          body: JSON.stringify({ url: locationUrl })
+                        });
+
+                        if (!resolveRes.ok) throw new Error('Failed to parse Google Maps URL');
+                        const resData = await resolveRes.json();
+
+                        // Handle possible error payload from the edge function cleanly
+                        if (resData.error) throw new Error(resData.error);
+
+                        const { lat, lng } = resData;
+                        if (!lat || !lng) throw new Error('Could not extract coordinates from URL');
+
+                        // 2. Query spatial search
+                        const { gisService } = await import('@/services/DDAGISService');
+                        const apiPlots = await gisService.searchByLocation(lat, lng, locationRadius);
+
+                        if (apiPlots.length === 0) {
+                          setMatchResults([]);
+                          setStep('results');
+                          return;
+                        }
+
+                        // 3. Convert PlotData to MatchResult
+                        const mockInput: ParcelInput = {
+                          area: `Radius ${locationRadius}m`,
+                          plotAreaSqm: 0,
+                          gfaSqm: 0
+                        };
+
+                        let results: MatchResult[] = apiPlots.map(ap => ({
+                          input: mockInput,
+                          matchedPlotId: ap.id,
+                          matchedPlotArea: ap.area,
+                          matchedGfa: ap.gfa,
+                          matchedZoning: ap.zoning,
+                          matchedStatus: ap.status,
+                          matchedLocation: ap.location,
+                          areaDeviation: 0,
+                          gfaDeviation: 0,
+                          confidenceScore: 100
+                        }));
+
+                        // Cross-check with Google Sheet
+                        results = await crossCheckWithSheet(results);
+
+                        setMatchResults(results);
+                        setSelectedMatchIds(new Set(results.map(r => r.matchedPlotId)));
+                        setStep('results');
+                        onHighlightPlots(results.map(r => r.matchedPlotId));
+                      } catch (e: any) {
+                        setError(e.message || 'Invalid Location URL');
+                        setStep('upload');
+                      } finally {
+                        setIsProcessing(false);
+                      }
+                    }}
+                    disabled={!locationUrl.trim() || isProcessing}
+                  >
+                    <MapPin className="w-4 h-4" />
+                    Spatial Search
+                  </Button>
+                </div>
+              )}
 
               {inputMode === 'form' && (
                 <div className="space-y-3">
@@ -881,9 +1003,8 @@ export function LandMatchingWizard({
               {matchResults.map((result, idx) => (
                 <div
                   key={idx}
-                  className={`data-card hover:border-primary/50 cursor-pointer transition-all ${
-                    selectedMatchIds.has(result.matchedPlotId) ? 'border-primary/60 bg-primary/5' : ''
-                  }`}
+                  className={`data-card hover:border-primary/50 cursor-pointer transition-all ${selectedMatchIds.has(result.matchedPlotId) ? 'border-primary/60 bg-primary/5' : ''
+                    }`}
                   onClick={() => handlePlotClick(result.matchedPlotId)}
                 >
                   <div className="flex items-center justify-between mb-2">
@@ -906,7 +1027,7 @@ export function LandMatchingWizard({
                       />
                       <Building2 className="w-4 h-4 text-primary" />
                       <div>
-                      <span className="font-bold text-lg">Plot {result.matchedPlotId}</span>
+                        <span className="font-bold text-lg">Plot {result.matchedPlotId}</span>
                         <div className="flex items-center gap-1.5">
                           <span className="text-sm text-muted-foreground">{result.matchedLocation}</span>
                           {isPlotListed(result.matchedPlotId) && (

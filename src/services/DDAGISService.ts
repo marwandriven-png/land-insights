@@ -228,9 +228,6 @@ class DDAGISService {
       }
     }
 
-    const manualPlan = this.getManualAffectionPlan(plotId);
-    if (manualPlan) return manualPlan;
-
     try {
       const response = await fetch(
         `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/dda-gis-proxy?action=affection&plotId=${encodeURIComponent(plotId)}`,
@@ -289,106 +286,14 @@ class DDAGISService {
         };
       }
 
-      console.warn(`No affection plan features found for ${plotId}, using fallback.`);
-      return this.getAffectionPlanFallback(plotId);
+      console.warn(`No affection plan features found for ${plotId}, returning null.`);
+      return null;
     } catch (error) {
       console.error('Error fetching affection plan:', error);
-      return this.getAffectionPlanFallback(plotId);
-    }
-  }
-
-  private getManualAffectionPlan(plotId: string): AffectionPlanData | null {
-    try {
-      const stored = localStorage.getItem('hyperplot_manual_lands');
-      if (!stored) return null;
-
-      const manualLands = JSON.parse(stored) as Array<any>;
-      const match = manualLands.find((land) => land.id === plotId || land.plotNumber === plotId);
-      if (!match) return null;
-
-      return {
-        plotNumber: match.plotNumber || match.id || plotId,
-        entityName: 'Manual Entry',
-        projectName: match.areaName || null,
-        landName: match.areaName || null,
-        areaSqm: match.plotAreaSqm || null,
-        gfaSqm: match.gfaSqm || null,
-        gfaType: match.landUseCategory || null,
-        maxHeightFloors: match.floors || null,
-        maxHeightMeters: null,
-        maxHeight: match.floors || null,
-        heightCategory: match.heightCategory || null,
-        maxPlotCoverage: match.plotCoverage || null,
-        minPlotCoverage: null,
-        plotCoverage: match.plotCoverage ? `${match.plotCoverage}%` : null,
-        buildingSetbacks: {
-          side1: match.buildingSetbacks?.side1 || null,
-          side2: match.buildingSetbacks?.side2 || null,
-          side3: match.buildingSetbacks?.side3 || null,
-          side4: match.buildingSetbacks?.side4 || null,
-        },
-        podiumSetbacks: {
-          side1: match.podiumSetbacks?.side1 || null,
-          side2: match.podiumSetbacks?.side2 || null,
-          side3: match.podiumSetbacks?.side3 || null,
-          side4: match.podiumSetbacks?.side4 || null,
-        },
-        mainLanduse: match.landUseMain || null,
-        subLanduse: match.landUseSub || null,
-        landuseDetails: [match.landUseMain, match.landUseSub, match.landUseCategory].filter(Boolean).join(' / ') || null,
-        landuseCategory: match.landUseCategory || null,
-        generalNotes: match.notes || null,
-        siteplanIssueDate: null,
-        siteplanExpiryDate: null,
-        siteStatus: match.status || null,
-        isFrozen: false,
-        freezeReason: null,
-      };
-    } catch {
       return null;
     }
   }
 
-  private getAffectionPlanFallback(plotId: string): AffectionPlanData {
-    return {
-      plotNumber: plotId,
-      entityName: 'Dubai Development Authority',
-      projectName: 'Active Development',
-      landName: 'Standard Plot',
-      areaSqm: null,
-      gfaSqm: null,
-      gfaType: 'Mixed Use',
-      maxHeightFloors: 'G+2',
-      maxHeightMeters: 12.5,
-      maxHeight: '12.5m (G+2)',
-      heightCategory: 'Low Rise',
-      maxPlotCoverage: 60,
-      minPlotCoverage: 10,
-      plotCoverage: '60%',
-      buildingSetbacks: {
-        side1: '3m',
-        side2: '3m',
-        side3: '5m',
-        side4: '5m',
-      },
-      podiumSetbacks: {
-        side1: '0m',
-        side2: '0m',
-        side3: '0m',
-        side4: '0m',
-      },
-      mainLanduse: 'Residential',
-      subLanduse: 'Mixed Use',
-      landuseDetails: 'Derived from area defaults',
-      landuseCategory: 'Residential',
-      generalNotes: 'Fallback data generated due to GIS API unavailability.',
-      siteplanIssueDate: Date.now(),
-      siteplanExpiryDate: Date.now() + 365 * 24 * 60 * 60 * 1000,
-      siteStatus: 'Active',
-      isFrozen: false,
-      freezeReason: null,
-    };
-  }
 
   async searchByArea(minArea?: number, maxArea?: number, projectName?: string): Promise<PlotData[]> {
     try {
@@ -418,6 +323,41 @@ class DDAGISService {
       return [];
     } catch (error) {
       console.error('Error searching by area:', error);
+      return [];
+    }
+  }
+
+  async searchByLocation(lat: number, lng: number, radiusMeters: number = 1000): Promise<PlotData[]> {
+    try {
+      const params = new URLSearchParams({
+        action: 'spatial',
+        lat: lat.toString(),
+        lng: lng.toString(),
+        radius: radiusMeters.toString()
+      });
+
+      const url = `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/dda-gis-proxy?${params}`;
+
+      const response = await fetch(url, {
+        method: 'GET',
+        headers: {
+          'Authorization': `Bearer ${import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY}`,
+          'Content-Type': 'application/json'
+        }
+      });
+
+      if (!response.ok) {
+        console.error(`Edge function returned ${response.status}`);
+        return [];
+      }
+
+      const data = await response.json();
+
+      if (!data.features || data.features.length === 0) return [];
+
+      return this.transformGISData(data.features);
+    } catch (error) {
+      console.error('Error searching by location:', error);
       return [];
     }
   }

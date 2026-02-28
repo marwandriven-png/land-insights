@@ -10,8 +10,10 @@ serve(async (req) => {
 
   try {
     const { fileContent, areaName, openaiApiKey } = await req.json();
-    const apiKey = openaiApiKey;
-    if (!apiKey) throw new Error("OpenAI API key is required — add it in Settings → Area Research");
+    const ENV_API_KEY = Deno.env.get("OPENAI_API_KEY") || Deno.env.get("LOVABLE_API_KEY");
+    // Use caller-supplied key first (from the UI), fall back to server secret
+    const apiKey = openaiApiKey || ENV_API_KEY;
+    if (!apiKey) throw new Error("No API key configured — provide an OpenAI key in Settings or set OPENAI_API_KEY");
 
     if (!fileContent || !areaName) {
       return new Response(JSON.stringify({ error: "fileContent and areaName are required" }), {

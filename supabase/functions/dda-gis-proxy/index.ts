@@ -56,7 +56,7 @@ serve(async (req) => {
 
       // Try with specific fields first, fall back to wildcard
       let data: Record<string, unknown> | null = null;
-      
+
       for (const fields of [STANDARD_OUT_FIELDS, '*']) {
         const params = new URLSearchParams({
           where: '1=1',
@@ -77,7 +77,7 @@ serve(async (req) => {
         if (!response.ok) throw new Error(`GIS API returned ${response.status}`);
 
         data = await response.json();
-        
+
         // If ArcGIS returns an error in body, try fallback
         if (data?.error) {
           console.log(`Query failed with ${fields === '*' ? 'wildcard' : 'standard'} fields:`, JSON.stringify(data.error));
@@ -200,7 +200,7 @@ serve(async (req) => {
         // Split into significant words and match each for fuzzy matching
         const words = sanitized.split(/\s+/).filter(w => w.length > 2);
         if (words.length > 0) {
-          const wordConditions = words.map(w => 
+          const wordConditions = words.map(w =>
             `(UPPER(PROJECT_NAME) LIKE '%${w}%' OR UPPER(ENTITY_NAME) LIKE '%${w}%')`
           );
           conditions.push(`(${wordConditions.join(' AND ')})`);
@@ -213,7 +213,7 @@ serve(async (req) => {
 
       // Try with specific fields first, fall back to wildcard
       let data: Record<string, unknown> | null = null;
-      
+
       for (const fields of [STANDARD_OUT_FIELDS, '*']) {
         const params = new URLSearchParams({
           where: whereClause,
@@ -234,7 +234,7 @@ serve(async (req) => {
         if (!response.ok) throw new Error(`GIS API returned ${response.status}`);
 
         data = await response.json();
-        
+
         if (data?.error) {
           console.log(`Search query failed with ${fields === '*' ? 'wildcard' : 'standard'} fields:`, JSON.stringify(data.error));
           if (fields !== '*') continue;
@@ -244,6 +244,52 @@ serve(async (req) => {
       }
 
       console.log(`Search returned ${(data as any)?.features?.length || 0} features`);
+
+      return new Response(JSON.stringify(data), {
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+      });
+    }
+
+    if (action === 'spatial') {
+      const lat = url.searchParams.get('lat');
+      const lng = url.searchParams.get('lng');
+      const radius = url.searchParams.get('radius') || '1000'; // Default 1km
+      const limit = url.searchParams.get('limit') || '100';
+
+      if (!lat || !lng) {
+        return new Response(JSON.stringify({ error: 'lat and lng required for spatial search' }), {
+          status: 400,
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+        });
+      }
+
+      // We use geometry intersecting. DDA GIS uses outSR 3997, let's query with 4326 for inSR
+      const params = new URLSearchParams({
+        where: '1=1',
+        geometry: `${lng},${lat}`,
+        geometryType: 'esriGeometryPoint',
+        spatialRel: 'esriSpatialRelIntersects',
+        inSR: '4326',
+        distance: radius,
+        units: 'esriSRUnit_Meter',
+        outFields: STANDARD_OUT_FIELDS,
+        returnGeometry: 'true',
+        outSR: '3997',
+        f: 'json',
+        resultRecordCount: limit
+      });
+
+      console.log(`Fetching spatial intersect distance ${radius}m at [${lat}, ${lng}]`);
+
+      const response = await fetch(`${DDA_GIS_BASE_URL}/2/query?${params}`, {
+        method: 'GET',
+        headers: { 'Accept': 'application/json', 'User-Agent': 'HyperPlot-AI/1.0' }
+      });
+
+      if (!response.ok) throw new Error(`GIS API returned ${response.status}`);
+
+      const data = await response.json();
+      console.log(`Spatial search returned ${data.features?.length || 0} features`);
 
       return new Response(JSON.stringify(data), {
         headers: { ...corsHeaders, 'Content-Type': 'application/json' }

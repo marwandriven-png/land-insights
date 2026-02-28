@@ -14,7 +14,8 @@ import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
-
+import { supabase } from '@/integrations/supabase/client';
+import { AnalysisSummary } from './AnalysisSummary';
 
 
 interface DecisionConfidenceProps {
@@ -336,7 +337,6 @@ export function DecisionConfidence({ plot, comparisonPlots = [], isFullscreen, o
       if (val && typeof val === 'object') return { ...fallback, ...val };
       return fallback;
     };
-
     if (scopedAiData) {
       return {
         avgPsf: safeObj(scopedAiData.unitPsf, ZERO_UNIT),
@@ -1039,15 +1039,12 @@ export function DecisionConfidence({ plot, comparisonPlots = [], isFullscreen, o
 
           {activeTab === 'comparison' && (
             <>
-              <Section
-                title={`Competitive Project Analysis — ${areaName}`}
-                badge={isStrictMatch ? `${areaComps.length} projects` : `Proxy Data — ${anchorMatch?.area.name}`}
-              >
+              <Section title={`${areaName} Competitive Project Analysis`} badge={`${areaComps.length} projects`}>
                 <div className="overflow-x-auto">
                   <Table>
                     <TableHeader>
                       <TableRow>
-                        {['Project', 'Developer', 'Plot (sqft)', 'Units', 'BUA', 'Floors', 'Handover', 'PSF', 'Studio%', '1BR%', '2BR%', '3BR%', 'Payment'].map(h => (
+                        {['Project', 'Developer', 'Plot (sqft)', 'Units', 'BUA', 'Floors', 'Handover', 'PSF', 'Payment'].map(h => (
                           <TableHead key={h} className="text-[10px] text-right first:text-left whitespace-nowrap">{h}</TableHead>
                         ))}
                       </TableRow>
@@ -1062,11 +1059,7 @@ export function DecisionConfidence({ plot, comparisonPlots = [], isFullscreen, o
                           <TableCell className="text-xs text-right font-mono py-1.5">{c.bua ? fmt(c.bua) : '—'}</TableCell>
                           <TableCell className="text-[10px] text-right py-1.5">{c.floors || '—'}</TableCell>
                           <TableCell className="text-[10px] text-right py-1.5">{c.handover || '—'}</TableCell>
-                          <TableCell className="text-xs text-right font-mono py-1.5">{c.psf || '—'}</TableCell>
-                          <TableCell className="text-xs text-right py-1.5">{c.studioP || 0}%</TableCell>
-                          <TableCell className="text-xs text-right py-1.5">{c.br1P || 0}%</TableCell>
-                          <TableCell className="text-xs text-right py-1.5">{c.br2P || 0}%</TableCell>
-                          <TableCell className="text-xs text-right py-1.5">{c.br3P || 0}%</TableCell>
+                          <TableCell className="text-xs text-right font-mono font-bold text-primary py-1.5">{c.psf ? `AED ${fmt(c.psf)}` : '—'}</TableCell>
                           <TableCell className="text-[10px] text-right py-1.5">{c.payPlan || '—'}</TableCell>
                         </TableRow>
                       ))}
@@ -1122,11 +1115,13 @@ export function DecisionConfidence({ plot, comparisonPlots = [], isFullscreen, o
                     <Table>
                       <TableHeader>
                         <TableRow>
-                          {['Project', 'Units', 'Studio %', '1BR %', '2BR %', '3BR %', 'Dominant Type'].map(h => (
-                            <TableHead key={h} className="text-[10px] text-right first:text-left whitespace-nowrap">{h}</TableHead>
-                          ))}
-                        </TableRow>
-                      </TableHeader>
+                          {
+                            ['Project', 'Units', 'Studio %', '1BR %', '2BR %', '3BR %', 'Dominant Type'].map(h => (
+                              <TableHead key={h} className="text-[10px] text-right first:text-left whitespace-nowrap">{h}</TableHead>
+                            ))
+                          }
+                        </TableRow >
+                      </TableHeader >
                       <TableBody>
                         {areaComps.map((c: any) => {
                           const mixes = [
@@ -1150,27 +1145,24 @@ export function DecisionConfidence({ plot, comparisonPlots = [], isFullscreen, o
                         })}
                       </TableBody>
                       <TableFooter>
-                        <TableRow>
-                          <TableCell className="text-xs font-bold py-1.5">MARKET AVG</TableCell>
-                          <TableCell className="text-xs text-right font-mono py-1.5">
-                            {areaComps.length > 0 ? fmt(Math.round(areaComps.reduce((s: number, c: any) => s + (c.units || 0), 0) / areaComps.length)) : '—'}
-                          </TableCell>
-                          {(() => {
-                            const avgS = areaComps.length > 0 ? Math.round(areaComps.reduce((s: number, c: any) => s + (c.studioP || 0), 0) / areaComps.length) : 0;
-                            const avg1 = areaComps.length > 0 ? Math.round(areaComps.reduce((s: number, c: any) => s + (c.br1P || 0), 0) / areaComps.length) : 0;
-                            const avg2 = areaComps.length > 0 ? Math.round(areaComps.reduce((s: number, c: any) => s + (c.br2P || 0), 0) / areaComps.length) : 0;
-                            const avg3 = areaComps.length > 0 ? Math.round(areaComps.reduce((s: number, c: any) => s + (c.br3P || 0), 0) / areaComps.length) : 0;
-                            return (
-                              <>
-                                <TableCell className="text-xs text-right font-bold py-1.5">{avgS}%</TableCell>
-                                <TableCell className="text-xs text-right font-bold py-1.5">{avg1}%</TableCell>
-                                <TableCell className="text-xs text-right font-bold py-1.5">{avg2}%</TableCell>
-                                <TableCell className="text-xs text-right font-bold py-1.5">{avg3}%</TableCell>
-                              </>
-                            );
-                          })()}
-                          <TableCell className="text-xs text-right py-1.5">—</TableCell>
-                        </TableRow>
+                        {(() => {
+                          const count = areaComps.length;
+                          const avgS = Math.round(areaComps.reduce((a: number, c: any) => a + (c.studioP || 0), 0) / count);
+                          const avg1 = Math.round(areaComps.reduce((a: number, c: any) => a + (c.br1P || 0), 0) / count);
+                          const avg2 = Math.round(areaComps.reduce((a: number, c: any) => a + (c.br2P || 0), 0) / count);
+                          const avg3 = Math.round(areaComps.reduce((a: number, c: any) => a + (c.br3P || 0), 0) / count);
+                          return (
+                            <TableRow className="bg-primary/10">
+                              <TableCell className="text-xs font-bold py-2 text-primary">Market Average</TableCell>
+                              <TableCell className="text-xs text-right font-bold py-2 text-primary" colSpan={1}></TableCell>
+                              <TableCell className="text-xs text-right font-bold py-2 text-primary">{avgS}%</TableCell>
+                              <TableCell className="text-xs text-right font-bold py-2 text-primary">{avg1}%</TableCell>
+                              <TableCell className="text-xs text-right font-bold py-2 text-primary">{avg2}%</TableCell>
+                              <TableCell className="text-xs text-right font-bold py-2 text-primary">{avg3}%</TableCell>
+                              <TableCell className="text-xs text-right font-bold py-2 text-primary" colSpan={1}></TableCell>
+                            </TableRow>
+                          );
+                        })()}
                       </TableFooter>
                     </Table>
                   </div>
@@ -1201,9 +1193,9 @@ export function DecisionConfidence({ plot, comparisonPlots = [], isFullscreen, o
                           {row.vals.map((v, i) => (
                             <TableCell key={i} className="text-xs text-right font-mono py-1.5">
                               {row.metric === 'Avg Price' ? (v ? fmtA(v) : '—') :
-                               row.metric.includes('PSF') ? (v ? `AED ${fmt(v)}` : '—') :
-                               row.metric === 'Avg Size (sqft)' ? (v ? `${fmt(v)} sqft` : '—') :
-                               (v ? fmt(v) : '—')}
+                                row.metric.includes('PSF') ? (v ? `AED ${fmt(v)}` : '—') :
+                                  row.metric === 'Avg Size (sqft)' ? (v ? `${fmt(v)} sqft` : '—') :
+                                    (v ? fmt(v) : '—')}
                             </TableCell>
                           ))}
                         </TableRow>
@@ -1211,52 +1203,158 @@ export function DecisionConfidence({ plot, comparisonPlots = [], isFullscreen, o
                     </TableBody>
                   </Table>
                 </div>
-                {areaComps.length > 0 && (
-                  <div className="mt-3">
-                    <h4 className="text-xs font-bold text-muted-foreground uppercase tracking-wider mb-2">Competitor PSF Range</h4>
-                    <div className="grid grid-cols-3 gap-2">
-                      <div className="data-card text-center py-2">
-                        <div className="text-[10px] text-muted-foreground">Floor</div>
-                        <div className="text-sm font-bold font-mono text-foreground">AED {fmt(Math.min(...areaComps.filter((c: any) => c.psf).map((c: any) => c.psf)) || 0)}</div>
-                      </div>
-                      <div className="data-card text-center py-2 border-primary/40">
-                        <div className="text-[10px] text-muted-foreground">Average</div>
-                        <div className="text-sm font-bold font-mono text-primary">AED {fmt(Math.round(areaComps.filter((c: any) => c.psf).reduce((s: number, c: any) => s + c.psf, 0) / (areaComps.filter((c: any) => c.psf).length || 1)))}</div>
-                      </div>
-                      <div className="data-card text-center py-2">
-                        <div className="text-[10px] text-muted-foreground">Ceiling</div>
-                        <div className="text-sm font-bold font-mono text-foreground">AED {fmt(Math.max(...areaComps.filter((c: any) => c.psf).map((c: any) => c.psf)) || 0)}</div>
+                {
+                  areaComps.length > 0 && (
+                    <div className="mt-3">
+                      <h4 className="text-xs font-bold text-muted-foreground uppercase tracking-wider mb-2">Competitor PSF Range</h4>
+                      <div className="grid grid-cols-3 gap-2">
+                        <div className="data-card text-center py-2">
+                          <div className="text-[10px] text-muted-foreground">Floor</div>
+                          <div className="text-sm font-bold font-mono text-foreground">AED {fmt(Math.min(...areaComps.filter((c: any) => c.psf).map((c: any) => c.psf)) || 0)}</div>
+                        </div>
+                        <div className="data-card text-center py-2 border-primary/40">
+                          <div className="text-[10px] text-muted-foreground">Average</div>
+                          <div className="text-sm font-bold font-mono text-primary">AED {fmt(Math.round(areaComps.filter((c: any) => c.psf).reduce((s: number, c: any) => s + c.psf, 0) / (areaComps.filter((c: any) => c.psf).length || 1)))}</div>
+                        </div>
+                        <div className="data-card text-center py-2">
+                          <div className="text-[10px] text-muted-foreground">Ceiling</div>
+                          <div className="text-sm font-bold font-mono text-foreground">AED {fmt(Math.max(...areaComps.filter((c: any) => c.psf).map((c: any) => c.psf)) || 0)}</div>
+                        </div>
                       </div>
                     </div>
-                  </div>
-                )}
-              </Section>
+                  )
+                }
+              </Section >
 
               {/* Payment Plan Benchmarks */}
-              {areaComps.length > 0 && areaComps.some((c: any) => c.payPlan) && (
-                <Section title={`Payment Plan Benchmarks — ${areaName}`} badge={`${areaComps.filter((c: any) => c.payPlan).length} plans`}>
+              {
+                areaComps.length > 0 && areaComps.some((c: any) => c.payPlan) && (
+                  <Section title={`Payment Plan Benchmarks — ${areaName}`} badge={`${areaComps.filter((c: any) => c.payPlan).length} plans`}>
+                    <div className="overflow-x-auto">
+                      <Table>
+                        <TableHeader>
+                          <TableRow>
+                            {['Project', 'Payment Structure', 'Type'].map(h => (
+                              <TableHead key={h} className="text-[10px] text-right first:text-left">{h}</TableHead>
+                            ))}
+                          </TableRow>
+                        </TableHeader>
+                        <TableBody>
+                          {areaComps.filter((c: any) => c.payPlan).map((c: any) => {
+                            const plan = c.payPlan || '';
+                            const isPostHandover = /post/i.test(plan) || /ph/i.test(plan);
+                            const isHeavyBooking = /^[3-9]0/i.test(plan) || /^[4-9]/i.test(plan.split('/')[0]);
+                            return (
+                              <TableRow key={c.name}>
+                                <TableCell className="text-xs font-medium py-1.5 whitespace-nowrap">{c.name}</TableCell>
+                                <TableCell className="text-xs text-right font-mono py-1.5">{plan}</TableCell>
+                                <TableCell className="text-xs text-right py-1.5">
+                                  <Badge variant="outline" className={`text-[9px] ${isPostHandover ? 'border-success/40 text-success' : isHeavyBooking ? 'border-warning/40 text-warning' : 'border-primary/40 text-primary'}`}>
+                                    {isPostHandover ? 'Post-Handover' : isHeavyBooking ? 'Heavy Booking' : 'Standard'}
+                                  </Badge>
+                                </TableCell>
+                              </TableRow>
+                            );
+                          })}
+                        </TableBody>
+                      </Table>
+                    </div>
+                  </Section>
+                )
+              }
+=======
+              <Section title="Pricing & Payment Benchmarks">
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <div className="data-card">
+                    <h4 className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-3">Area Pricing Benchmarks</h4>
+                    <div className="flex gap-2 flex-wrap mb-2">
+                      <div className="flex-1 bg-muted/20 border border-border/30 rounded-lg p-3 text-center">
+                        <div className="text-[10px] text-muted-foreground uppercase mb-1">Market Floor</div>
+                        <div className="text-lg font-bold font-mono">AED {fmt(areaMarketBench.floor)}</div>
+                      </div>
+                      <div className="flex-1 bg-primary/10 border border-primary/30 rounded-lg p-3 text-center">
+                        <div className="text-[10px] text-primary uppercase mb-1 font-bold">Market Average</div>
+                        <div className="text-lg font-bold font-mono text-primary">AED {fmt(areaMarketBench.avg)}</div>
+                      </div>
+                      <div className="flex-1 bg-muted/20 border border-border/30 rounded-lg p-3 text-center">
+                        <div className="text-[10px] text-muted-foreground uppercase mb-1">Market Ceiling</div>
+                        <div className="text-lg font-bold font-mono">AED {fmt(areaMarketBench.ceiling)}</div>
+                      </div>
+                    </div>
+                    <div className="text-[10px] text-muted-foreground p-2 rounded bg-muted/30 border border-border/30 mt-2">
+                      💡 Based on actual area transactions and verified comparable projects.
+                    </div>
+                  </div>
+
+                  <div className="data-card">
+                    <h4 className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-3">Payment Plan Distribution</h4>
+                    <div className="space-y-2">
+                      {(() => {
+                        if (!areaComps.length) return <div className="text-xs text-muted-foreground">No data available</div>;
+
+                        const plans = areaComps.map((c: any) => c.payPlan).filter(Boolean);
+                        if (!plans.length) return <div className="text-xs text-muted-foreground">No payment plan data extracted</div>;
+
+                        const occurrences = plans.reduce((acc: any, p: string) => {
+                          acc[p] = (acc[p] || 0) + 1;
+                          return acc;
+                        }, {});
+
+                        return Object.entries(occurrences).map(([plan, count]) => {
+                          const pctOfTotal = ((count as number) / plans.length) * 100;
+                          return (
+                            <div key={plan} className="mb-2">
+                              <div className="flex justify-between text-xs mb-1">
+                                <span>{plan}</span>
+                                <span className="font-semibold">{count as number} Projects ({Math.round(pctOfTotal)}%)</span>
+                              </div>
+                              <div className="h-1.5 bg-muted/50 rounded-full overflow-hidden">
+                                <div className="h-full rounded-full bg-primary" style={{ width: `${pctOfTotal}%` }} />
+                              </div>
+                            </div>
+                          );
+                        });
+                      })()}
+                    </div>
+                  </div>
+                </div>
+              </Section>
+            </>
+          )
+          }
+
+          {/* ─── SENSITIVITY TAB ─── */}
+          {
+            activeTab === 'sensitivity' && (
+              <>
+                <Section num={7} title="Price Sensitivity Analysis" badge="±10% range">
                   <div className="overflow-x-auto">
                     <Table>
                       <TableHeader>
                         <TableRow>
-                          {['Project', 'Payment Structure', 'Type'].map(h => (
+                          {['Scenario', 'PSF', 'Revenue', 'Profit', 'Margin', 'ROI', 'Land %GDV', 'Viability'].map(h => (
                             <TableHead key={h} className="text-[10px] text-right first:text-left">{h}</TableHead>
                           ))}
                         </TableRow>
                       </TableHeader>
                       <TableBody>
-                        {areaComps.filter((c: any) => c.payPlan).map((c: any) => {
-                          const plan = c.payPlan || '';
-                          const isPostHandover = /post/i.test(plan) || /ph/i.test(plan);
-                          const isHeavyBooking = /^[3-9]0/i.test(plan) || /^[4-9]/i.test(plan.split('/')[0]);
+                        {fs.sens.map((s, i) => {
+                          const psf = Math.round(fs.avgPsf * (1 + s.delta));
+                          const landPct = fs.landCost / s.revenue;
+                          const isBase = s.delta === 0;
                           return (
-                            <TableRow key={c.name}>
-                              <TableCell className="text-xs font-medium py-1.5 whitespace-nowrap">{c.name}</TableCell>
-                              <TableCell className="text-xs text-right font-mono py-1.5">{plan}</TableCell>
-                              <TableCell className="text-xs text-right py-1.5">
-                                <Badge variant="outline" className={`text-[9px] ${isPostHandover ? 'border-success/40 text-success' : isHeavyBooking ? 'border-warning/40 text-warning' : 'border-primary/40 text-primary'}`}>
-                                  {isPostHandover ? 'Post-Handover' : isHeavyBooking ? 'Heavy Booking' : 'Standard'}
-                                </Badge>
+                            <TableRow key={i} className={isBase ? 'bg-primary/5' : ''}>
+                              <TableCell className={`text-xs font-bold py-1.5 ${isBase ? 'text-primary' : s.delta > 0 ? 'text-success' : 'text-warning'}`}>
+                                {isBase ? '► BASE' : s.delta > 0 ? `▲ +${Math.abs(s.delta * 100)}%` : `▼ -${Math.abs(s.delta * 100)}%`}
+                              </TableCell>
+                              <TableCell className="text-xs text-right font-mono py-1.5">AED {fmt(psf)}</TableCell>
+                              <TableCell className="text-xs text-right font-mono py-1.5">{fmtA(s.revenue)}</TableCell>
+                              <TableCell className={`text-xs text-right font-mono py-1.5 ${s.profit > 0 ? 'text-success' : 'text-destructive'}`}>{fmtA(s.profit)}</TableCell>
+                              <TableCell className={`text-xs text-right py-1.5 ${s.margin > 0.2 ? 'text-success' : 'text-warning'}`}>{pct(s.margin)}</TableCell>
+                              <TableCell className={`text-xs text-right py-1.5 ${s.roi > 0.15 ? 'text-success' : 'text-warning'}`}>{pct(s.roi)}</TableCell>
+                              <TableCell className={`text-xs text-right py-1.5 ${landPct <= 0.40 ? 'text-success' : 'text-destructive'}`}>{pct(landPct)}</TableCell>
+                              <TableCell className="text-right py-1.5">
+                                <Viability pass={s.margin >= 0.25} label={s.margin >= 0.25 ? 'VIABLE' : s.margin >= 0.15 ? 'MARGINAL' : 'LOSS'} />
                               </TableCell>
                             </TableRow>
                           );
@@ -1264,193 +1362,155 @@ export function DecisionConfidence({ plot, comparisonPlots = [], isFullscreen, o
                       </TableBody>
                     </Table>
                   </div>
+
+                  <div className="flex gap-2 flex-wrap mt-4">
+                    <KpiCard label="Break-Even PSF" value={`AED ${fmt(Math.round(fs.breakEvenPsf))}`} sub="Min to cover costs" />
+                    <KpiCard label="Market Floor" value={`AED ${fmt(areaMarketBench.floor)}`} sub={`${areaName} historical`} />
+                    <KpiCard label="Market Avg" value={`AED ${fmt(areaMarketBench.avg)}`} sub={`${areaTxnData.count.total ? `${areaTxnData.count.total}-txn` : ''} avg`} accent />
+                    <KpiCard label="Market Ceiling" value={`AED ${fmt(areaMarketBench.ceiling)}`} sub="Premium" />
+                    <KpiCard label="Buffer" value={`+AED ${fmt(Math.round(areaMarketBench.avg - fs.breakEvenPsf))}`} sub="vs break-even" positive={fs.breakEvenPsf < areaMarketBench.avg} negative={fs.breakEvenPsf > areaMarketBench.avg} />
+                  </div>
                 </Section>
-              )}
-            </>
-          )}
 
-          {/* ─── SENSITIVITY TAB ─── */}
-          {activeTab === 'sensitivity' && (
-            <>
-              <Section num={7} title="Price Sensitivity Analysis" badge="±10% range">
-                <div className="overflow-x-auto">
-                  <Table>
-                    <TableHeader>
-                      <TableRow>
-                        {['Scenario', 'PSF', 'Revenue', 'Profit', 'Margin', 'ROI', 'Land %GDV', 'Viability'].map(h => (
-                          <TableHead key={h} className="text-[10px] text-right first:text-left">{h}</TableHead>
-                        ))}
-                      </TableRow>
-                    </TableHeader>
-                    <TableBody>
-                      {fs.sens.map((s, i) => {
-                        const psf = Math.round(fs.avgPsf * (1 + s.delta));
-                        const landPct = fs.landCost / s.revenue;
-                        const isBase = s.delta === 0;
-                        return (
-                          <TableRow key={i} className={isBase ? 'bg-primary/5' : ''}>
-                            <TableCell className={`text-xs font-bold py-1.5 ${isBase ? 'text-primary' : s.delta > 0 ? 'text-success' : 'text-warning'}`}>
-                              {isBase ? '► BASE' : s.delta > 0 ? `▲ +${Math.abs(s.delta * 100)}%` : `▼ -${Math.abs(s.delta * 100)}%`}
-                            </TableCell>
-                            <TableCell className="text-xs text-right font-mono py-1.5">AED {fmt(psf)}</TableCell>
-                            <TableCell className="text-xs text-right font-mono py-1.5">{fmtA(s.revenue)}</TableCell>
-                            <TableCell className={`text-xs text-right font-mono py-1.5 ${s.profit > 0 ? 'text-success' : 'text-destructive'}`}>{fmtA(s.profit)}</TableCell>
-                            <TableCell className={`text-xs text-right py-1.5 ${s.margin > 0.2 ? 'text-success' : 'text-warning'}`}>{pct(s.margin)}</TableCell>
-                            <TableCell className={`text-xs text-right py-1.5 ${s.roi > 0.15 ? 'text-success' : 'text-warning'}`}>{pct(s.roi)}</TableCell>
-                            <TableCell className={`text-xs text-right py-1.5 ${landPct <= 0.40 ? 'text-success' : 'text-destructive'}`}>{pct(landPct)}</TableCell>
-                            <TableCell className="text-right py-1.5">
-                              <Viability pass={s.margin >= 0.25} label={s.margin >= 0.25 ? 'VIABLE' : s.margin >= 0.15 ? 'MARGINAL' : 'LOSS'} />
-                            </TableCell>
-                          </TableRow>
-                        );
-                      })}
-                    </TableBody>
-                  </Table>
-                </div>
-
-                <div className="flex gap-2 flex-wrap mt-4">
-                  <KpiCard label="Break-Even PSF" value={`AED ${fmt(Math.round(fs.breakEvenPsf))}`} sub="Min to cover costs" />
-                  <KpiCard label="Market Floor" value={`AED ${fmt(areaMarketBench.floor)}`} sub={`${areaName} historical`} />
-                  <KpiCard label="Market Avg" value={`AED ${fmt(areaMarketBench.avg)}`} sub={`${areaTxnData.count.total ? `${areaTxnData.count.total}-txn` : ''} avg`} accent />
-                  <KpiCard label="Market Ceiling" value={`AED ${fmt(areaMarketBench.ceiling)}`} sub="Premium" />
-                  <KpiCard label="Buffer" value={`+AED ${fmt(Math.round(areaMarketBench.avg - fs.breakEvenPsf))}`} sub="vs break-even" positive={fs.breakEvenPsf < areaMarketBench.avg} negative={fs.breakEvenPsf > areaMarketBench.avg} />
-                </div>
-              </Section>
-
-            </>
-          )}
+              </>
+            )
+          }
 
           {/* ─── PLOT COMPARE TAB ─── */}
-          {activeTab === 'plotCompare' && allResults.length >= 2 && (
-            <>
-              {/* Side-by-side comparison table */}
-              <Section title="Side-by-Side Plot Comparison" badge={`${allResults.length} plots`}>
-                <div className="overflow-x-auto">
-                  <Table>
-                    <TableHeader>
-                      <TableRow>
-                        <TableHead className="text-xs whitespace-nowrap">Metric</TableHead>
-                        {allResults.map((r, i) => (
-                          <TableHead key={r.id} className={`text-xs text-right whitespace-nowrap ${r.id === activeTabPlotId ? 'text-primary' : ''}`}>
-                            {i === 0 ? '📍 ' : ''}{r.id}
-                          </TableHead>
-                        ))}
-                        <TableHead className="text-xs text-right whitespace-nowrap text-success">Best</TableHead>
-                      </TableRow>
-                    </TableHeader>
-                    <TableBody>
-                      {[
-                        { label: 'Location', vals: allResults.map(r => r.plot.location || '-'), best: null },
-                        { label: 'Plot Area (sqft)', vals: allResults.map(r => fmt(Math.round(r.input.area))), best: allResults.reduce((a, b) => a.input.area > b.input.area ? a : b).id },
-                        { label: 'GFA (sqft)', vals: allResults.map(r => fmt(Math.round(r.result.gfa))), best: allResults.reduce((a, b) => a.result.gfa > b.result.gfa ? a : b).id },
-                        { label: 'Sellable Area', vals: allResults.map(r => fmt(Math.round(r.result.sellableArea))), best: allResults.reduce((a, b) => a.result.sellableArea > b.result.sellableArea ? a : b).id },
-                        { label: 'Total Units', vals: allResults.map(r => fmt(r.result.units.total)), best: allResults.reduce((a, b) => a.result.units.total > b.result.units.total ? a : b).id },
-                        { label: 'GDV', vals: allResults.map(r => fmtM(r.result.grossSales)), best: allResults.reduce((a, b) => a.result.grossSales > b.result.grossSales ? a : b).id },
-                        { label: 'Total Cost', vals: allResults.map(r => fmtM(r.result.totalCost)), best: allResults.reduce((a, b) => a.result.totalCost < b.result.totalCost ? a : b).id },
-                        { label: 'Net Profit', vals: allResults.map(r => fmtM(r.result.grossProfit)), best: allResults.reduce((a, b) => a.result.grossProfit > b.result.grossProfit ? a : b).id },
-                        { label: 'Gross Margin', vals: allResults.map(r => pct(r.result.grossMargin)), best: allResults.reduce((a, b) => a.result.grossMargin > b.result.grossMargin ? a : b).id },
-                        { label: 'ROI', vals: allResults.map(r => pct(r.result.roi)), best: allResults.reduce((a, b) => a.result.roi > b.result.roi ? a : b).id },
-                        { label: 'Avg PSF', vals: allResults.map(r => `AED ${fmt(Math.round(r.result.avgPsf))}`), best: null },
-                        { label: 'Break-Even PSF', vals: allResults.map(r => `AED ${fmt(Math.round(r.result.breakEvenPsf))}`), best: allResults.reduce((a, b) => a.result.breakEvenPsf < b.result.breakEvenPsf ? a : b).id },
-                        { label: 'Rental Yield', vals: allResults.map(r => pct(r.result.grossYield)), best: allResults.reduce((a, b) => a.result.grossYield > b.result.grossYield ? a : b).id },
-                        { label: 'Cost/sqft', vals: allResults.map(r => `AED ${fmt(Math.round(r.result.totalCost / r.result.sellableArea))}`), best: allResults.reduce((a, b) => (a.result.totalCost / a.result.sellableArea) < (b.result.totalCost / b.result.sellableArea) ? a : b).id },
-                        { label: 'Status', vals: allResults.map(r => r.plot.status), best: null },
-                      ].map(row => (
-                        <TableRow key={row.label}>
-                          <TableCell className="text-sm font-medium py-2">{row.label}</TableCell>
-                          {row.vals.map((v, i) => (
-                            <TableCell key={i} className={`text-sm text-right font-mono py-2 ${allResults[i].id === activeTabPlotId ? 'text-primary font-bold' : ''
-                              } ${row.best === allResults[i].id ? 'bg-success/10' : ''}`}>
-                              {v}
-                            </TableCell>
+          {
+            activeTab === 'plotCompare' && allResults.length >= 2 && (
+              <>
+                {/* Side-by-side comparison table */}
+                <Section title="Side-by-Side Plot Comparison" badge={`${allResults.length} plots`}>
+                  <div className="overflow-x-auto">
+                    <Table>
+                      <TableHeader>
+                        <TableRow>
+                          <TableHead className="text-xs whitespace-nowrap">Metric</TableHead>
+                          {allResults.map((r, i) => (
+                            <TableHead key={r.id} className={`text-xs text-right whitespace-nowrap ${r.id === activeTabPlotId ? 'text-primary' : ''}`}>
+                              {i === 0 ? '📍 ' : ''}{r.id}
+                            </TableHead>
                           ))}
-                          <TableCell className="text-xs text-right text-success font-bold py-2">
-                            {row.best || '—'}
-                          </TableCell>
+                          <TableHead className="text-xs text-right whitespace-nowrap text-success">Best</TableHead>
                         </TableRow>
-                      ))}
-                    </TableBody>
-                  </Table>
-                </div>
-              </Section>
-
-              {/* Quick Verdict */}
-              <Section title="Quick Verdict">
-                {(() => {
-                  const bestRoi = allResults.reduce((a, b) => a.result.roi > b.result.roi ? a : b);
-                  const bestMargin = allResults.reduce((a, b) => a.result.grossMargin > b.result.grossMargin ? a : b);
-                  const bestProfit = allResults.reduce((a, b) => a.result.grossProfit > b.result.grossProfit ? a : b);
-                  const bestYield = allResults.reduce((a, b) => a.result.grossYield > b.result.grossYield ? a : b);
-                  return (
-                    <div className="grid grid-cols-2 gap-3">
-                      <div className="data-card">
-                        <div className="text-xs text-muted-foreground font-semibold uppercase mb-1">Highest ROI</div>
-                        <div className="text-base font-bold text-success">{bestRoi.id}</div>
-                        <div className="text-sm font-mono text-muted-foreground">{pct(bestRoi.result.roi)}</div>
-                      </div>
-                      <div className="data-card">
-                        <div className="text-xs text-muted-foreground font-semibold uppercase mb-1">Best Margin</div>
-                        <div className="text-base font-bold text-success">{bestMargin.id}</div>
-                        <div className="text-sm font-mono text-muted-foreground">{pct(bestMargin.result.grossMargin)}</div>
-                      </div>
-                      <div className="data-card">
-                        <div className="text-xs text-muted-foreground font-semibold uppercase mb-1">Highest Profit</div>
-                        <div className="text-base font-bold text-success">{bestProfit.id}</div>
-                        <div className="text-sm font-mono text-muted-foreground">{fmtM(bestProfit.result.grossProfit)}</div>
-                      </div>
-                      <div className="data-card">
-                        <div className="text-xs text-muted-foreground font-semibold uppercase mb-1">Best Yield</div>
-                        <div className="text-base font-bold text-success">{bestYield.id}</div>
-                        <div className="text-sm font-mono text-muted-foreground">{pct(bestYield.result.grossYield)}</div>
-                      </div>
-                    </div>
-                  );
-                })()}
-              </Section>
-
-              {/* Comparison Notes - Auto-generated insights */}
-              <Section title="Comparison Notes — Decision Support" badge="AI Insights">
-                <div className="space-y-2 mb-4">
-                  {compNotes.map((note, i) => (
-                    <div key={i} className="flex gap-2 items-start p-2.5 rounded-lg bg-muted/30 border border-border/30">
-                      <Lightbulb className="w-4 h-4 text-warning shrink-0 mt-0.5" />
-                      <p className="text-sm text-foreground leading-relaxed">{note}</p>
-                    </div>
-                  ))}
-                </div>
-
-                {/* User notes */}
-                <div className="mt-4">
-                  <div className="flex items-center gap-2 mb-2">
-                    <StickyNote className="w-4 h-4 text-muted-foreground" />
-                    <span className="text-xs font-bold text-muted-foreground uppercase tracking-wider">Your Notes</span>
+                      </TableHeader>
+                      <TableBody>
+                        {[
+                          { label: 'Location', vals: allResults.map(r => r.plot.location || '-'), best: null },
+                          { label: 'Plot Area (sqft)', vals: allResults.map(r => fmt(Math.round(r.input.area))), best: allResults.reduce((a, b) => a.input.area > b.input.area ? a : b).id },
+                          { label: 'GFA (sqft)', vals: allResults.map(r => fmt(Math.round(r.result.gfa))), best: allResults.reduce((a, b) => a.result.gfa > b.result.gfa ? a : b).id },
+                          { label: 'Sellable Area', vals: allResults.map(r => fmt(Math.round(r.result.sellableArea))), best: allResults.reduce((a, b) => a.result.sellableArea > b.result.sellableArea ? a : b).id },
+                          { label: 'Total Units', vals: allResults.map(r => fmt(r.result.units.total)), best: allResults.reduce((a, b) => a.result.units.total > b.result.units.total ? a : b).id },
+                          { label: 'GDV', vals: allResults.map(r => fmtM(r.result.grossSales)), best: allResults.reduce((a, b) => a.result.grossSales > b.result.grossSales ? a : b).id },
+                          { label: 'Total Cost', vals: allResults.map(r => fmtM(r.result.totalCost)), best: allResults.reduce((a, b) => a.result.totalCost < b.result.totalCost ? a : b).id },
+                          { label: 'Net Profit', vals: allResults.map(r => fmtM(r.result.grossProfit)), best: allResults.reduce((a, b) => a.result.grossProfit > b.result.grossProfit ? a : b).id },
+                          { label: 'Gross Margin', vals: allResults.map(r => pct(r.result.grossMargin)), best: allResults.reduce((a, b) => a.result.grossMargin > b.result.grossMargin ? a : b).id },
+                          { label: 'ROI', vals: allResults.map(r => pct(r.result.roi)), best: allResults.reduce((a, b) => a.result.roi > b.result.roi ? a : b).id },
+                          { label: 'Avg PSF', vals: allResults.map(r => `AED ${fmt(Math.round(r.result.avgPsf))}`), best: null },
+                          { label: 'Break-Even PSF', vals: allResults.map(r => `AED ${fmt(Math.round(r.result.breakEvenPsf))}`), best: allResults.reduce((a, b) => a.result.breakEvenPsf < b.result.breakEvenPsf ? a : b).id },
+                          { label: 'Rental Yield', vals: allResults.map(r => pct(r.result.grossYield)), best: allResults.reduce((a, b) => a.result.grossYield > b.result.grossYield ? a : b).id },
+                          { label: 'Cost/sqft', vals: allResults.map(r => `AED ${fmt(Math.round(r.result.totalCost / r.result.sellableArea))}`), best: allResults.reduce((a, b) => (a.result.totalCost / a.result.sellableArea) < (b.result.totalCost / b.result.sellableArea) ? a : b).id },
+                          { label: 'Status', vals: allResults.map(r => r.plot.status), best: null },
+                        ].map(row => (
+                          <TableRow key={row.label}>
+                            <TableCell className="text-sm font-medium py-2">{row.label}</TableCell>
+                            {row.vals.map((v, i) => (
+                              <TableCell key={i} className={`text-sm text-right font-mono py-2 ${allResults[i].id === activeTabPlotId ? 'text-primary font-bold' : ''
+                                } ${row.best === allResults[i].id ? 'bg-success/10' : ''}`}>
+                                {v}
+                              </TableCell>
+                            ))}
+                            <TableCell className="text-xs text-right text-success font-bold py-2">
+                              {row.best || '—'}
+                            </TableCell>
+                          </TableRow>
+                        ))}
+                      </TableBody>
+                    </Table>
                   </div>
-                  <Textarea
-                    value={userNotes}
-                    onChange={e => setUserNotes(e.target.value)}
-                    placeholder="Add your own analysis notes here... These will persist while comparison mode is active."
-                    className="text-sm min-h-[80px] bg-muted/20 border-border/30"
-                  />
-                </div>
-              </Section>
-            </>
-          )}
+                </Section>
 
-          {activeTab === 'plotCompare' && allResults.length < 2 && (
-            <div className="text-center py-12 text-muted-foreground">
-              <GitCompareArrows className="w-10 h-10 mx-auto mb-3 opacity-30" />
-              <p className="text-sm font-medium">No comparison plots selected</p>
-              <p className="text-xs mt-1">Click the ⇆ icon on plots in the right sidebar to add up to 3 plots for comparison.</p>
-            </div>
-          )}
+                {/* Quick Verdict */}
+                <Section title="Quick Verdict">
+                  {(() => {
+                    const bestRoi = allResults.reduce((a, b) => a.result.roi > b.result.roi ? a : b);
+                    const bestMargin = allResults.reduce((a, b) => a.result.grossMargin > b.result.grossMargin ? a : b);
+                    const bestProfit = allResults.reduce((a, b) => a.result.grossProfit > b.result.grossProfit ? a : b);
+                    const bestYield = allResults.reduce((a, b) => a.result.grossYield > b.result.grossYield ? a : b);
+                    return (
+                      <div className="grid grid-cols-2 gap-3">
+                        <div className="data-card">
+                          <div className="text-xs text-muted-foreground font-semibold uppercase mb-1">Highest ROI</div>
+                          <div className="text-base font-bold text-success">{bestRoi.id}</div>
+                          <div className="text-sm font-mono text-muted-foreground">{pct(bestRoi.result.roi)}</div>
+                        </div>
+                        <div className="data-card">
+                          <div className="text-xs text-muted-foreground font-semibold uppercase mb-1">Best Margin</div>
+                          <div className="text-base font-bold text-success">{bestMargin.id}</div>
+                          <div className="text-sm font-mono text-muted-foreground">{pct(bestMargin.result.grossMargin)}</div>
+                        </div>
+                        <div className="data-card">
+                          <div className="text-xs text-muted-foreground font-semibold uppercase mb-1">Highest Profit</div>
+                          <div className="text-base font-bold text-success">{bestProfit.id}</div>
+                          <div className="text-sm font-mono text-muted-foreground">{fmtM(bestProfit.result.grossProfit)}</div>
+                        </div>
+                        <div className="data-card">
+                          <div className="text-xs text-muted-foreground font-semibold uppercase mb-1">Best Yield</div>
+                          <div className="text-base font-bold text-success">{bestYield.id}</div>
+                          <div className="text-sm font-mono text-muted-foreground">{pct(bestYield.result.grossYield)}</div>
+                        </div>
+                      </div>
+                    );
+                  })()}
+                </Section>
+
+                {/* Comparison Notes - Auto-generated insights */}
+                <Section title="Comparison Notes — Decision Support" badge="AI Insights">
+                  <div className="space-y-2 mb-4">
+                    {compNotes.map((note, i) => (
+                      <div key={i} className="flex gap-2 items-start p-2.5 rounded-lg bg-muted/30 border border-border/30">
+                        <Lightbulb className="w-4 h-4 text-warning shrink-0 mt-0.5" />
+                        <p className="text-sm text-foreground leading-relaxed">{note}</p>
+                      </div>
+                    ))}
+                  </div>
+
+                  {/* User notes */}
+                  <div className="mt-4">
+                    <div className="flex items-center gap-2 mb-2">
+                      <StickyNote className="w-4 h-4 text-muted-foreground" />
+                      <span className="text-xs font-bold text-muted-foreground uppercase tracking-wider">Your Notes</span>
+                    </div>
+                    <Textarea
+                      value={userNotes}
+                      onChange={e => setUserNotes(e.target.value)}
+                      placeholder="Add your own analysis notes here... These will persist while comparison mode is active."
+                      className="text-sm min-h-[80px] bg-muted/20 border-border/30"
+                    />
+                  </div>
+                </Section>
+              </>
+            )
+          }
+
+          {
+            activeTab === 'plotCompare' && allResults.length < 2 && (
+              <div className="text-center py-12 text-muted-foreground">
+                <GitCompareArrows className="w-10 h-10 mx-auto mb-3 opacity-30" />
+                <p className="text-sm font-medium">No comparison plots selected</p>
+                <p className="text-xs mt-1">Click the ⇆ icon on plots in the right sidebar to add up to 3 plots for comparison.</p>
+              </div>
+            )
+          }
 
           {/* Bottom spacer for mix nav */}
           <div className="h-20" />
-        </div>
-      </ScrollArea>
+        </div >
+      </ScrollArea >
 
       {/* ─── Bottom Unit Mix Selector ─── */}
-      <div className="shrink-0 border-t border-border/50 bg-card/90 backdrop-blur-xl px-2 py-2">
+      < div className="shrink-0 border-t border-border/50 bg-card/90 backdrop-blur-xl px-2 py-2" >
         <div className="flex items-center gap-2">
           <span className="text-[10px] text-muted-foreground font-bold uppercase tracking-wider whitespace-nowrap">UNIT MIX:</span>
           {(Object.entries(MIX_TEMPLATES) as [MixKey, typeof MIX_TEMPLATES.investor][]).map(([k, v]) => (
@@ -1465,10 +1525,10 @@ export function DecisionConfidence({ plot, comparisonPlots = [], isFullscreen, o
             </button>
           ))}
         </div>
-      </div>
+      </div >
 
       {/* Share Modal */}
-      <DCShareModal
+      < DCShareModal
         open={showShareModal}
         onClose={() => setShowShareModal(false)
         }
