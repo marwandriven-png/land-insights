@@ -10,9 +10,8 @@ serve(async (req) => {
 
   try {
     const { fileContent, areaName, openaiApiKey } = await req.json();
-    const LOVABLE_API_KEY = Deno.env.get("LOVABLE_API_KEY");
-    const apiKey = openaiApiKey || LOVABLE_API_KEY;
-    if (!apiKey) throw new Error("No API key configured — provide an OpenAI key in Settings or set LOVABLE_API_KEY");
+    const apiKey = openaiApiKey;
+    if (!apiKey) throw new Error("OpenAI API key is required — add it in Settings → Area Research");
 
     if (!fileContent || !areaName) {
       return new Response(JSON.stringify({ error: "fileContent and areaName are required" }), {
@@ -55,14 +54,14 @@ CRITICAL MULTI-AREA REQUIREMENT:
 
 IMPORTANT: Extract ALL developments/projects mentioned as comparables. Include every numeric data point found.`;
 
-    const response = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
+    const response = await fetch("https://api.openai.com/v1/chat/completions", {
       method: "POST",
       headers: {
         Authorization: `Bearer ${apiKey}`,
         "Content-Type": "application/json",
       },
       body: JSON.stringify({
-        model: "google/gemini-2.5-flash",
+        model: "gpt-4o-mini",
         messages: [
           { role: "system", content: systemPrompt },
           { role: "user", content: userPrompt },
