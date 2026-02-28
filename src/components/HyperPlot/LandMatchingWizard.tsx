@@ -597,14 +597,23 @@ export function LandMatchingWizard({
                 <div className="space-y-4">
                   <div className="space-y-1.5">
                     <Label className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">
-                      Google Maps URL <span className="text-destructive">*</span>
+                      Google Maps URL or Coordinates <span className="text-destructive">*</span>
                     </Label>
                     <Input
                       value={locationUrl}
                       onChange={(e) => setLocationUrl(e.target.value)}
-                      placeholder="e.g. https://maps.app.goo.gl/..."
+                      placeholder="e.g. https://maps.app.goo.gl/... or 25.2048,55.2708"
                       className="text-sm"
+                      onKeyDown={(e) => {
+                        if (e.key === 'Enter' && locationUrl.trim()) {
+                          e.preventDefault();
+                          document.getElementById('location-search-btn')?.click();
+                        }
+                      }}
                     />
+                    <p className="text-[10px] text-muted-foreground">
+                      Paste a Google Maps link, or enter lat,lng coordinates directly
+                    </p>
                   </div>
 
                   <div className="space-y-1.5">
@@ -612,7 +621,7 @@ export function LandMatchingWizard({
                       <Label className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">
                         Search Radius
                       </Label>
-                      <span className="text-xs font-mono text-cyan-400">{locationRadius}m</span>
+                      <span className="text-xs font-mono text-primary">{locationRadius}m</span>
                     </div>
                     <input
                       type="range"
@@ -621,7 +630,7 @@ export function LandMatchingWizard({
                       step="100"
                       value={locationRadius}
                       onChange={(e) => setLocationRadius(parseInt(e.target.value, 10))}
-                      className="w-full h-2 bg-muted/50 rounded-lg appearance-none cursor-pointer accent-cyan-400"
+                      className="w-full h-2 bg-muted/50 rounded-lg appearance-none cursor-pointer accent-primary"
                     />
                     <div className="flex justify-between text-[10px] text-muted-foreground">
                       <span>100m</span>
@@ -630,34 +639,59 @@ export function LandMatchingWizard({
                   </div>
 
                   <Button
+                    id="location-search-btn"
                     className="w-full gap-2"
                     onClick={async () => {
-                      if (!locationUrl.trim()) return;
+                      const input = locationUrl.trim();
+                      if (!input) return;
                       setIsProcessing(true);
                       setError(null);
                       setStep('matching');
 
                       try {
-                        // 1. Resolve URL
-                        const resolveRes = await fetch(`${import.meta.env.VITE_SUPABASE_URL}/functions/v1/resolve-url`, {
-                          method: 'POST',
-                          headers: {
-                            'Authorization': `Bearer ${import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY}`,
-                            'Content-Type': 'application/json'
-                          },
-                          body: JSON.stringify({ url: locationUrl })
-                        });
+                        let lat: number | null = null;
+                        let lng: number | null = null;
 
-                        if (!resolveRes.ok) throw new Error('Failed to parse Google Maps URL');
-                        const resData = await resolveRes.json();
+                        // Check if input is direct coordinates (lat,lng)
+                        const directMatch = input.match(/^([-\d.]+)\s*,\s*([-\d.]+)$/);
+                        if (directMatch) {
+                          lat = parseFloat(directMatch[1]);
+                          lng = parseFloat(directMatch[2]);
+                        }
 
-                        // Handle possible error payload from the edge function cleanly
-                        if (resData.error) throw new Error(resData.error);
+                        // Check if input contains /@lat,lng pattern (full Google Maps URL)
+                        if (!lat) {
+                          const atMatch = input.match(/@([-\d.]+),([-\d.]+)/);
+                          if (atMatch) {
+                            lat = parseFloat(atMatch[1]);
+                            lng = parseFloat(atMatch[2]);
+                          }
+                        }
 
-                        const { lat, lng } = resData;
-                        if (!lat || !lng) throw new Error('Could not extract coordinates from URL');
+                        // If still no coords, use resolve-url edge function for short URLs
+                        if (!lat) {
+                          const resolveRes = await fetch(`${import.meta.env.VITE_SUPABASE_URL}/functions/v1/resolve-url`, {
+                            method: 'POST',
+                            headers: {
+                              'Authorization': `Bearer ${import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY}`,
+                              'Content-Type': 'application/json'
+                            },
+                            body: JSON.stringify({ url: input })
+                          });
 
-                        // 2. Query spatial search
+                          if (!resolveRes.ok) {
+                            const errData = await resolveRes.json().catch(() => ({}));
+                            throw new Error(errData.error || 'Failed to resolve URL');
+                          }
+                          const resData = await resolveRes.json();
+                          if (resData.error) throw new Error(resData.error);
+                          lat = resData.lat;
+                          lng = resData.lng;
+                        }
+
+                        if (!lat || !lng) throw new Error('Could not extract coordinates. Try pasting coordinates directly (e.g. 25.2048,55.2708)');
+
+                        // Query spatial search
                         const { gisService } = await import('@/services/DDAGISService');
                         const apiPlots = await gisService.searchByLocation(lat, lng, locationRadius);
 
@@ -667,14 +701,13 @@ export function LandMatchingWizard({
                           return;
                         }
 
-                        // Create parsed inputs from the spatial results for the matching step
                         const inputs: ParcelInput[] = apiPlots.map(plot => ({
-                          area: plot.id,
+                          area: plot.location || plot.id,
                           plotArea: plot.area || 0,
-                          plotAreaUnit: 'sqm',
+                          plotAreaUnit: 'sqm' as const,
                           plotAreaSqm: plot.area || 0,
                           gfa: plot.gfa || 0,
-                          gfaUnit: 'sqm',
+                          gfaUnit: 'sqm' as const,
                           gfaSqm: plot.gfa || 0,
                           heightFloors: plot.floors ? parseInt(plot.floors.replace(/[^0-9]/g, ''), 10) || 0 : 0,
                           zoning: plot.zoning || '',
@@ -684,12 +717,9 @@ export function LandMatchingWizard({
                         }));
 
                         setParsedInputs(inputs);
-                        setStep('matching');
 
-                        // Since we already fetched from the API based on location,
-                        // we treat the API results themselves as the exact matches.
-                        let results: MatchResult[] = inputs.map((input, i) => ({
-                          input,
+                        let results: MatchResult[] = inputs.map((inp, i) => ({
+                          input: inp,
                           matchedPlotId: apiPlots[i].id,
                           matchedPlotArea: apiPlots[i].area,
                           matchedGfa: apiPlots[i].gfa,
@@ -701,7 +731,6 @@ export function LandMatchingWizard({
                           confidenceScore: 100
                         }));
 
-                        // Cross-check with Google Sheet
                         results = await crossCheckWithSheet(results);
 
                         setMatchResults(results);
@@ -709,7 +738,7 @@ export function LandMatchingWizard({
                         setStep('results');
                         onHighlightPlots(results.map(r => r.matchedPlotId));
                       } catch (e: any) {
-                        setError(e.message || 'Invalid Location URL');
+                        setError(e.message || 'Location search failed');
                         setStep('upload');
                       } finally {
                         setIsProcessing(false);
@@ -717,8 +746,8 @@ export function LandMatchingWizard({
                     }}
                     disabled={!locationUrl.trim() || isProcessing}
                   >
-                    <MapPin className="w-4 h-4" />
-                    Spatial Search
+                    {isProcessing ? <Loader2 className="w-4 h-4 animate-spin" /> : <MapPin className="w-4 h-4" />}
+                    {isProcessing ? 'Searching...' : 'Spatial Search'}
                   </Button>
                 </div>
               )}
