@@ -285,9 +285,9 @@ export function DecisionConfidence({ plot, comparisonPlots = [], isFullscreen, o
     }
   }, [plotAreaCode]);
 
-  // Has data if either AI-parsed upload OR CLFF area match
-  const hasAreaData = !!areaReport || !!clffMatch;
-  const dataSource = areaReport ? 'AI Upload' : clffMatch ? `CLFF v1 · ${clffMatch.area.name}` : null;
+  // Has data if either AI-parsed upload, CLFF area match, OR anchor area fallback
+  const hasAreaData = !!areaReport || !!clffMatch || !!anchorMatch;
+  const dataSource = areaReport ? 'AI Upload' : clffMatch ? `CLFF v1 · ${clffMatch.area.name}` : anchorMatch ? `CLFF v1 · ${anchorMatch.area.name} (Anchor)` : null;
 
   // Effective CLFF/anchor for fallback resolution (restored anchor fallback)
   const effectiveClff = clffMatch || anchorMatch;
@@ -1108,44 +1108,52 @@ export function DecisionConfidence({ plot, comparisonPlots = [], isFullscreen, o
                 )}
               </Section>
 
-              {/* Competitor Unit Mix Breakdown */}
-              {areaComps.length > 0 && (
-                <Section title={`Competitor Unit Mix Breakdown — ${areaName}`} badge={`${areaComps.length} projects`}>
-                  <div className="overflow-x-auto">
-                    <Table>
-                      <TableHeader>
+              {/* Competitor Unit Mix Breakdown — always render */}
+              <Section title={`Competitor Unit Mix Breakdown — ${areaName}`} badge={areaComps.length > 0 ? `${areaComps.length} projects` : 'CLFF Recommended'}>
+                <div className="overflow-x-auto">
+                  <Table>
+                    <TableHeader>
+                      <TableRow>
+                        {['Project', 'Units', 'Studio %', '1BR %', '2BR %', '3BR %', 'Dominant Type'].map(h => (
+                          <TableHead key={h} className="text-[10px] text-right first:text-left whitespace-nowrap">{h}</TableHead>
+                        ))}
+                      </TableRow>
+                    </TableHeader>
+                    <TableBody>
+                      {areaComps.length > 0 ? areaComps.map((c: any) => {
+                        const mixes = [
+                          { type: 'Studio', pct: c.studioP || 0 },
+                          { type: '1BR', pct: c.br1P || 0 },
+                          { type: '2BR', pct: c.br2P || 0 },
+                          { type: '3BR', pct: c.br3P || 0 },
+                        ];
+                        const dominant = mixes.reduce((a, b) => a.pct > b.pct ? a : b);
+                        return (
+                          <TableRow key={c.name}>
+                            <TableCell className="text-xs font-medium py-1.5 whitespace-nowrap">{c.name}</TableCell>
+                            <TableCell className="text-xs text-right font-mono py-1.5">{c.units || '—'}</TableCell>
+                            <TableCell className={`text-xs text-right py-1.5 ${dominant.type === 'Studio' ? 'font-bold text-primary' : ''}`}>{c.studioP || 0}%</TableCell>
+                            <TableCell className={`text-xs text-right py-1.5 ${dominant.type === '1BR' ? 'font-bold text-primary' : ''}`}>{c.br1P || 0}%</TableCell>
+                            <TableCell className={`text-xs text-right py-1.5 ${dominant.type === '2BR' ? 'font-bold text-primary' : ''}`}>{c.br2P || 0}%</TableCell>
+                            <TableCell className={`text-xs text-right py-1.5 ${dominant.type === '3BR' ? 'font-bold text-primary' : ''}`}>{c.br3P || 0}%</TableCell>
+                            <TableCell className="text-xs text-right font-bold text-primary py-1.5">{dominant.type} ({dominant.pct}%)</TableCell>
+                          </TableRow>
+                        );
+                      }) : (
                         <TableRow>
-                          {
-                            ['Project', 'Units', 'Studio %', '1BR %', '2BR %', '3BR %', 'Dominant Type'].map(h => (
-                              <TableHead key={h} className="text-[10px] text-right first:text-left whitespace-nowrap">{h}</TableHead>
-                            ))
-                          }
-                        </TableRow >
-                      </TableHeader >
-                      <TableBody>
-                        {areaComps.map((c: any) => {
-                          const mixes = [
-                            { type: 'Studio', pct: c.studioP || 0 },
-                            { type: '1BR', pct: c.br1P || 0 },
-                            { type: '2BR', pct: c.br2P || 0 },
-                            { type: '3BR', pct: c.br3P || 0 },
-                          ];
-                          const dominant = mixes.reduce((a, b) => a.pct > b.pct ? a : b);
-                          return (
-                            <TableRow key={c.name}>
-                              <TableCell className="text-xs font-medium py-1.5 whitespace-nowrap">{c.name}</TableCell>
-                              <TableCell className="text-xs text-right font-mono py-1.5">{c.units || '—'}</TableCell>
-                              <TableCell className={`text-xs text-right py-1.5 ${dominant.type === 'Studio' ? 'font-bold text-primary' : ''}`}>{c.studioP || 0}%</TableCell>
-                              <TableCell className={`text-xs text-right py-1.5 ${dominant.type === '1BR' ? 'font-bold text-primary' : ''}`}>{c.br1P || 0}%</TableCell>
-                              <TableCell className={`text-xs text-right py-1.5 ${dominant.type === '2BR' ? 'font-bold text-primary' : ''}`}>{c.br2P || 0}%</TableCell>
-                              <TableCell className={`text-xs text-right py-1.5 ${dominant.type === '3BR' ? 'font-bold text-primary' : ''}`}>{c.br3P || 0}%</TableCell>
-                              <TableCell className="text-xs text-right font-bold text-primary py-1.5">{dominant.type} ({dominant.pct}%)</TableCell>
-                            </TableRow>
-                          );
-                        })}
-                      </TableBody>
-                      <TableFooter>
-                        {(() => {
+                          <TableCell className="text-xs font-medium py-1.5 text-muted-foreground italic">CLFF Recommended Mix</TableCell>
+                          <TableCell className="text-xs text-right font-mono py-1.5">{fmt(fs.units.total)}</TableCell>
+                          <TableCell className="text-xs text-right font-mono py-1.5">{Math.round(fs.mix.studio * 100)}%</TableCell>
+                          <TableCell className="text-xs text-right font-mono py-1.5">{Math.round(fs.mix.br1 * 100)}%</TableCell>
+                          <TableCell className="text-xs text-right font-mono py-1.5">{Math.round(fs.mix.br2 * 100)}%</TableCell>
+                          <TableCell className="text-xs text-right font-mono py-1.5">{Math.round(fs.mix.br3 * 100)}%</TableCell>
+                          <TableCell className="text-xs text-right py-1.5 text-muted-foreground">—</TableCell>
+                        </TableRow>
+                      )}
+                    </TableBody>
+                    <TableFooter>
+                      {(() => {
+                        if (areaComps.length > 0) {
                           const count = areaComps.length;
                           const avgS = Math.round(areaComps.reduce((a: number, c: any) => a + (c.studioP || 0), 0) / count);
                           const avg1 = Math.round(areaComps.reduce((a: number, c: any) => a + (c.br1P || 0), 0) / count);
@@ -1162,12 +1170,19 @@ export function DecisionConfidence({ plot, comparisonPlots = [], isFullscreen, o
                               <TableCell className="text-xs text-right font-bold py-2 text-primary" colSpan={1}></TableCell>
                             </TableRow>
                           );
-                        })()}
-                      </TableFooter>
-                    </Table>
-                  </div>
-                </Section>
-              )}
+                        }
+                        return (
+                          <TableRow className="bg-muted/30">
+                            <TableCell className="text-xs font-bold py-2 text-muted-foreground" colSpan={7}>
+                              Upload area research to populate competitive unit mix data
+                            </TableCell>
+                          </TableRow>
+                        );
+                      })()}
+                    </TableFooter>
+                  </Table>
+                </div>
+              </Section>
 
               {/* Pricing Benchmarks */}
               <Section title={`Pricing Benchmarks — ${areaName}`}>
@@ -1226,43 +1241,59 @@ export function DecisionConfidence({ plot, comparisonPlots = [], isFullscreen, o
                 }
               </Section >
 
-              {/* Payment Plan Benchmarks */}
-              {
-                areaComps.length > 0 && areaComps.some((c: any) => c.payPlan) && (
-                  <Section title={`Payment Plan Benchmarks — ${areaName}`} badge={`${areaComps.filter((c: any) => c.payPlan).length} plans`}>
-                    <div className="overflow-x-auto">
-                      <Table>
-                        <TableHeader>
-                          <TableRow>
-                            {['Project', 'Payment Structure', 'Type'].map(h => (
-                              <TableHead key={h} className="text-[10px] text-right first:text-left">{h}</TableHead>
-                            ))}
-                          </TableRow>
-                        </TableHeader>
-                        <TableBody>
-                          {areaComps.filter((c: any) => c.payPlan).map((c: any) => {
-                            const plan = c.payPlan || '';
-                            const isPostHandover = /post/i.test(plan) || /ph/i.test(plan);
-                            const isHeavyBooking = /^[3-9]0/i.test(plan) || /^[4-9]/i.test(plan.split('/')[0]);
-                            return (
-                              <TableRow key={c.name}>
-                                <TableCell className="text-xs font-medium py-1.5 whitespace-nowrap">{c.name}</TableCell>
-                                <TableCell className="text-xs text-right font-mono py-1.5">{plan}</TableCell>
-                                <TableCell className="text-xs text-right py-1.5">
-                                  <Badge variant="outline" className={`text-[9px] ${isPostHandover ? 'border-success/40 text-success' : isHeavyBooking ? 'border-warning/40 text-warning' : 'border-primary/40 text-primary'}`}>
-                                    {isPostHandover ? 'Post-Handover' : isHeavyBooking ? 'Heavy Booking' : 'Standard'}
-                                  </Badge>
-                                </TableCell>
-                              </TableRow>
-                            );
-                          })}
-                        </TableBody>
-                      </Table>
+              {/* Developer & Payment Plan Benchmarks — always render */}
+              <Section title={`Developer & Payment Plan Benchmarks — ${areaName}`} badge={areaComps.some((c: any) => c.payPlan) ? `${areaComps.filter((c: any) => c.payPlan).length} plans` : 'CLFF Default'}>
+                {areaComps.length > 0 && areaComps.some((c: any) => c.payPlan) ? (
+                  <div className="overflow-x-auto">
+                    <Table>
+                      <TableHeader>
+                        <TableRow>
+                          {['Project', 'Payment Structure', 'Type'].map(h => (
+                            <TableHead key={h} className="text-[10px] text-right first:text-left">{h}</TableHead>
+                          ))}
+                        </TableRow>
+                      </TableHeader>
+                      <TableBody>
+                        {areaComps.filter((c: any) => c.payPlan).map((c: any) => {
+                          const plan = c.payPlan || '';
+                          const isPostHandover = /post/i.test(plan) || /ph/i.test(plan);
+                          const isHeavyBooking = /^[3-9]0/i.test(plan) || /^[4-9]/i.test(plan.split('/')[0]);
+                          return (
+                            <TableRow key={c.name}>
+                              <TableCell className="text-xs font-medium py-1.5 whitespace-nowrap">{c.name}</TableCell>
+                              <TableCell className="text-xs text-right font-mono py-1.5">{plan}</TableCell>
+                              <TableCell className="text-xs text-right py-1.5">
+                                <Badge variant="outline" className={`text-[9px] ${isPostHandover ? 'border-success/40 text-success' : isHeavyBooking ? 'border-warning/40 text-warning' : 'border-primary/40 text-primary'}`}>
+                                  {isPostHandover ? 'Post-Handover' : isHeavyBooking ? 'Heavy Booking' : 'Standard'}
+                                </Badge>
+                              </TableCell>
+                            </TableRow>
+                          );
+                        })}
+                      </TableBody>
+                    </Table>
+                  </div>
+                ) : (
+                  <div className="data-card p-4">
+                    <div className="text-xs text-muted-foreground mb-2">Default CLFF Payment Structure</div>
+                    <div className="grid grid-cols-3 gap-2">
+                      {Object.entries(fs.payPlan).map(([stage, val]) => (
+                        <div key={stage} className="text-center">
+                          <div className="text-xl font-black font-mono text-primary">{val}%</div>
+                          <div className="text-[10px] text-muted-foreground uppercase">
+                            {stage === 'booking' ? 'Booking' : stage === 'construction' ? 'Construction' : 'Handover'}
+                          </div>
+                        </div>
+                      ))}
                     </div>
-                  </Section>
-                )
-              }
-=======
+                    <div className="text-[10px] text-muted-foreground mt-3 p-2 rounded bg-muted/30 border border-border/30">
+                      💡 Upload area research to see project-specific payment plan benchmarks.
+                    </div>
+                  </div>
+                )}
+              </Section>
+
+              {/* Pricing & Payment Benchmarks — always render */}
               <Section title="Pricing & Payment Benchmarks">
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   <div className="data-card">
@@ -1282,7 +1313,7 @@ export function DecisionConfidence({ plot, comparisonPlots = [], isFullscreen, o
                       </div>
                     </div>
                     <div className="text-[10px] text-muted-foreground p-2 rounded bg-muted/30 border border-border/30 mt-2">
-                      💡 Based on actual area transactions and verified comparable projects.
+                      💡 Based on {dataSource === 'AI Upload' ? 'AI-parsed area transactions' : 'CLFF v1 area-specific market data'}.
                     </div>
                   </div>
 
@@ -1290,10 +1321,14 @@ export function DecisionConfidence({ plot, comparisonPlots = [], isFullscreen, o
                     <h4 className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-3">Payment Plan Distribution</h4>
                     <div className="space-y-2">
                       {(() => {
-                        if (!areaComps.length) return <div className="text-xs text-muted-foreground">No data available</div>;
-
                         const plans = areaComps.map((c: any) => c.payPlan).filter(Boolean);
-                        if (!plans.length) return <div className="text-xs text-muted-foreground">No payment plan data extracted</div>;
+                        if (!plans.length) {
+                          return (
+                            <div className="text-xs text-muted-foreground">
+                              Default: {Object.entries(fs.payPlan).map(([k, v]) => `${v}%`).join('/')} (Booking/Construction/Handover)
+                            </div>
+                          );
+                        }
 
                         const occurrences = plans.reduce((acc: any, p: string) => {
                           acc[p] = (acc[p] || 0) + 1;
