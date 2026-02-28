@@ -263,33 +263,46 @@ serve(async (req) => {
         });
       }
 
-      // We use geometry intersecting. DDA GIS uses outSR 3997, let's query with 4326 for inSR
-      const params = new URLSearchParams({
-        where: '1=1',
-        geometry: `${lng},${lat}`,
-        geometryType: 'esriGeometryPoint',
-        spatialRel: 'esriSpatialRelIntersects',
-        inSR: '4326',
-        distance: radius,
-        units: 'esriSRUnit_Meter',
-        outFields: STANDARD_OUT_FIELDS,
-        returnGeometry: 'true',
-        outSR: '3997',
-        f: 'json',
-        resultRecordCount: limit
-      });
+      // Use point geometry with inSR=4326 and distance buffer
+      // Try with standard fields first, then wildcard fallback
+      let data: Record<string, unknown> | null = null;
 
-      console.log(`Fetching spatial intersect distance ${radius}m at [${lat}, ${lng}]`);
+      for (const fields of [STANDARD_OUT_FIELDS, '*']) {
+        const params = new URLSearchParams({
+          where: '1=1',
+          geometry: `${lng},${lat}`,
+          geometryType: 'esriGeometryPoint',
+          spatialRel: 'esriSpatialRelIntersects',
+          inSR: '4326',
+          distance: radius,
+          units: 'esriSRUnit_Meter',
+          outFields: fields,
+          returnGeometry: 'true',
+          outSR: '3997',
+          f: 'json',
+          resultRecordCount: limit
+        });
 
-      const response = await fetch(`${DDA_GIS_BASE_URL}/2/query?${params}`, {
-        method: 'GET',
-        headers: { 'Accept': 'application/json', 'User-Agent': 'HyperPlot-AI/1.0' }
-      });
+        console.log(`Fetching spatial ${radius}m at [${lat}, ${lng}], fields: ${fields === '*' ? 'wildcard' : 'standard'}`);
 
-      if (!response.ok) throw new Error(`GIS API returned ${response.status}`);
+        const response = await fetch(`${DDA_GIS_BASE_URL}/2/query?${params}`, {
+          method: 'GET',
+          headers: { 'Accept': 'application/json', 'User-Agent': 'HyperPlot-AI/1.0' }
+        });
 
-      const data = await response.json();
-      console.log(`Spatial search returned ${data.features?.length || 0} features`);
+        if (!response.ok) throw new Error(`GIS API returned ${response.status}`);
+
+        data = await response.json();
+
+        if (data?.error) {
+          console.log(`Spatial query failed with ${fields === '*' ? 'wildcard' : 'standard'} fields:`, JSON.stringify(data.error));
+          if (fields !== '*') continue;
+        } else {
+          break;
+        }
+      }
+
+      console.log(`Spatial search returned ${(data as any)?.features?.length || 0} features`);
 
       return new Response(JSON.stringify(data), {
         headers: { ...corsHeaders, 'Content-Type': 'application/json' }
