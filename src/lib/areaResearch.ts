@@ -69,13 +69,19 @@ export function getAreaScopedMarketData(aiData: AnyRecord | null | undefined, pl
     };
   }
 
+  const comparableCodes = new Set<string>();
+
   // STRICT: Filter comparables by a single resolved area code only
   const filteredComparables = comparables.filter((comp: AnyRecord) => {
     const resolvedComparableCode =
       extractSingleAreaCode(comp?.area) ||
+      extractSingleAreaCode(comp?.community) ||
       extractSingleAreaCode(comp?.location) ||
       extractSingleAreaCode(comp?.project) ||
-      extractSingleAreaCode(comp?.name);
+      extractSingleAreaCode(comp?.name) ||
+      extractSingleAreaCode(comp?.areaName);
+
+    if (resolvedComparableCode) comparableCodes.add(resolvedComparableCode);
 
     return !!resolvedComparableCode && resolvedComparableCode === plotCode;
   });
@@ -93,12 +99,20 @@ export function getAreaScopedMarketData(aiData: AnyRecord | null | undefined, pl
   }
 
   const hasMultiAreaTxn = !!areaTransactions && Object.keys(areaTransactions).length > 1;
+  const hasAmbiguousAreaTxnKeys = !!areaTransactions && Object.keys(areaTransactions).some((key) => extractAreaCodes(key).length !== 1);
+  const hasMultiAreaComparables = comparableCodes.size > 1;
+  const hasComparableRows = comparables.length > 0;
+  const hasConfirmedSingleAreaComparables = comparableCodes.size === 1 && comparableCodes.has(plotCode);
   const topLevelCode = extractSingleAreaCode(aiData.areaName || aiData.areaCode || '');
   const topLevelLooksScoped = topLevelCode === plotCode;
 
-  // STRICT: Only use top-level data when document is single-area AND matches the plot
-  // ❌ NEVER fall back to consolidated averages when multi-area document
-  const canUseTopLevel = !hasMultiAreaTxn && topLevelLooksScoped;
+  // STRICT: top-level fallback allowed only if source is clearly single-area
+  const canUseTopLevel =
+    !hasMultiAreaTxn &&
+    !hasAmbiguousAreaTxnKeys &&
+    !hasMultiAreaComparables &&
+    topLevelLooksScoped &&
+    (!hasComparableRows || hasConfirmedSingleAreaComparables || !!areaTxn);
 
   // For multi-area docs: ONLY per-area transaction data survives, no top-level fallback
   return {
