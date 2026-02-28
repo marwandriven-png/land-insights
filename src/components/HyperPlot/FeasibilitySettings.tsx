@@ -413,9 +413,9 @@ export function FeasibilitySettings({ open, onClose, onSettingsChange, onOpenAdd
                 <Upload className="w-3.5 h-3.5" />
                 Area Research
               </TabsTrigger>
-              <TabsTrigger value="addland" className="flex-1 gap-1.5">
+               <TabsTrigger value="addland" className="flex-1 gap-1.5">
                 <Plus className="w-3.5 h-3.5" />
-                Create Listing
+                Add Plot
               </TabsTrigger>
               <TabsTrigger value="sheet" className="flex-1 gap-1.5">
                 <Link2 className="w-3.5 h-3.5" />
@@ -433,9 +433,9 @@ export function FeasibilitySettings({ open, onClose, onSettingsChange, onOpenAdd
           <TabsContent value="addland" className="flex-1 overflow-y-auto px-5 pb-3 mt-3">
             <div className="text-center py-12">
               <Plus className="w-12 h-12 text-muted-foreground/30 mx-auto mb-3" />
-              <h3 className="text-lg font-bold mb-2">Create New Listing</h3>
+              <h3 className="text-lg font-bold mb-2">Add New Plot</h3>
               <p className="text-sm text-muted-foreground mb-4">
-                Manually add a land with coordinates, planning data, and affection plan details.
+                Manually add a plot with Google Maps location, planning data, and affection plan details.
               </p>
               <Button
                 onClick={() => {
@@ -445,7 +445,7 @@ export function FeasibilitySettings({ open, onClose, onSettingsChange, onOpenAdd
                 className="gap-2"
               >
                 <Plus className="w-4 h-4" />
-                Open Create Listing Form
+                Open Add Plot Form
               </Button>
             </div>
           </TabsContent>

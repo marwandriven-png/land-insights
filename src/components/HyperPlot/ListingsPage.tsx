@@ -369,7 +369,7 @@ export function ListingsPage({ plots, onSelectPlot, onCreateListing, onSyncSheet
           {onCreateListing && (
             <Button size="sm" onClick={onCreateListing} className="gap-1.5 h-8 text-xs">
               <Plus className="w-3.5 h-3.5" />
-              Create Listing
+              Add Plot
             </Button>
           )}
         </div>
@@ -405,7 +405,7 @@ export function ListingsPage({ plots, onSelectPlot, onCreateListing, onSyncSheet
           <div>
             <Search className="w-8 h-8 mx-auto mb-2 text-muted-foreground/30" />
             <p className="text-xs font-medium text-muted-foreground">No listings yet</p>
-            <p className="text-[10px] text-muted-foreground mt-1">Use "Create Listing" to add plots</p>
+            <p className="text-[10px] text-muted-foreground mt-1">Use "Add Plot" to add plots</p>
           </div>
         </div>
       ) : (
