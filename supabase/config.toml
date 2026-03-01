@@ -11,3 +11,6 @@ verify_jwt = false
 
 [functions.parse-area-research]
 verify_jwt = false
+
+[functions.land-matching-wizard]
+verify_jwt = false
