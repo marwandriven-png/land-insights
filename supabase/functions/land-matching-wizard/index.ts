@@ -5,6 +5,7 @@
 
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.39.0";
+import { PlotDataCache } from "./cache.ts";
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -28,7 +29,7 @@ const AREA_NORMALIZATION: Record<string, string> = {
   'al satwa': 'Jumeirah Garden City',
 };
 
-function normalizeArea(area: string | null | undefined): string {
+export function normalizeArea(area: string | null | undefined): string {
   if (!area?.trim()) return 'Unknown';
   const lower = area.trim().toLowerCase();
   return AREA_NORMALIZATION[lower] ?? area.trim();
@@ -334,6 +335,34 @@ serve(async (req) => {
     return new Response(null, { headers: corsHeaders });
   }
 
+  const url = new URL(req.url);
+
+  // ── TEST ENDPOINT ──
+  if (url.pathname.endsWith('/test') && req.method === 'GET') {
+    const supabaseUrl = Deno.env.get('SUPABASE_URL') || '';
+    const supabaseKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') || '';
+    const cache = new PlotDataCache(supabaseUrl, supabaseKey);
+
+    try {
+      const stats = await cache.getStats();
+      return new Response(JSON.stringify({
+        success: true,
+        message: 'Cache system active',
+        stats,
+        test_at: new Date().toISOString()
+      }), {
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+      });
+    } catch (err) {
+      return new Response(JSON.stringify({
+        success: false,
+        error: err instanceof Error ? err.message : String(err)
+      }), {
+        status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+      });
+    }
+  }
+
   if (req.method !== 'POST') {
     return new Response(JSON.stringify({ error: 'Method not allowed' }), {
       status: 405, headers: { ...corsHeaders, 'Content-Type': 'application/json' },
@@ -360,7 +389,42 @@ serve(async (req) => {
 
     console.log(`[LandMatchingWizard] ▶ lat=${request.latitude}, lng=${request.longitude}, r=${request.radius_meters}m`);
 
-    // PARALLEL EXECUTION
+    const supabaseUrl = Deno.env.get('SUPABASE_URL') || '';
+    const supabaseKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') || '';
+    const cache = new PlotDataCache(supabaseUrl, supabaseKey);
+
+    // 1. CHECK CACHE FIRST
+    const cached = await cache.searchByRadius(request.latitude, request.longitude, request.radius_meters);
+    if (cached.plots.length > 0 && cached.fresh_count === cached.total) {
+      console.log(`[LandMatchingWizard] ⚡ Cache HIT: ${cached.total} plots`);
+      // Map cached plots back to PlotResult format
+      const plots: PlotResult[] = cached.plots.map(p => ({
+        plot_id: generatePlotId(p.data_source === 'GIS/DDA' ? 'GIS' : 'DLD', p.land_number),
+        land_number: p.land_number,
+        area: p.area,
+        latitude: p.latitude,
+        longitude: p.longitude,
+        distance_from_center_m: p.distance_m,
+        land_status: p.land_status,
+        land_status_source: p.data_source === 'Property Status / GIS' ? 'Property Status / GIS' : undefined,
+        data_source_master: p.data_source,
+        is_fallback: p.data_source === 'Property Status / GIS',
+        confidence_score: p.data_source === 'GIS/DDA' ? CONFIG.CONFIDENCE.GIS_DDA : CONFIG.CONFIDENCE.FALLBACK,
+        last_certificate_no: p.last_certificate_no,
+        property_type: p.property_type,
+        // (Other fields would depend on raw_data if stored)
+      }));
+
+      return new Response(JSON.stringify({
+        success: true,
+        data: { plots, center: { latitude: request.latitude, longitude: request.longitude }, search_parameters: { radius_meters: request.radius_meters } },
+        metadata: { total_count: plots.length, source: 'cache', execution_time_ms: Date.now() - t0 }
+      }), {
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+      });
+    }
+
+    // 2. PARALLEL EXECUTION (Cache Miss or Partial Stale)
     const [gisResult, psResult] = await Promise.all([
       withTimeout(queryGIS_DDA(request), CONFIG.TIMEOUTS.GIS_DDA, 'GIS/DDA')
         .catch((err): APIResponse => ({
@@ -379,6 +443,21 @@ serve(async (req) => {
     console.log(`[LandMatchingWizard] GIS=${gisResult.plots.length}, PS=${psResult.plots.length}`);
 
     const { plots, metadata } = consolidateResults(gisResult, psResult, request);
+
+    // 3. UPDATE CACHE
+    if (plots.length > 0) {
+      for (const plot of plots) {
+        await cache.setPlotData(plot.land_number, {
+          area: plot.area,
+          latitude: plot.latitude,
+          longitude: plot.longitude,
+          land_status: plot.land_status,
+          property_type: plot.property_type,
+          last_certificate_no: plot.last_certificate_no,
+          raw_data: plot // Optional: store full record
+        }, plot.data_source_master);
+      }
+    }
 
     const responseBody = {
       success: true,
