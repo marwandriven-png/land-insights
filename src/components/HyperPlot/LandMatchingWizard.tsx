@@ -732,6 +732,13 @@ export function LandMatchingWizard({
                         const apiPlots = await gisService.searchByLocation(lat, lng, locationRadius);
 
                         if (apiPlots.length === 0) {
+                          // Check if the coordinates are outside Dubai's approximate bounding box
+                          const isDubai = lat >= 24.7 && lat <= 25.4 && lng >= 54.8 && lng <= 55.7;
+                          setError(
+                            isDubai
+                              ? `No plots found within ${locationRadius}m of this location. Try increasing the search radius.`
+                              : `No plots found — the DDA GIS database only covers Dubai emirate. This location (${lat.toFixed(4)}, ${lng.toFixed(4)}) appears to be outside Dubai.`
+                          );
                           setMatchResults([]);
                           setStep('results');
                           return;
