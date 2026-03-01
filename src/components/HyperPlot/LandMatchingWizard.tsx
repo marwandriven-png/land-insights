@@ -727,12 +727,11 @@ export function LandMatchingWizard({
                           throw new Error('Could not find coordinates in this URL.\n\nMake sure the URL contains coordinates (e.g. @25.2048,55.2708).\n\nTip: Open the location in Google Maps, then copy the full URL from your browser\'s address bar.');
                         }
 
-                        // Query spatial search
+                        // Query consolidated spatial search (GIS/DDA + Property Status in parallel)
                         const { gisService } = await import('@/services/DDAGISService');
-                        const apiPlots = await gisService.searchByLocation(lat, lng, locationRadius);
+                        const { plots: apiPlots, metadata: searchMeta } = await gisService.searchByLocationConsolidated(lat, lng, locationRadius);
 
                         if (apiPlots.length === 0) {
-                          // Check if the coordinates are outside Dubai's approximate bounding box
                           const isDubai = lat >= 24.7 && lat <= 25.4 && lng >= 54.8 && lng <= 55.7;
                           setError(
                             isDubai
@@ -761,20 +760,30 @@ export function LandMatchingWizard({
 
                         setParsedInputs(inputs);
 
-                        let results: MatchResult[] = inputs.map((inp, i) => ({
-                          input: inp,
-                          matchedPlotId: apiPlots[i].id,
-                          matchedPlotArea: apiPlots[i].area,
-                          matchedGfa: apiPlots[i].gfa,
-                          matchedZoning: apiPlots[i].zoning,
-                          matchedStatus: apiPlots[i].status,
-                          matchedLocation: apiPlots[i].location,
-                          areaDeviation: 0,
-                          gfaDeviation: 0,
-                          confidenceScore: 100
-                        }));
+                        // Confidence: GIS/DDA source = 100%, DLD fallback = 65%
+                        let results: MatchResult[] = inputs.map((inp, i) => {
+                          const rawAttrs = apiPlots[i].rawAttributes as Record<string, any> | undefined;
+                          const confidenceFromSource = rawAttrs?.confidence_score
+                            ? Math.round(rawAttrs.confidence_score * 100)
+                            : 100;
+                          return {
+                            input: inp,
+                            matchedPlotId: apiPlots[i].id,
+                            matchedPlotArea: apiPlots[i].area,
+                            matchedGfa: apiPlots[i].gfa,
+                            matchedZoning: apiPlots[i].zoning,
+                            matchedStatus: apiPlots[i].status,
+                            matchedLocation: apiPlots[i].location,
+                            areaDeviation: 0,
+                            gfaDeviation: 0,
+                            confidenceScore: confidenceFromSource
+                          };
+                        });
 
                         results = await crossCheckWithSheet(results);
+
+                        // Log source breakdown
+                        console.log(`[LandMatchingWizard] Consolidated: ${searchMeta.total_count} plots (GIS: ${searchMeta.gis_dda_count}, PS: ${searchMeta.property_status_count}, fallback: ${searchMeta.fallback_count}, freehold-enriched: ${searchMeta.freehold_enriched_count})`);
 
                         setMatchResults(results);
                         setSelectedMatchIds(new Set(results.map(r => r.matchedPlotId)));

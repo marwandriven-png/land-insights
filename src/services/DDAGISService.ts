@@ -362,6 +362,119 @@ class DDAGISService {
     }
   }
 
+  /**
+   * Consolidated location search: runs GIS/DDA + DLD Property Status in parallel
+   * via the land-matching-wizard edge function and returns merged, deduplicated results.
+   */
+  async searchByLocationConsolidated(lat: number, lng: number, radiusMeters: number = 1000): Promise<{
+    plots: PlotData[];
+    metadata: {
+      total_count: number;
+      gis_dda_count: number;
+      property_status_count: number;
+      fallback_count: number;
+      freehold_enriched_count: number;
+      gis_dda_available: boolean;
+      property_status_available: boolean;
+    };
+  }> {
+    try {
+      const url = `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/land-matching-wizard`;
+
+      const response = await fetch(url, {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY}`,
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
+          latitude: lat,
+          longitude: lng,
+          radius_meters: radiusMeters,
+        }),
+      });
+
+      if (!response.ok) {
+        const errBody = await response.json().catch(() => ({}));
+        throw new Error(errBody.error || `HTTP ${response.status}`);
+      }
+
+      const result = await response.json();
+
+      if (!result.success) {
+        throw new Error(result.error || 'Unknown error');
+      }
+
+      const rawPlots: any[] = result.data?.plots ?? [];
+
+      // Transform consolidated plots into PlotData format
+      const plots: PlotData[] = rawPlots.map((p: any, index: number) => ({
+        id: p.land_number || p.plot_id || `PLOT_${index}`,
+        area: p.area_sqm || 0,
+        gfa: p.gfa_sqm || 0,
+        floors: p.max_height_floors || 'N/A',
+        zoning: this.getZoningCategory(p.main_landuse, p.sub_landuse),
+        location: p.project_name || p.entity_name || p.area || 'Dubai',
+        x: p.longitude || 0,
+        y: p.latitude || 0,
+        color: this.getZoningColor(p.main_landuse, p.sub_landuse),
+        status: p.land_status || (p.is_frozen ? 'Frozen' : 'Available'),
+        constructionCost: this.getConstructionCost(p.main_landuse),
+        salePrice: this.getSalePrice(p.main_landuse, p.area_sqm),
+        developer: undefined,
+        project: p.project_name,
+        entity: p.entity_name,
+        landUseDetails: undefined,
+        maxHeight: undefined,
+        plotCoverage: p.plot_coverage,
+        isFrozen: p.is_frozen || false,
+        freezeReason: p.freeze_reason,
+        constructionStatus: p.construction_status,
+        siteStatus: p.site_status,
+        rawAttributes: {
+          data_source_master: p.data_source_master,
+          confidence_score: p.confidence_score,
+          is_fallback: p.is_fallback,
+          land_status_source: p.land_status_source,
+          distance_from_center_m: p.distance_from_center_m,
+          geometry: p.geometry,
+        },
+        verificationSource: (p.data_source_master === 'GIS/DDA' ? 'DDA' : 'DLD') as VerificationSource,
+        verificationDate: new Date().toISOString(),
+      }));
+
+      return {
+        plots,
+        metadata: {
+          total_count: result.metadata?.total_count ?? plots.length,
+          gis_dda_count: result.metadata?.gis_dda_count ?? 0,
+          property_status_count: result.metadata?.property_status_count ?? 0,
+          fallback_count: result.metadata?.fallback_count ?? 0,
+          freehold_enriched_count: result.metadata?.freehold_enriched_count ?? 0,
+          gis_dda_available: result.metadata?.data_sources?.gis_dda_available ?? false,
+          property_status_available: result.metadata?.data_sources?.property_status_available ?? false,
+        },
+      };
+    } catch (error) {
+      console.error('Consolidated location search error:', error);
+      // Fallback to legacy spatial search
+      console.log('Falling back to legacy GIS-only spatial search...');
+      const plots = await this.searchByLocation(lat, lng, radiusMeters);
+      return {
+        plots,
+        metadata: {
+          total_count: plots.length,
+          gis_dda_count: plots.length,
+          property_status_count: 0,
+          fallback_count: 0,
+          freehold_enriched_count: 0,
+          gis_dda_available: true,
+          property_status_available: false,
+        },
+      };
+    }
+  }
+
   private transformGISData(features: Array<{ attributes: Record<string, unknown>; geometry?: { rings?: number[][][]; x?: number; y?: number } }>): PlotData[] {
     return features.map((feature, index) => {
       const attrs = feature.attributes;
