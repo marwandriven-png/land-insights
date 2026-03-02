@@ -221,7 +221,10 @@ const normalizeComparable = (raw: any) => {
     plotSqft: toNum(raw?.plotSqft ?? raw?.plotSizeSqft ?? raw?.plot_size_sqft ?? raw?.plotAreaSqft) ?? undefined,
     units: toNum(raw?.units ?? raw?.totalUnits ?? raw?.unitCount ?? raw?.unit_count) ?? undefined,
     bua: toNum(raw?.bua ?? raw?.sellableArea ?? raw?.sellable_area ?? raw?.gfa) ?? undefined,
+    floors: raw?.floors || raw?.floorsFormula || raw?.floors_formula || undefined,
     psf: deriveComparablePsf(raw),
+    priceFrom: toNum(raw?.priceFrom ?? raw?.price_from ?? raw?.price_from_aed ?? raw?.priceFromAed) ?? undefined,
+    svc: toNum(raw?.svc ?? raw?.serviceCharge ?? raw?.service_charge ?? raw?.serviceChargePsf ?? raw?.service_charge_psf) ?? undefined,
     studioP: normalizeMixPct(raw?.studioMix ?? raw?.studioPct ?? raw?.studio_mix ?? raw?.studioP ?? raw?.studio_pct ?? unitMix?.studio ?? unitMix?.studioP),
     br1P: normalizeMixPct(raw?.br1Mix ?? raw?.br1Pct ?? raw?.br1_mix ?? raw?.br1P ?? raw?.oneBrP ?? raw?.br1_pct ?? unitMix?.br1 ?? unitMix?.oneBr),
     br2P: normalizeMixPct(raw?.br2Mix ?? raw?.br2Pct ?? raw?.br2_mix ?? raw?.br2P ?? raw?.twoBrP ?? raw?.br2_pct ?? unitMix?.br2 ?? unitMix?.twoBr),
@@ -780,17 +783,18 @@ export function DecisionConfidence({ plot, comparisonPlots = [], isFullscreen, o
                   {/* Plot Details Card */}
                   <div className="data-card">
                     <h4 className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-3">Plot Details</h4>
-                    <div className="space-y-2">
+                     <div className="space-y-2">
                       {[
-                        ['Plot Area', `${fmt(dscInput.area)} sqft`],
-                        ['Plot Ratio', `× ${dscInput.ratio.toFixed(2)}`],
-                        ['GFA', `${fmt(Math.round(fs.gfa))} sqft`],
-                        ['BUA', `${fmt(Math.round(fs.bua))} sqft`],
-                        ['Approved Height', dscInput.height],
-                        ['Est. Floors', `${fs.residentialFloors}`],
-                      ].map(([param, val]) => (
-                        <div key={param} className="flex justify-between py-1.5 border-b border-border/30 last:border-0">
-                          <span className="text-sm text-muted-foreground">{param}</span>
+                        ['Plot Size', `${fmt(dscInput.area)} sqft`, 'Actual plot area'],
+                        ['Plot Ratio (FAR)', `× ${dscInput.ratio.toFixed(2)}`, 'Floor Area Ratio'],
+                        ['GFA', `${fmt(Math.round(fs.gfa))} sqft`, 'Plot Size × FAR'],
+                        ['BUA', `${fmt(Math.round(fs.bua))} sqft`, `GFA ÷ ${(effectiveOverrides.buaMultiplier || 1.45).toFixed(2)}× multiplier`],
+                        ['Sellable Area', `${fmt(Math.round(fs.sellableArea))} sqft`, `95% × GFA`],
+                        ['Approved Height', dscInput.height, ''],
+                        ['Est. Floors', `${fs.residentialFloors}`, ''],
+                      ].map(([param, val, hint]) => (
+                        <div key={param as string} className="flex justify-between py-1.5 border-b border-border/30 last:border-0">
+                          <span className="text-sm text-muted-foreground">{param}{hint ? <span className="text-[10px] text-muted-foreground/60 ml-1">({hint})</span> : null}</span>
                           <span className="text-sm font-semibold font-mono text-foreground">{val}</span>
                         </div>
                       ))}
@@ -1152,25 +1156,30 @@ export function DecisionConfidence({ plot, comparisonPlots = [], isFullscreen, o
                   <Table>
                     <TableHeader>
                       <TableRow>
-                        {['Project', 'Developer', 'Plot (sqft)', 'Units', 'BUA', 'Floors', 'Handover', 'PSF', 'Payment'].map(h => (
+                        {['Project', 'Developer', 'Plot (sqft)', 'GFA (sqft)', 'Sellable (sqft)', 'Units', 'Floors', 'Handover', 'Price From (AED)', 'Payment'].map(h => (
                           <TableHead key={h} className="text-[10px] text-right first:text-left whitespace-nowrap">{h}</TableHead>
                         ))}
                       </TableRow>
                     </TableHeader>
                     <TableBody>
-                      {areaComps.map((c: any) => (
-                        <TableRow key={c.name}>
-                          <TableCell className="text-xs font-medium py-1.5 whitespace-nowrap">{c.name}</TableCell>
-                          <TableCell className="text-[10px] text-right py-1.5">{c.developer || '—'}</TableCell>
-                          <TableCell className="text-xs text-right font-mono py-1.5">{c.plotSqft ? fmt(c.plotSqft) : '—'}</TableCell>
-                          <TableCell className="text-xs text-right font-mono py-1.5">{c.units || '—'}</TableCell>
-                          <TableCell className="text-xs text-right font-mono py-1.5">{c.bua ? fmt(c.bua) : '—'}</TableCell>
-                          <TableCell className="text-[10px] text-right py-1.5">{c.floors || '—'}</TableCell>
-                          <TableCell className="text-[10px] text-right py-1.5">{c.handover || '—'}</TableCell>
-                          <TableCell className="text-xs text-right font-mono font-bold text-primary py-1.5">{c.psf ? `AED ${fmt(c.psf)}` : '—'}</TableCell>
-                          <TableCell className="text-[10px] text-right py-1.5">{c.payPlan || '—'}</TableCell>
-                        </TableRow>
-                      ))}
+                      {areaComps.map((c: any) => {
+                        const gfa = c.plotSqft && c.plotSqft > 0 ? c.plotSqft : c.bua || 0;
+                        const sellable = Math.round(gfa * 0.95);
+                        return (
+                          <TableRow key={c.name}>
+                            <TableCell className="text-xs font-medium py-1.5 whitespace-nowrap">{c.name}</TableCell>
+                            <TableCell className="text-[10px] text-right py-1.5">{c.developer || '—'}</TableCell>
+                            <TableCell className="text-xs text-right font-mono py-1.5">{c.plotSqft ? fmt(c.plotSqft) : '—'}</TableCell>
+                            <TableCell className="text-xs text-right font-mono py-1.5">{gfa ? fmt(gfa) : '—'}</TableCell>
+                            <TableCell className="text-xs text-right font-mono py-1.5">{sellable ? fmt(sellable) : '—'}</TableCell>
+                            <TableCell className="text-xs text-right font-mono py-1.5">{c.units || '—'}</TableCell>
+                            <TableCell className="text-[10px] text-right py-1.5">{c.floors || '—'}</TableCell>
+                            <TableCell className="text-[10px] text-right py-1.5">{c.handover || '—'}</TableCell>
+                            <TableCell className="text-xs text-right font-mono font-bold text-primary py-1.5">{c.priceFrom ? fmtA(c.priceFrom) : c.psf ? `AED ${fmt(c.psf)}/sqft` : '—'}</TableCell>
+                            <TableCell className="text-[10px] text-right py-1.5">{c.payPlan || '—'}</TableCell>
+                          </TableRow>
+                        );
+                      })}
                     </TableBody>
                   </Table>
                 </div>
@@ -1180,23 +1189,24 @@ export function DecisionConfidence({ plot, comparisonPlots = [], isFullscreen, o
                   <Table>
                     <TableHeader>
                       <TableRow>
-                        {['Project', 'Density', 'GFA Diff', 'Unit Count', 'PSF vs Yours'].map(h => (
+                        {['Project', 'Units/1,000 sqft', 'Efficiency Ratio', 'GFA Diff vs Yours', 'Unit Count vs Yours'].map(h => (
                           <TableHead key={h} className="text-[10px] text-right first:text-left">{h}</TableHead>
                         ))}
                       </TableRow>
                     </TableHeader>
                     <TableBody>
                       {areaComps.map((c: any) => {
-                        const diff = fs.avgPsf - (c.psf || 0);
+                        const gfa = c.plotSqft && c.plotSqft > 0 ? c.plotSqft : c.bua || 0;
+                        const sellable = gfa * 0.95;
+                        const unitsPerK = gfa > 0 && c.units ? (c.units / (gfa / 1000)).toFixed(2) : '—';
+                        const effRatio = gfa > 0 ? (sellable / gfa).toFixed(2) : '—';
                         return (
                           <TableRow key={c.name}>
                             <TableCell className="text-xs font-medium py-1.5">{c.name}</TableCell>
-                            <TableCell className="text-xs text-right py-1.5">{c.density ? c.density.toFixed(2) : '—'}</TableCell>
-                            <TableCell className="text-xs text-right py-1.5">{c.bua ? `${fmt(Math.round(fs.gfa - c.bua))} sqft` : '—'}</TableCell>
+                            <TableCell className="text-xs text-right font-mono py-1.5">{unitsPerK}</TableCell>
+                            <TableCell className="text-xs text-right font-mono py-1.5">{effRatio}</TableCell>
+                            <TableCell className="text-xs text-right py-1.5">{gfa ? `${fmt(Math.round(fs.gfa - gfa))} sqft` : '—'}</TableCell>
                             <TableCell className="text-xs text-right py-1.5">{fs.units.total} vs {c.units || '—'}</TableCell>
-                            <TableCell className={`text-xs text-right font-bold py-1.5 ${diff >= 0 ? 'text-success' : 'text-warning'}`}>
-                              {c.psf ? `${diff >= 0 ? '+' : ''}AED ${fmt(Math.round(diff))}` : '—'}
-                            </TableCell>
                           </TableRow>
                         );
                       })}
@@ -1222,7 +1232,7 @@ export function DecisionConfidence({ plot, comparisonPlots = [], isFullscreen, o
                   <Table>
                     <TableHeader>
                       <TableRow>
-                        {['Project', 'Units', 'Studio %', '1BR %', '2BR %', '3BR %', 'Dominant Type'].map(h => (
+                         {['Project', 'Units', 'Studio %', '1BR %', '2BR %', '3BR %', 'Avg Size (sqft)', 'Dominant Type'].map(h => (
                           <TableHead key={h} className="text-[10px] text-right first:text-left whitespace-nowrap">{h}</TableHead>
                         ))}
                       </TableRow>
@@ -1235,7 +1245,12 @@ export function DecisionConfidence({ plot, comparisonPlots = [], isFullscreen, o
                           { type: '2BR', pct: c.br2P || 0 },
                           { type: '3BR', pct: c.br3P || 0 },
                         ];
+                        const total = mixes.reduce((s, m) => s + m.pct, 0);
                         const dominant = mixes.reduce((a, b) => a.pct > b.pct ? a : b);
+                        // Derive avg unit size from GFA and units
+                        const gfa = c.plotSqft && c.plotSqft > 0 ? c.plotSqft : c.bua || 0;
+                        const sellable = gfa * 0.95;
+                        const avgSize = c.units && c.units > 0 ? Math.round(sellable / c.units) : 0;
                         return (
                           <TableRow key={c.name}>
                             <TableCell className="text-xs font-medium py-1.5 whitespace-nowrap">{c.name}</TableCell>
@@ -1244,7 +1259,8 @@ export function DecisionConfidence({ plot, comparisonPlots = [], isFullscreen, o
                             <TableCell className={`text-xs text-right py-1.5 ${dominant.type === '1BR' ? 'font-bold text-primary' : ''}`}>{c.br1P || 0}%</TableCell>
                             <TableCell className={`text-xs text-right py-1.5 ${dominant.type === '2BR' ? 'font-bold text-primary' : ''}`}>{c.br2P || 0}%</TableCell>
                             <TableCell className={`text-xs text-right py-1.5 ${dominant.type === '3BR' ? 'font-bold text-primary' : ''}`}>{c.br3P || 0}%</TableCell>
-                            <TableCell className="text-xs text-right font-bold text-primary py-1.5">{dominant.type} ({dominant.pct}%)</TableCell>
+                            <TableCell className="text-xs text-right font-mono py-1.5">{avgSize ? fmt(avgSize) : '—'}</TableCell>
+                            <TableCell className="text-xs text-right font-bold text-primary py-1.5">{dominant.type} ({dominant.pct}%){total !== 100 && total > 0 ? <span className="text-destructive ml-1 text-[9px]">Σ{total}%</span> : ''}</TableCell>
                           </TableRow>
                         );
                       }) : (
@@ -1255,6 +1271,7 @@ export function DecisionConfidence({ plot, comparisonPlots = [], isFullscreen, o
                           <TableCell className="text-xs text-right font-mono py-1.5">{Math.round(fs.mix.br1 * 100)}%</TableCell>
                           <TableCell className="text-xs text-right font-mono py-1.5">{Math.round(fs.mix.br2 * 100)}%</TableCell>
                           <TableCell className="text-xs text-right font-mono py-1.5">{Math.round(fs.mix.br3 * 100)}%</TableCell>
+                          <TableCell className="text-xs text-right font-mono py-1.5">{fmt(Math.round(fs.sellableArea / fs.units.total))}</TableCell>
                           <TableCell className="text-xs text-right py-1.5 text-muted-foreground">—</TableCell>
                         </TableRow>
                       )}
@@ -1267,21 +1284,22 @@ export function DecisionConfidence({ plot, comparisonPlots = [], isFullscreen, o
                           const avg1 = Math.round(areaComps.reduce((a: number, c: any) => a + (c.br1P || 0), 0) / count);
                           const avg2 = Math.round(areaComps.reduce((a: number, c: any) => a + (c.br2P || 0), 0) / count);
                           const avg3 = Math.round(areaComps.reduce((a: number, c: any) => a + (c.br3P || 0), 0) / count);
+                          const avgUnits = Math.round(areaComps.reduce((a: number, c: any) => a + (c.units || 0), 0) / count);
                           return (
                             <TableRow className="bg-primary/10">
                               <TableCell className="text-xs font-bold py-2 text-primary">Market Average</TableCell>
-                              <TableCell className="text-xs text-right font-bold py-2 text-primary" colSpan={1}></TableCell>
+                              <TableCell className="text-xs text-right font-bold py-2 text-primary">{avgUnits || '—'}</TableCell>
                               <TableCell className="text-xs text-right font-bold py-2 text-primary">{avgS}%</TableCell>
                               <TableCell className="text-xs text-right font-bold py-2 text-primary">{avg1}%</TableCell>
                               <TableCell className="text-xs text-right font-bold py-2 text-primary">{avg2}%</TableCell>
                               <TableCell className="text-xs text-right font-bold py-2 text-primary">{avg3}%</TableCell>
-                              <TableCell className="text-xs text-right font-bold py-2 text-primary" colSpan={1}></TableCell>
+                              <TableCell className="text-xs text-right font-bold py-2 text-primary" colSpan={2}></TableCell>
                             </TableRow>
                           );
                         }
                         return (
                           <TableRow className="bg-muted/30">
-                            <TableCell className="text-xs font-bold py-2 text-muted-foreground" colSpan={7}>
+                            <TableCell className="text-xs font-bold py-2 text-muted-foreground" colSpan={8}>
                               Upload area research to populate competitive unit mix data
                             </TableCell>
                           </TableRow>
@@ -1305,17 +1323,17 @@ export function DecisionConfidence({ plot, comparisonPlots = [], isFullscreen, o
                     </TableHeader>
                     <TableBody>
                       {[
-                        { metric: 'Avg PSF', vals: [areaTxnData.avgPsf.studio, areaTxnData.avgPsf.br1, areaTxnData.avgPsf.br2, areaTxnData.avgPsf.br3] },
+                        { metric: 'Avg Price From (AED)', vals: [areaTxnData.avgPrice.studio, areaTxnData.avgPrice.br1, areaTxnData.avgPrice.br2, areaTxnData.avgPrice.br3] },
+                        { metric: 'Avg PSF (Sellable)', vals: [areaTxnData.avgPsf.studio, areaTxnData.avgPsf.br1, areaTxnData.avgPsf.br2, areaTxnData.avgPsf.br3] },
                         { metric: 'Median PSF', vals: [areaTxnData.medianPsf.studio, areaTxnData.medianPsf.br1, areaTxnData.medianPsf.br2, areaTxnData.medianPsf.br3] },
                         { metric: 'Avg Size (sqft)', vals: [areaTxnData.avgSize.studio, areaTxnData.avgSize.br1, areaTxnData.avgSize.br2, areaTxnData.avgSize.br3] },
-                        { metric: 'Avg Price', vals: [areaTxnData.avgPrice.studio, areaTxnData.avgPrice.br1, areaTxnData.avgPrice.br2, areaTxnData.avgPrice.br3] },
                         { metric: 'Transactions', vals: [areaTxnData.count.studio, areaTxnData.count.br1, areaTxnData.count.br2, areaTxnData.count.br3] },
                       ].map(row => (
                         <TableRow key={row.metric}>
                           <TableCell className="text-xs font-medium py-1.5">{row.metric}</TableCell>
                           {row.vals.map((v, i) => (
                             <TableCell key={i} className="text-xs text-right font-mono py-1.5">
-                              {row.metric === 'Avg Price' ? (v ? fmtA(v) : '—') :
+                              {row.metric.includes('Price From') ? (v ? fmtA(v) : '—') :
                                 row.metric.includes('PSF') ? (v ? `AED ${fmt(v)}` : '—') :
                                   row.metric === 'Avg Size (sqft)' ? (v ? `${fmt(v)} sqft` : '—') :
                                     (v ? fmt(v) : '—')}
@@ -1328,31 +1346,32 @@ export function DecisionConfidence({ plot, comparisonPlots = [], isFullscreen, o
                 </div>
                 {
                   areaComps.length > 0 && (() => {
-                    const compPsfValues = areaComps
-                      .map((c: any) => (typeof c.psf === 'number' ? c.psf : null))
+                    const compPriceValues = areaComps
+                      .map((c: any) => toNum(c.priceFrom) || (typeof c.psf === 'number' && c.psf > 0 ? c.psf : null))
                       .filter((v): v is number => v != null && v > 0);
 
-                    if (!compPsfValues.length) return null;
+                    if (!compPriceValues.length) return null;
 
-                    const floor = Math.min(...compPsfValues);
-                    const ceiling = Math.max(...compPsfValues);
-                    const avg = Math.round(compPsfValues.reduce((s, v) => s + v, 0) / compPsfValues.length);
+                    const floor = Math.min(...compPriceValues);
+                    const ceiling = Math.max(...compPriceValues);
+                    const avg = Math.round(compPriceValues.reduce((s, v) => s + v, 0) / compPriceValues.length);
+                    const hasPriceFrom = areaComps.some((c: any) => toNum(c.priceFrom));
 
                     return (
                       <div className="mt-3">
-                        <h4 className="text-xs font-bold text-muted-foreground uppercase tracking-wider mb-2">Competitor PSF Range</h4>
+                        <h4 className="text-xs font-bold text-muted-foreground uppercase tracking-wider mb-2">Competitor {hasPriceFrom ? 'Price From' : 'PSF'} Range</h4>
                         <div className="grid grid-cols-3 gap-2">
                           <div className="data-card text-center py-2">
                             <div className="text-[10px] text-muted-foreground">Floor</div>
-                            <div className="text-sm font-bold font-mono text-foreground">AED {fmt(floor)}</div>
+                            <div className="text-sm font-bold font-mono text-foreground">{hasPriceFrom ? fmtA(floor) : `AED ${fmt(floor)}`}</div>
                           </div>
                           <div className="data-card text-center py-2 border-primary/40">
                             <div className="text-[10px] text-muted-foreground">Average</div>
-                            <div className="text-sm font-bold font-mono text-primary">AED {fmt(avg)}</div>
+                            <div className="text-sm font-bold font-mono text-primary">{hasPriceFrom ? fmtA(avg) : `AED ${fmt(avg)}`}</div>
                           </div>
                           <div className="data-card text-center py-2">
                             <div className="text-[10px] text-muted-foreground">Ceiling</div>
-                            <div className="text-sm font-bold font-mono text-foreground">AED {fmt(ceiling)}</div>
+                            <div className="text-sm font-bold font-mono text-foreground">{hasPriceFrom ? fmtA(ceiling) : `AED ${fmt(ceiling)}`}</div>
                           </div>
                         </div>
                       </div>
@@ -1362,31 +1381,39 @@ export function DecisionConfidence({ plot, comparisonPlots = [], isFullscreen, o
               </Section >
 
               {/* Developer & Payment Plan Benchmarks — always render */}
-              <Section title={`Developer & Payment Plan Benchmarks — ${areaName}`} badge={areaCompsWithPlans.length > 0 ? `${areaCompsWithPlans.length} plans` : 'CLFF Default'}>
-                {areaCompsWithPlans.length > 0 ? (
+              <Section title={`Pricing & Payment Plan Benchmarks — ${areaName}`} badge={areaCompsWithPlans.length > 0 ? `${areaCompsWithPlans.length} plans` : 'CLFF Default'}>
+                {areaComps.length > 0 ? (
                   <div className="overflow-x-auto">
                     <Table>
                       <TableHeader>
                         <TableRow>
-                          {['Project', 'Payment Structure', 'Type'].map(h => (
-                            <TableHead key={h} className="text-[10px] text-right first:text-left">{h}</TableHead>
+                          {['Project', 'Svc Chg (AED/sqft)', 'Payment Plan', 'Units / 1,000 sqft', 'Efficiency Ratio', 'Notes'].map(h => (
+                            <TableHead key={h} className="text-[10px] text-right first:text-left whitespace-nowrap">{h}</TableHead>
                           ))}
                         </TableRow>
                       </TableHeader>
                       <TableBody>
-                        {areaCompsWithPlans.map((c: any) => {
-                          const plan = c.payPlan as string;
-                          const isPostHandover = /post/i.test(plan) || /ph/i.test(plan);
-                          const isHeavyBooking = /^[3-9]0/i.test(plan) || /^[4-9]/i.test(plan.split('/')[0]);
+                        {areaComps.map((c: any) => {
+                          const gfa = c.plotSqft && c.plotSqft > 0 ? c.plotSqft : c.bua || 0;
+                          const sellable = gfa * 0.95;
+                          const unitsPerK = gfa > 0 && c.units ? (c.units / (gfa / 1000)).toFixed(2) : '—';
+                          const effRatio = gfa > 0 ? (sellable / gfa).toFixed(2) : '—';
+                          // Auto-generate notes
+                          const notes: string[] = [];
+                          if (c.psf && areaMarketBench.avg && c.psf < areaMarketBench.avg * 0.9) notes.push('Best value entry');
+                          if (c.psf && areaMarketBench.avg && c.psf > areaMarketBench.avg * 1.1) notes.push('Premium pricing');
+                          if (parseFloat(unitsPerK) > 2) notes.push('Highest density');
+                          if (c.svc && c.svc < 14) notes.push('Low svc charge');
+                          if (!notes.length && c.psf) notes.push('Strong yield profile');
+                          const plan = c.payPlan as string || '—';
                           return (
                             <TableRow key={c.name}>
                               <TableCell className="text-xs font-medium py-1.5 whitespace-nowrap">{c.name}</TableCell>
+                              <TableCell className="text-xs text-right font-mono py-1.5">{c.svc ? `AED ${c.svc}` : '—'}</TableCell>
                               <TableCell className="text-xs text-right font-mono py-1.5">{plan}</TableCell>
-                              <TableCell className="text-xs text-right py-1.5">
-                                <Badge variant="outline" className={`text-[9px] ${isPostHandover ? 'border-success/40 text-success' : isHeavyBooking ? 'border-warning/40 text-warning' : 'border-primary/40 text-primary'}`}>
-                                  {isPostHandover ? 'Post-Handover' : isHeavyBooking ? 'Heavy Booking' : 'Standard'}
-                                </Badge>
-                              </TableCell>
+                              <TableCell className="text-xs text-right font-mono py-1.5">{unitsPerK}</TableCell>
+                              <TableCell className="text-xs text-right font-mono py-1.5">{effRatio}</TableCell>
+                              <TableCell className="text-[10px] text-right py-1.5 text-muted-foreground italic">{notes.join(' · ') || '—'}</TableCell>
                             </TableRow>
                           );
                         })}
