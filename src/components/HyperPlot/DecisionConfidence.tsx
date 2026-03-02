@@ -785,16 +785,15 @@ export function DecisionConfidence({ plot, comparisonPlots = [], isFullscreen, o
                     <h4 className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-3">Plot Details</h4>
                      <div className="space-y-2">
                       {[
-                        ['Plot Size', `${fmt(dscInput.area)} sqft`, 'Actual plot area'],
-                        ['Plot Ratio (FAR)', `× ${dscInput.ratio.toFixed(2)}`, 'Floor Area Ratio'],
-                        ['GFA', `${fmt(Math.round(fs.gfa))} sqft`, 'Plot Size × FAR'],
-                        ['BUA', `${fmt(Math.round(fs.bua))} sqft`, `GFA ÷ ${(effectiveOverrides.buaMultiplier || 1.45).toFixed(2)}× multiplier`],
-                        ['Sellable Area', `${fmt(Math.round(fs.sellableArea))} sqft`, `95% × GFA`],
-                        ['Approved Height', dscInput.height, ''],
-                        ['Est. Floors', `${fs.residentialFloors}`, ''],
-                      ].map(([param, val, hint]) => (
-                        <div key={param as string} className="flex justify-between py-1.5 border-b border-border/30 last:border-0">
-                          <span className="text-sm text-muted-foreground">{param}{hint ? <span className="text-[10px] text-muted-foreground/60 ml-1">({hint})</span> : null}</span>
+                        ['Plot Area', `${fmt(dscInput.area)} sqft`],
+                        ['Plot Ratio', `× ${dscInput.ratio.toFixed(2)}`],
+                        ['GFA', `${fmt(Math.round(fs.gfa))} sqft`],
+                        ['BUA', `${fmt(Math.round(fs.bua))} sqft`],
+                        ['Approved Height', dscInput.height],
+                        ['Est. Floors', `${fs.residentialFloors}`],
+                      ].map(([param, val]) => (
+                        <div key={param} className="flex justify-between py-1.5 border-b border-border/30 last:border-0">
+                          <span className="text-sm text-muted-foreground">{param}</span>
                           <span className="text-sm font-semibold font-mono text-foreground">{val}</span>
                         </div>
                       ))}
