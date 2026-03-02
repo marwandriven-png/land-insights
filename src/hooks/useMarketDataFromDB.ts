@@ -59,9 +59,9 @@ export function useDBComparables(areaCode: string | null) {
             developer: row.developer,
             area: row.area_name || '',
             areaCode: row.area_code || '',
-            plotSqft: null, // Will be set from project-level data
+            plotSqft: null,
             units: row.total_units,
-            floors: null,
+            floors: row.completion_quarter ? null : null, // Not in view currently
             handover: row.completion_quarter,
             psf: psfVals.length ? Math.round(psfVals.reduce((a, b) => a + b, 0) / psfVals.length) : null,
             studioP: 0, br1P: 0, br2P: 0, br3P: 0,
