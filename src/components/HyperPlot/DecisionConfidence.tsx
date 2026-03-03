@@ -8,6 +8,7 @@ import { calcDSCFeasibility, DSCPlotInput, DSCFeasibilityResult, MixKey, MIX_TEM
 import { matchCLFFArea, findAnchorArea, normalizeAreaCode, CLFF_AREAS, CLFF_MARKET_DATA, getCLFFOverrides, type CLFFAreaProfile, type CLFFMarketData } from '@/lib/clffAreaDefaults';
 import { getAreaScopedMarketData, resolvePlotAreaCode, matchesAreaCode, extractAreaCodes } from '@/lib/areaResearch';
 import { findReportForLocation, AreaReport } from '@/data/areaReports';
+import { getAreaData, getCompetitorsAsComparables, getAreaSalesData, getAreaRentalData, type AreaMarketData } from '@/data/crossAreaMasterData';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Table, TableHeader, TableBody, TableRow, TableHead, TableCell, TableFooter } from '@/components/ui/table';
 import { Badge } from '@/components/ui/badge';
@@ -407,25 +408,56 @@ export function DecisionConfidence({ plot, comparisonPlots = [], isFullscreen, o
   const ZERO_UNIT = { studio: 0, br1: 0, br2: 0, br3: 0 };
   const ZERO_COUNT = { studio: 0, br1: 0, br2: 0, br3: 0, total: 0 };
 
+  // ─── Master Data (crossAreaMasterData.ts) — single source of truth for benchmarks ───
+  const masterAreaData = useMemo(() => {
+    if (!scopedAreaCode) return null;
+    return getAreaData(scopedAreaCode);
+  }, [scopedAreaCode]);
+
+  const masterComps = useMemo(() => {
+    if (!scopedAreaCode) return [];
+    const comps = getCompetitorsAsComparables(scopedAreaCode);
+    return comps.map(normalizeComparable);
+  }, [scopedAreaCode]);
+
+  const masterCompsWithPlans = useMemo(
+    () => masterComps.filter((c: any) => typeof c.payPlan === 'string' && c.payPlan.trim().length > 0),
+    [masterComps]
+  );
+
+  const masterTxnData = useMemo(() => {
+    if (!scopedAreaCode) return { avgPsf: ZERO_UNIT, medianPsf: ZERO_UNIT, avgSize: ZERO_UNIT, avgPrice: ZERO_UNIT, count: ZERO_COUNT };
+    const sales = getAreaSalesData(scopedAreaCode);
+    if (!sales) return { avgPsf: ZERO_UNIT, medianPsf: ZERO_UNIT, avgSize: ZERO_UNIT, avgPrice: ZERO_UNIT, count: ZERO_COUNT };
+    return sales;
+  }, [scopedAreaCode]);
+
+  const masterMarketBench = useMemo(() => {
+    if (!masterAreaData) return { floor: 0, avg: 0, ceiling: 0 };
+    const sales = masterAreaData.salesByUnit;
+    const psfs = Object.values(sales).map(s => s?.avgPSF).filter((v): v is number => !!v && v > 0);
+    if (!psfs.length) return { floor: 0, avg: 0, ceiling: 0 };
+    return {
+      floor: Math.min(...psfs),
+      avg: Math.round(psfs.reduce((a, b) => a + b, 0) / psfs.length),
+      ceiling: Math.max(...psfs),
+    };
+  }, [masterAreaData]);
+
+  // Legacy areaComps kept for feasibility tab backward compat only
   const areaComps = useMemo(() => {
     const comps = (scopedAiData?.comparables || []) as any[];
-
-    // Normalize shape first so all benchmark sections can render consistently
     const normalized = comps.map(normalizeComparable);
-
-    // STRICT AREA FILTERING: include only same-area projects and reject multi-area scopes
     return normalized.filter((c) => {
       const name = c.name?.toString() || '';
       if (!name.trim()) return false;
       if (/transaction|txn/i.test(name) || /^[0-9\-_]+$/.test(name)) return false;
-
       if (scopedAreaCode) {
         const scope = [c.area, c.location, c.project].filter(Boolean).join(' ');
         const scopeCodes = extractAreaCodes(scope);
         if (scopeCodes.length > 1) return false;
         if (scopeCodes.length === 1 && scopeCodes[0] !== scopedAreaCode) return false;
       }
-
       return true;
     });
   }, [scopedAiData, scopedAreaCode]);
@@ -443,12 +475,10 @@ export function DecisionConfidence({ plot, comparisonPlots = [], isFullscreen, o
       br2: fallbackMarket?.twoBrPsfAvg || 0,
       br3: fallbackMarket?.threeBrPsfAvg || 0,
     };
-
     const safeObj = (val: any, fallback: Record<string, number>) => {
       if (val && typeof val === 'object') return { ...fallback, ...val };
       return fallback;
     };
-
     if (scopedAiData) {
       return {
         avgPsf: safeObj(scopedAiData.unitPsf, fallbackPsf),
@@ -458,8 +488,6 @@ export function DecisionConfidence({ plot, comparisonPlots = [], isFullscreen, o
         count: safeObj(scopedAiData.txnCount, { ...ZERO_COUNT, total: fallbackMarket?.salesTransactions || 0 }),
       };
     }
-
-    // CLFF or anchor fallback
     if (fallbackMarket) {
       return {
         avgPsf: fallbackPsf,
@@ -469,7 +497,6 @@ export function DecisionConfidence({ plot, comparisonPlots = [], isFullscreen, o
         count: { studio: 0, br1: 0, br2: 0, br3: 0, total: fallbackMarket.salesTransactions },
       };
     }
-
     return { avgPsf: ZERO_UNIT, medianPsf: ZERO_UNIT, avgSize: ZERO_UNIT, avgPrice: ZERO_UNIT, count: ZERO_COUNT };
   }, [scopedAiData, effectiveClff]);
 
@@ -1150,7 +1177,7 @@ export function DecisionConfidence({ plot, comparisonPlots = [], isFullscreen, o
 
           {activeTab === 'comparison' && (
             <>
-              <Section title={`${areaName} Competitive Project Analysis`} badge={`${areaComps.length} projects`}>
+              <Section title={`${areaName} Competitive Project Analysis`} badge={`${masterComps.length} projects · Master Data`}>
                 <div className="overflow-x-auto">
                   <Table>
                     <TableHeader>
@@ -1161,7 +1188,7 @@ export function DecisionConfidence({ plot, comparisonPlots = [], isFullscreen, o
                       </TableRow>
                     </TableHeader>
                     <TableBody>
-                      {areaComps.map((c: any) => {
+                      {masterComps.map((c: any) => {
                         const gfa = c.plotSqft && c.plotSqft > 0 ? c.plotSqft : c.bua || 0;
                         const sellable = Math.round(gfa * 0.95);
                         return (
@@ -1194,7 +1221,7 @@ export function DecisionConfidence({ plot, comparisonPlots = [], isFullscreen, o
                       </TableRow>
                     </TableHeader>
                     <TableBody>
-                      {areaComps.map((c: any) => {
+                      {masterComps.map((c: any) => {
                         const gfa = c.plotSqft && c.plotSqft > 0 ? c.plotSqft : c.bua || 0;
                         const sellable = gfa * 0.95;
                         const unitsPerK = gfa > 0 && c.units ? (c.units / (gfa / 1000)).toFixed(2) : '—';
@@ -1213,20 +1240,20 @@ export function DecisionConfidence({ plot, comparisonPlots = [], isFullscreen, o
                   </Table>
                 </div>
 
-                {areaComps.length > 0 ? (
+                {masterComps.length > 0 ? (
                   <div className="mt-3 p-2 rounded-lg bg-muted/30 border border-border/30 text-[10px] text-muted-foreground">
-                    <strong className="text-foreground">Market Intelligence:</strong> {areaName} sales avg AED {fmt(areaMarketBench.avg)}/sqft{areaTxnData.count.total ? ` (${areaTxnData.count.total} txns)` : ''} · Market range AED {fmt(areaMarketBench.floor)}–{fmt(areaMarketBench.ceiling)}/sqft
+                    <strong className="text-foreground">Market Intelligence:</strong> {areaName} sales avg AED {fmt(masterMarketBench.avg)}/sqft{masterTxnData.count.total ? ` (${masterTxnData.count.total} txns)` : ''} · Market range AED {fmt(masterMarketBench.floor)}–{fmt(masterMarketBench.ceiling)}/sqft
+                    <Badge variant="outline" className="text-[9px] ml-2 border-primary/30 text-primary">Cross-Area Master v2</Badge>
                   </div>
                 ) : (
                   <div className="mt-3 p-4 rounded-lg bg-warning/5 border border-warning/20 text-xs text-center text-muted-foreground italic">
-                    ⚠️ No local benchmarks found for "{areaName}".
-                    Please upload area research files to populate competitive analysis.
+                    ⚠️ No benchmarks in master dataset for "{areaName}".
                   </div>
                 )}
               </Section>
 
-              {/* Competitor Unit Mix Breakdown — always render */}
-              <Section title={`Competitor Unit Mix Breakdown — ${areaName}`} badge={areaComps.length > 0 ? `${areaComps.length} projects` : 'CLFF Recommended'}>
+              {/* Competitor Unit Mix Breakdown */}
+              <Section title={`Competitor Unit Mix Breakdown — ${areaName}`} badge={masterComps.length > 0 ? `${masterComps.length} projects` : 'CLFF Recommended'}>
                 <div className="overflow-x-auto">
                   <Table>
                     <TableHeader>
@@ -1237,7 +1264,7 @@ export function DecisionConfidence({ plot, comparisonPlots = [], isFullscreen, o
                       </TableRow>
                     </TableHeader>
                     <TableBody>
-                      {areaComps.length > 0 ? areaComps.map((c: any) => {
+                      {masterComps.length > 0 ? masterComps.map((c: any) => {
                         const mixes = [
                           { type: 'Studio', pct: c.studioP || 0 },
                           { type: '1BR', pct: c.br1P || 0 },
@@ -1246,7 +1273,6 @@ export function DecisionConfidence({ plot, comparisonPlots = [], isFullscreen, o
                         ];
                         const total = mixes.reduce((s, m) => s + m.pct, 0);
                         const dominant = mixes.reduce((a, b) => a.pct > b.pct ? a : b);
-                        // Derive avg unit size from GFA and units
                         const gfa = c.plotSqft && c.plotSqft > 0 ? c.plotSqft : c.bua || 0;
                         const sellable = gfa * 0.95;
                         const avgSize = c.units && c.units > 0 ? Math.round(sellable / c.units) : 0;
@@ -1277,13 +1303,13 @@ export function DecisionConfidence({ plot, comparisonPlots = [], isFullscreen, o
                     </TableBody>
                     <TableFooter>
                       {(() => {
-                        if (areaComps.length > 0) {
-                          const count = areaComps.length;
-                          const avgS = Math.round(areaComps.reduce((a: number, c: any) => a + (c.studioP || 0), 0) / count);
-                          const avg1 = Math.round(areaComps.reduce((a: number, c: any) => a + (c.br1P || 0), 0) / count);
-                          const avg2 = Math.round(areaComps.reduce((a: number, c: any) => a + (c.br2P || 0), 0) / count);
-                          const avg3 = Math.round(areaComps.reduce((a: number, c: any) => a + (c.br3P || 0), 0) / count);
-                          const avgUnits = Math.round(areaComps.reduce((a: number, c: any) => a + (c.units || 0), 0) / count);
+                        if (masterComps.length > 0) {
+                          const count = masterComps.length;
+                          const avgS = Math.round(masterComps.reduce((a: number, c: any) => a + (c.studioP || 0), 0) / count);
+                          const avg1 = Math.round(masterComps.reduce((a: number, c: any) => a + (c.br1P || 0), 0) / count);
+                          const avg2 = Math.round(masterComps.reduce((a: number, c: any) => a + (c.br2P || 0), 0) / count);
+                          const avg3 = Math.round(masterComps.reduce((a: number, c: any) => a + (c.br3P || 0), 0) / count);
+                          const avgUnits = Math.round(masterComps.reduce((a: number, c: any) => a + (c.units || 0), 0) / count);
                           return (
                             <TableRow className="bg-primary/10">
                               <TableCell className="text-xs font-bold py-2 text-primary">Market Average</TableCell>
@@ -1299,7 +1325,7 @@ export function DecisionConfidence({ plot, comparisonPlots = [], isFullscreen, o
                         return (
                           <TableRow className="bg-muted/30">
                             <TableCell className="text-xs font-bold py-2 text-muted-foreground" colSpan={8}>
-                              Upload area research to populate competitive unit mix data
+                              No master data available for this area
                             </TableCell>
                           </TableRow>
                         );
@@ -1310,7 +1336,7 @@ export function DecisionConfidence({ plot, comparisonPlots = [], isFullscreen, o
               </Section>
 
               {/* Pricing Benchmarks */}
-              <Section title={`Pricing Benchmarks — ${areaName}`}>
+              <Section title={`Pricing Benchmarks — ${areaName}`} badge="Cross-Area Master v2">
                 <div className="overflow-x-auto">
                   <Table>
                     <TableHeader>
@@ -1322,11 +1348,11 @@ export function DecisionConfidence({ plot, comparisonPlots = [], isFullscreen, o
                     </TableHeader>
                     <TableBody>
                       {[
-                        { metric: 'Avg Price From (AED)', vals: [areaTxnData.avgPrice.studio, areaTxnData.avgPrice.br1, areaTxnData.avgPrice.br2, areaTxnData.avgPrice.br3] },
-                        { metric: 'Avg PSF (Sellable)', vals: [areaTxnData.avgPsf.studio, areaTxnData.avgPsf.br1, areaTxnData.avgPsf.br2, areaTxnData.avgPsf.br3] },
-                        { metric: 'Median PSF', vals: [areaTxnData.medianPsf.studio, areaTxnData.medianPsf.br1, areaTxnData.medianPsf.br2, areaTxnData.medianPsf.br3] },
-                        { metric: 'Avg Size (sqft)', vals: [areaTxnData.avgSize.studio, areaTxnData.avgSize.br1, areaTxnData.avgSize.br2, areaTxnData.avgSize.br3] },
-                        { metric: 'Transactions', vals: [areaTxnData.count.studio, areaTxnData.count.br1, areaTxnData.count.br2, areaTxnData.count.br3] },
+                        { metric: 'Avg Price From (AED)', vals: [masterTxnData.avgPrice.studio, masterTxnData.avgPrice.br1, masterTxnData.avgPrice.br2, masterTxnData.avgPrice.br3] },
+                        { metric: 'Avg PSF (Sellable)', vals: [masterTxnData.avgPsf.studio, masterTxnData.avgPsf.br1, masterTxnData.avgPsf.br2, masterTxnData.avgPsf.br3] },
+                        { metric: 'Median PSF', vals: [masterTxnData.medianPsf.studio, masterTxnData.medianPsf.br1, masterTxnData.medianPsf.br2, masterTxnData.medianPsf.br3] },
+                        { metric: 'Avg Size (sqft)', vals: [masterTxnData.avgSize.studio, masterTxnData.avgSize.br1, masterTxnData.avgSize.br2, masterTxnData.avgSize.br3] },
+                        { metric: 'Transactions', vals: [masterTxnData.count.studio, masterTxnData.count.br1, masterTxnData.count.br2, masterTxnData.count.br3] },
                       ].map(row => (
                         <TableRow key={row.metric}>
                           <TableCell className="text-xs font-medium py-1.5">{row.metric}</TableCell>
@@ -1344,8 +1370,8 @@ export function DecisionConfidence({ plot, comparisonPlots = [], isFullscreen, o
                   </Table>
                 </div>
                 {
-                  areaComps.length > 0 && (() => {
-                    const compPriceValues = areaComps
+                  masterComps.length > 0 && (() => {
+                    const compPriceValues = masterComps
                       .map((c: any) => toNum(c.priceFrom) || (typeof c.psf === 'number' && c.psf > 0 ? c.psf : null))
                       .filter((v): v is number => v != null && v > 0);
 
@@ -1354,7 +1380,7 @@ export function DecisionConfidence({ plot, comparisonPlots = [], isFullscreen, o
                     const floor = Math.min(...compPriceValues);
                     const ceiling = Math.max(...compPriceValues);
                     const avg = Math.round(compPriceValues.reduce((s, v) => s + v, 0) / compPriceValues.length);
-                    const hasPriceFrom = areaComps.some((c: any) => toNum(c.priceFrom));
+                    const hasPriceFrom = masterComps.some((c: any) => toNum(c.priceFrom));
 
                     return (
                       <div className="mt-3">
@@ -1379,9 +1405,9 @@ export function DecisionConfidence({ plot, comparisonPlots = [], isFullscreen, o
                 }
               </Section >
 
-              {/* Developer & Payment Plan Benchmarks — always render */}
-              <Section title={`Pricing & Payment Plan Benchmarks — ${areaName}`} badge={areaCompsWithPlans.length > 0 ? `${areaCompsWithPlans.length} plans` : 'CLFF Default'}>
-                {areaComps.length > 0 ? (
+              {/* Pricing & Payment Plan Benchmarks */}
+              <Section title={`Pricing & Payment Plan Benchmarks — ${areaName}`} badge={masterCompsWithPlans.length > 0 ? `${masterCompsWithPlans.length} plans` : 'CLFF Default'}>
+                {masterComps.length > 0 ? (
                   <div className="overflow-x-auto">
                     <Table>
                       <TableHeader>
@@ -1392,18 +1418,17 @@ export function DecisionConfidence({ plot, comparisonPlots = [], isFullscreen, o
                         </TableRow>
                       </TableHeader>
                       <TableBody>
-                        {areaComps.map((c: any) => {
+                        {masterComps.map((c: any) => {
                           const gfa = c.plotSqft && c.plotSqft > 0 ? c.plotSqft : c.bua || 0;
                           const sellable = gfa * 0.95;
                           const unitsPerK = gfa > 0 && c.units ? (c.units / (gfa / 1000)).toFixed(2) : '—';
                           const effRatio = gfa > 0 ? (sellable / gfa).toFixed(2) : '—';
-                          // Auto-generate notes
                           const notes: string[] = [];
-                          if (c.psf && areaMarketBench.avg && c.psf < areaMarketBench.avg * 0.9) notes.push('Best value entry');
-                          if (c.psf && areaMarketBench.avg && c.psf > areaMarketBench.avg * 1.1) notes.push('Premium pricing');
+                          if (c.priceFrom && masterMarketBench.avg && c.priceFrom < masterMarketBench.avg * 0.9) notes.push('Best value entry');
+                          if (c.priceFrom && masterMarketBench.avg && c.priceFrom > masterMarketBench.avg * 1.1) notes.push('Premium pricing');
                           if (parseFloat(unitsPerK) > 2) notes.push('Highest density');
                           if (c.svc && c.svc < 14) notes.push('Low svc charge');
-                          if (!notes.length && c.psf) notes.push('Strong yield profile');
+                          if (!notes.length) notes.push('Strong yield profile');
                           const plan = c.payPlan as string || '—';
                           return (
                             <TableRow key={c.name}>
@@ -1432,14 +1457,11 @@ export function DecisionConfidence({ plot, comparisonPlots = [], isFullscreen, o
                         </div>
                       ))}
                     </div>
-                    <div className="text-[10px] text-muted-foreground mt-3 p-2 rounded bg-muted/30 border border-border/30">
-                      💡 Upload area research to see project-specific payment plan benchmarks.
-                    </div>
                   </div>
                 )}
               </Section>
 
-              {/* Pricing & Payment Benchmarks — always render */}
+              {/* Pricing & Payment Benchmarks Visual */}
               <Section title="Pricing & Payment Benchmarks">
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   <div className="data-card">
@@ -1447,19 +1469,19 @@ export function DecisionConfidence({ plot, comparisonPlots = [], isFullscreen, o
                     <div className="flex gap-2 flex-wrap mb-2">
                       <div className="flex-1 bg-muted/20 border border-border/30 rounded-lg p-3 text-center">
                         <div className="text-[10px] text-muted-foreground uppercase mb-1">Market Floor</div>
-                        <div className="text-lg font-bold font-mono">AED {fmt(areaMarketBench.floor)}</div>
+                        <div className="text-lg font-bold font-mono">AED {fmt(masterMarketBench.floor)}</div>
                       </div>
                       <div className="flex-1 bg-primary/10 border border-primary/30 rounded-lg p-3 text-center">
                         <div className="text-[10px] text-primary uppercase mb-1 font-bold">Market Average</div>
-                        <div className="text-lg font-bold font-mono text-primary">AED {fmt(areaMarketBench.avg)}</div>
+                        <div className="text-lg font-bold font-mono text-primary">AED {fmt(masterMarketBench.avg)}</div>
                       </div>
                       <div className="flex-1 bg-muted/20 border border-border/30 rounded-lg p-3 text-center">
                         <div className="text-[10px] text-muted-foreground uppercase mb-1">Market Ceiling</div>
-                        <div className="text-lg font-bold font-mono">AED {fmt(areaMarketBench.ceiling)}</div>
+                        <div className="text-lg font-bold font-mono">AED {fmt(masterMarketBench.ceiling)}</div>
                       </div>
                     </div>
                     <div className="text-[10px] text-muted-foreground p-2 rounded bg-muted/30 border border-border/30 mt-2">
-                      💡 Based on {dataSource === 'AI Upload' ? 'AI-parsed area transactions' : 'CLFF v1 area-specific market data'}.
+                      💡 Sourced from Cross-Area Master Market Comparison Report (Nov 2025 – Feb 2026).
                     </div>
                   </div>
 
@@ -1467,7 +1489,7 @@ export function DecisionConfidence({ plot, comparisonPlots = [], isFullscreen, o
                     <h4 className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-3">Payment Plan Distribution</h4>
                     <div className="space-y-2">
                       {(() => {
-                        const plans = areaCompsWithPlans
+                        const plans = masterCompsWithPlans
                           .map((c: any) => (typeof c.payPlan === 'string' ? c.payPlan.trim() : ''))
                           .filter((p: string) => p.length > 0);
 
