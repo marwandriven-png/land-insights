@@ -1016,38 +1016,55 @@ export function DecisionConfidence({ plot, comparisonPlots = [], isFullscreen, o
                 </div>
               </Section>
 
-              {/* Sales Transactions Reference */}
-              <Section title={`${areaName} Sales Transactions (Area-Only)`} badge={areaTxnData.count.total ? `${areaTxnData.count.total} txns` : scopedAiData?.isStrictlyScoped ? 'Scoped' : 'No area data'}>
+              {/* Sales Transactions Reference — uses masterTxnData from crossAreaMasterData.ts */}
+              <Section title={`${areaName} Sales Transactions (Area-Only)`} badge={masterTxnData.count.total ? `${masterTxnData.count.total} txns` : 'No area data'}>
                 <div className="overflow-x-auto">
                   <Table>
                     <TableHeader>
                       <TableRow>
-                        {['Unit Type', 'Transactions', 'Avg PSF', 'Median PSF', 'Avg Size', 'Avg Price'].map(h => (
+                        {['Unit Type', 'Transactions', '% Share', 'Avg PSF', 'Median PSF', 'Avg Size', 'Avg Price', 'Median Price'].map(h => (
                           <TableHead key={h} className="text-[10px] text-right first:text-left">{h}</TableHead>
                         ))}
                       </TableRow>
                     </TableHeader>
                     <TableBody>
                       {[
-                        { type: 'Studio', txn: areaTxnData.count.studio, avgPsf: areaTxnData.avgPsf.studio, medPsf: areaTxnData.medianPsf.studio, sz: areaTxnData.avgSize.studio, pr: areaTxnData.avgPrice.studio },
-                        { type: '1 Bedroom', txn: areaTxnData.count.br1, avgPsf: areaTxnData.avgPsf.br1, medPsf: areaTxnData.medianPsf.br1, sz: areaTxnData.avgSize.br1, pr: areaTxnData.avgPrice.br1 },
-                        { type: '2 Bedroom', txn: areaTxnData.count.br2, avgPsf: areaTxnData.avgPsf.br2, medPsf: areaTxnData.medianPsf.br2, sz: areaTxnData.avgSize.br2, pr: areaTxnData.avgPrice.br2 },
-                        { type: '3 Bedroom', txn: areaTxnData.count.br3, avgPsf: areaTxnData.avgPsf.br3, medPsf: areaTxnData.medianPsf.br3, sz: areaTxnData.avgSize.br3, pr: areaTxnData.avgPrice.br3 },
-                      ].map(r => (
+                        { type: 'Studio', txn: masterTxnData.count.studio, share: masterTxnData.sharePct.studio, avgPsf: masterTxnData.avgPsf.studio, medPsf: masterTxnData.medianPsf.studio, sz: masterTxnData.avgSize.studio, pr: masterTxnData.avgPrice.studio, medPr: masterTxnData.medianPrice.studio, insuff: masterTxnData.insufficient.studio, noData: masterTxnData.noData.studio },
+                        { type: '1 Bedroom', txn: masterTxnData.count.br1, share: masterTxnData.sharePct.br1, avgPsf: masterTxnData.avgPsf.br1, medPsf: masterTxnData.medianPsf.br1, sz: masterTxnData.avgSize.br1, pr: masterTxnData.avgPrice.br1, medPr: masterTxnData.medianPrice.br1, insuff: masterTxnData.insufficient.br1, noData: masterTxnData.noData.br1 },
+                        { type: '2 Bedroom', txn: masterTxnData.count.br2, share: masterTxnData.sharePct.br2, avgPsf: masterTxnData.avgPsf.br2, medPsf: masterTxnData.medianPsf.br2, sz: masterTxnData.avgSize.br2, pr: masterTxnData.avgPrice.br2, medPr: masterTxnData.medianPrice.br2, insuff: masterTxnData.insufficient.br2, noData: masterTxnData.noData.br2 },
+                        { type: '3 Bedroom', txn: masterTxnData.count.br3, share: masterTxnData.sharePct.br3, avgPsf: masterTxnData.avgPsf.br3, medPsf: masterTxnData.medianPsf.br3, sz: masterTxnData.avgSize.br3, pr: masterTxnData.avgPrice.br3, medPr: masterTxnData.medianPrice.br3, insuff: masterTxnData.insufficient.br3, noData: masterTxnData.noData.br3 },
+                      ].filter(r => !r.noData).map(r => (
                         <TableRow key={r.type}>
                           <TableCell className="text-xs font-medium py-1.5">{r.type}</TableCell>
                           <TableCell className="text-xs text-right font-mono py-1.5">{r.txn ? fmt(r.txn) : '—'}</TableCell>
+                          <TableCell className="text-xs text-right font-mono py-1.5 font-bold">{r.share ? `${r.share.toFixed(1)}%` : '—'}</TableCell>
                           <TableCell className="text-xs text-right font-mono font-bold py-1.5">AED {fmt(r.avgPsf)}</TableCell>
                           <TableCell className="text-xs text-right font-mono py-1.5">{r.medPsf ? `AED ${fmt(r.medPsf)}` : '—'}</TableCell>
-                          <TableCell className="text-xs text-right py-1.5">{fmt(r.sz)} sqft</TableCell>
-                          <TableCell className="text-xs text-right font-mono py-1.5">{r.pr ? fmtA(r.pr) : '—'}</TableCell>
+                          <TableCell className="text-xs text-right py-1.5">{r.sz ? `${fmt(r.sz)} sqft` : '—'}</TableCell>
+                          <TableCell className="text-xs text-right font-mono py-1.5">{r.pr ? fmtA(r.pr) : '—'}{r.insuff ? ' ⚠' : ''}</TableCell>
+                          <TableCell className="text-xs text-right font-mono py-1.5">{r.medPr ? fmtA(r.medPr) : '—'}</TableCell>
                         </TableRow>
                       ))}
                     </TableBody>
+                    {masterTxnData.count.total > 0 && (
+                      <TableFooter>
+                        <TableRow>
+                          <TableCell className="text-xs font-bold py-1.5">TOTAL</TableCell>
+                          <TableCell className="text-xs text-right font-bold py-1.5">{fmt(masterTxnData.count.total)}</TableCell>
+                          <TableCell className="text-xs text-right font-bold py-1.5">100%</TableCell>
+                          <TableCell className="text-xs text-right py-1.5" colSpan={5}>—</TableCell>
+                        </TableRow>
+                      </TableFooter>
+                    )}
                   </Table>
                 </div>
+                {Object.values(masterTxnData.insufficient).some(v => v) && (
+                  <div className="mt-1.5 text-[10px] text-warning p-1.5 rounded bg-warning/10 border border-warning/20">
+                    ⚠ Units marked with ⚠ have insufficient transactions (&lt;10) for reliable median calculation.
+                  </div>
+                )}
                 <div className="mt-2 text-[10px] text-muted-foreground p-2 rounded-lg bg-muted/30 border border-border/30">
-                  💡 GDV is calculated using average selling prices from {areaName} {areaTxnData.count.total ? `${areaTxnData.count.total} real` : ''} transactions per unit type, not a flat benchmark PSF.
+                  💡 GDV is calculated using average selling PSF from {areaName} market transactions × standard unit sizes. Price = Size × Avg PSF.
                 </div>
               </Section>
 
