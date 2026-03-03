@@ -5,7 +5,7 @@ import { Checkbox } from '@/components/ui/checkbox';
 import { PlotData, AffectionPlanData, gisService } from '@/services/DDAGISService';
 import { FeasibilityParams, DEFAULT_FEASIBILITY_PARAMS } from './FeasibilityCalculator';
 import { calcDSCFeasibility, DSCPlotInput, DSCFeasibilityResult, MixKey, MIX_TEMPLATES, UNIT_SIZES, RENT_PSF_YR, fmt, fmtM, fmtA, pct } from '@/lib/dscFeasibility';
-import { matchCLFFArea, findAnchorArea, normalizeAreaCode, CLFF_AREAS, CLFF_MARKET_DATA, getCLFFOverrides, type CLFFAreaProfile, type CLFFMarketData } from '@/lib/clffAreaDefaults';
+import { matchCLFFArea, findAnchorArea, normalizeAreaCode, CLFF_AREAS, CLFF_MARKET_DATA, getCLFFOverrides, getCLFFOverridesWithMasterData, type CLFFAreaProfile, type CLFFMarketData } from '@/lib/clffAreaDefaults';
 import { getAreaScopedMarketData, resolvePlotAreaCode, matchesAreaCode, extractAreaCodes } from '@/lib/areaResearch';
 import { findReportForLocation, AreaReport } from '@/data/areaReports';
 import { getAreaData, getCompetitorsAsComparables, getAreaSalesData, getAreaRentalData, generateAreaInsights, evaluateTemplateViability, type AreaMarketData } from '@/data/crossAreaMasterData';
@@ -388,6 +388,12 @@ export function DecisionConfidence({ plot, comparisonPlots = [], isFullscreen, o
     return getAreaScopedMarketData(aiData as any, scopedAreaCode);
   }, [areaReport, scopedAreaCode]);
 
+  // ─── Master Data (crossAreaMasterData.ts) — single source of truth for benchmarks ───
+  const masterAreaData = useMemo(() => {
+    if (!scopedAreaCode) return null;
+    return getAreaData(scopedAreaCode);
+  }, [scopedAreaCode]);
+
   // Extract area-specific market data: AI upload > CLFF > Anchor > empty
   // CRITICAL: User overrides (effectiveOverrides) are applied AFTER this, so they always win
   const areaMarketOverrides = useMemo(() => {
@@ -400,19 +406,20 @@ export function DecisionConfidence({ plot, comparisonPlots = [], isFullscreen, o
       if ((areaReport as any)?.aiMarketData?.landCostPsf) result.landCostPsf = (areaReport as any).aiMarketData.landCostPsf;
       if (Object.keys(result).length > 0) return result;
     }
-    // Fall back to CLFF or anchor area defaults
+    // Fall back to CLFF with master data enrichment for sizes and rents
+    if (effectiveClff && masterAreaData) {
+      return getCLFFOverridesWithMasterData(
+        effectiveClff.area.code,
+        masterAreaData.salesByUnit as any,
+        masterAreaData.rentalByUnit as any
+      );
+    }
     if (effectiveClff) return getCLFFOverrides(effectiveClff.area.code);
     return {};
-  }, [scopedAiData, areaReport, effectiveClff]);
+  }, [scopedAiData, areaReport, effectiveClff, masterAreaData]);
 
   const ZERO_UNIT = { studio: 0, br1: 0, br2: 0, br3: 0 };
   const ZERO_COUNT = { studio: 0, br1: 0, br2: 0, br3: 0, total: 0 };
-
-  // ─── Master Data (crossAreaMasterData.ts) — single source of truth for benchmarks ───
-  const masterAreaData = useMemo(() => {
-    if (!scopedAreaCode) return null;
-    return getAreaData(scopedAreaCode);
-  }, [scopedAreaCode]);
 
   const masterComps = useMemo(() => {
     if (!scopedAreaCode) return [];
@@ -968,24 +975,28 @@ export function DecisionConfidence({ plot, comparisonPlots = [], isFullscreen, o
                     </TableHeader>
                     <TableBody>
                       {[
-                        { type: 'Studio', u: fs.units.studio, sz: (areaTxnData.avgSize as any).studio || UNIT_SIZES.studio, pr: fs.prices.studio, rent: (areaMarketOverrides as any).unitRents?.studio || RENT_PSF_YR.studio, txnPsf: (areaTxnData.avgPsf as any).studio || 0 },
-                        { type: '1 Bedroom', u: fs.units.br1, sz: (areaTxnData.avgSize as any).br1 || UNIT_SIZES.br1, pr: fs.prices.br1, rent: (areaMarketOverrides as any).unitRents?.br1 || RENT_PSF_YR.br1, txnPsf: (areaTxnData.avgPsf as any).br1 || 0 },
-                        { type: '2 Bedroom', u: fs.units.br2, sz: (areaTxnData.avgSize as any).br2 || UNIT_SIZES.br2, pr: fs.prices.br2, rent: (areaMarketOverrides as any).unitRents?.br2 || RENT_PSF_YR.br2, txnPsf: (areaTxnData.avgPsf as any).br2 || 0 },
-                        { type: '3 Bedroom', u: fs.units.br3, sz: (areaTxnData.avgSize as any).br3 || UNIT_SIZES.br3, pr: fs.prices.br3, rent: (areaMarketOverrides as any).unitRents?.br3 || RENT_PSF_YR.br3, txnPsf: (areaTxnData.avgPsf as any).br3 || 0 },
-                      ].map(r => (
-                        <TableRow key={r.type}>
-                          <TableCell className="text-sm font-medium py-2">{r.type}</TableCell>
-                          <TableCell className="text-sm text-right font-mono py-2">{fmt(r.u)}</TableCell>
-                          <TableCell className="text-sm text-right py-2">{pct(r.u / fs.units.total)}</TableCell>
-                          <TableCell className="text-sm text-right py-2">{fmt(r.sz)}</TableCell>
-                          <TableCell className="text-sm text-right py-2">{fmt(r.u * r.sz)}</TableCell>
-                          <TableCell className="text-sm text-right py-2">{pct((r.u * r.sz) / fs.sellableArea)}</TableCell>
-                          <TableCell className="text-sm text-right font-mono py-2">AED {fmt(r.txnPsf)}</TableCell>
-                          <TableCell className="text-sm text-right font-mono py-2">{fmtA(r.pr)}</TableCell>
-                          <TableCell className="text-sm text-right py-2">AED {r.rent}</TableCell>
-                          <TableCell className="text-sm text-right py-2">{pct((r.sz * r.rent) / r.pr)}</TableCell>
-                        </TableRow>
-                      ))}
+                        { type: 'Studio', u: fs.units.studio, sz: (areaMarketOverrides as any).unitSizes?.studio || (areaTxnData.avgSize as any).studio || UNIT_SIZES.studio, pr: fs.prices.studio, rent: (areaMarketOverrides as any).unitRents?.studio || RENT_PSF_YR.studio },
+                        { type: '1 Bedroom', u: fs.units.br1, sz: (areaMarketOverrides as any).unitSizes?.br1 || (areaTxnData.avgSize as any).br1 || UNIT_SIZES.br1, pr: fs.prices.br1, rent: (areaMarketOverrides as any).unitRents?.br1 || RENT_PSF_YR.br1 },
+                        { type: '2 Bedroom', u: fs.units.br2, sz: (areaMarketOverrides as any).unitSizes?.br2 || (areaTxnData.avgSize as any).br2 || UNIT_SIZES.br2, pr: fs.prices.br2, rent: (areaMarketOverrides as any).unitRents?.br2 || RENT_PSF_YR.br2 },
+                        { type: '3 Bedroom', u: fs.units.br3, sz: (areaMarketOverrides as any).unitSizes?.br3 || (areaTxnData.avgSize as any).br3 || UNIT_SIZES.br3, pr: fs.prices.br3, rent: (areaMarketOverrides as any).unitRents?.br3 || RENT_PSF_YR.br3 },
+                      ].map(r => {
+                        // Derive actual PSF from price/size (matches engine calculation exactly)
+                        const actualPsf = r.sz > 0 ? Math.round(r.pr / r.sz) : 0;
+                        return (
+                          <TableRow key={r.type}>
+                            <TableCell className="text-sm font-medium py-2">{r.type}</TableCell>
+                            <TableCell className="text-sm text-right font-mono py-2">{fmt(r.u)}</TableCell>
+                            <TableCell className="text-sm text-right py-2">{pct(r.u / fs.units.total)}</TableCell>
+                            <TableCell className="text-sm text-right py-2">{fmt(r.sz)}</TableCell>
+                            <TableCell className="text-sm text-right py-2">{fmt(r.u * r.sz)}</TableCell>
+                            <TableCell className="text-sm text-right py-2">{pct((r.u * r.sz) / fs.sellableArea)}</TableCell>
+                            <TableCell className="text-sm text-right font-mono py-2">AED {fmt(actualPsf)}</TableCell>
+                            <TableCell className="text-sm text-right font-mono py-2">{fmtA(r.pr)}</TableCell>
+                            <TableCell className="text-sm text-right py-2">AED {r.rent}</TableCell>
+                            <TableCell className="text-sm text-right py-2">{pct((r.sz * r.rent) / r.pr)}</TableCell>
+                          </TableRow>
+                        );
+                      })}
                     </TableBody>
                     <TableFooter>
                       <TableRow>
@@ -1052,10 +1063,10 @@ export function DecisionConfidence({ plot, comparisonPlots = [], isFullscreen, o
                     </TableHeader>
                     <TableBody>
                       {[
-                        { type: 'Studio', u: fs.units.studio, pr: fs.prices.studio, rev: fs.revBreak.studio, sz: (areaTxnData.avgSize as any).studio || UNIT_SIZES.studio, rent: (areaMarketOverrides as any).unitRents?.studio || RENT_PSF_YR.studio },
-                        { type: '1 Bedroom', u: fs.units.br1, pr: fs.prices.br1, rev: fs.revBreak.br1, sz: (areaTxnData.avgSize as any).br1 || UNIT_SIZES.br1, rent: (areaMarketOverrides as any).unitRents?.br1 || RENT_PSF_YR.br1 },
-                        { type: '2 Bedroom', u: fs.units.br2, pr: fs.prices.br2, rev: fs.revBreak.br2, sz: (areaTxnData.avgSize as any).br2 || UNIT_SIZES.br2, rent: (areaMarketOverrides as any).unitRents?.br2 || RENT_PSF_YR.br2 },
-                        { type: '3 Bedroom', u: fs.units.br3, pr: fs.prices.br3, rev: fs.revBreak.br3, sz: (areaTxnData.avgSize as any).br3 || UNIT_SIZES.br3, rent: (areaMarketOverrides as any).unitRents?.br3 || RENT_PSF_YR.br3 },
+                        { type: 'Studio', u: fs.units.studio, pr: fs.prices.studio, rev: fs.revBreak.studio, sz: (areaMarketOverrides as any).unitSizes?.studio || (areaTxnData.avgSize as any).studio || UNIT_SIZES.studio, rent: (areaMarketOverrides as any).unitRents?.studio || RENT_PSF_YR.studio },
+                        { type: '1 Bedroom', u: fs.units.br1, pr: fs.prices.br1, rev: fs.revBreak.br1, sz: (areaMarketOverrides as any).unitSizes?.br1 || (areaTxnData.avgSize as any).br1 || UNIT_SIZES.br1, rent: (areaMarketOverrides as any).unitRents?.br1 || RENT_PSF_YR.br1 },
+                        { type: '2 Bedroom', u: fs.units.br2, pr: fs.prices.br2, rev: fs.revBreak.br2, sz: (areaMarketOverrides as any).unitSizes?.br2 || (areaTxnData.avgSize as any).br2 || UNIT_SIZES.br2, rent: (areaMarketOverrides as any).unitRents?.br2 || RENT_PSF_YR.br2 },
+                        { type: '3 Bedroom', u: fs.units.br3, pr: fs.prices.br3, rev: fs.revBreak.br3, sz: (areaMarketOverrides as any).unitSizes?.br3 || (areaTxnData.avgSize as any).br3 || UNIT_SIZES.br3, rent: (areaMarketOverrides as any).unitRents?.br3 || RENT_PSF_YR.br3 },
                       ].map(r => (
                         <TableRow key={r.type}>
                           <TableCell className="text-xs font-medium py-1.5">{r.type}</TableCell>

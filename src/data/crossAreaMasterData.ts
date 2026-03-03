@@ -391,14 +391,16 @@ const dscData: AreaMarketData = {
     keyDifferentiator: "3:1 rental-to-sales ratio; sports/lifestyle amenity premium; golf frontage",
   },
   salesByUnit: {
-    studio: { transactions: 0, avgPSF: 1227, avgPrice: 0 },
-    "1br": { transactions: 0, avgPSF: 1200, avgPrice: 0 },
-    "2br": { transactions: 0, avgPSF: 1095, avgPrice: 0 },
+    studio: { transactions: 257, avgPSF: 1796, medianPSF: 1765, avgPrice: 757028, medianPrice: 740000, avgSizeSqft: 426, psfRange: { min: 1200, max: 2400, avg: 1796, median: 1765 } },
+    "1br": { transactions: 292, avgPSF: 1531, medianPSF: 1511, avgPrice: 1155437, medianPrice: 1120000, avgSizeSqft: 771, psfRange: { min: 1000, max: 2100, avg: 1531, median: 1511 } },
+    "2br": { transactions: 237, avgPSF: 1368, medianPSF: 1424, avgPrice: 1643427, medianPrice: 1600000, avgSizeSqft: 1208, psfRange: { min: 900, max: 1900, avg: 1368, median: 1424 } },
+    "3br": { transactions: 23, avgPSF: 1449, medianPSF: 1325, avgPrice: 2390616, medianPrice: 2300000, avgSizeSqft: 1680, psfRange: { min: 1000, max: 1800, avg: 1449, median: 1325 } },
   },
   rentalByUnit: {
-    studio: { contracts: 0, avgPSFPerYear: 86, grossYield: 0.06, avgAnnualRent: 0 },
-    "1br": { contracts: 0, avgPSFPerYear: 83, grossYield: 0.057, avgAnnualRent: 0 },
-    "2br": { contracts: 0, avgPSFPerYear: 83, grossYield: 0, avgAnnualRent: 0 },
+    studio: { contracts: 800, avgPSFPerYear: 90, grossYield: 0.06, avgAnnualRent: 38340, yieldAssessment: "STRONG — sports amenity premium" },
+    "1br": { contracts: 1200, avgPSFPerYear: 86, grossYield: 0.057, avgAnnualRent: 66306, yieldAssessment: "STRONG — broad tenant demand" },
+    "2br": { contracts: 900, avgPSFPerYear: 83, grossYield: 0.055, avgAnnualRent: 100264, yieldAssessment: "VIABLE — family/end-user segment" },
+    "3br": { contracts: 291, avgPSFPerYear: 78, grossYield: 0.05, avgAnnualRent: 131040, yieldAssessment: "VIABLE — limited demand" },
   },
   competitors: [
     { name: "Golf Place", developer: "Prestige One", totalUnits: 198, plotSqm: 8690.4, floors: "G+P+14", completion: "Q2 2026", priceFrom: 1050000, studioUnits: 75, studioPct: 38, oneBRUnits: 87, oneBRPct: 44, twoBRUnits: 34, twoBRPct: 17, studioMixStrategy: "Balanced; 1BR-lean", serviceChargePerSqft: { min: 15, max: 15 }, paymentPlan: "20/40/40", notes: "Plot 93,590 sqft; BUA 219,173 sqft" },
