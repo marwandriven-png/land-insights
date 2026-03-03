@@ -231,36 +231,7 @@ export function QuickAddLandModal({ open, onClose, onLandAdded }: QuickAddLandMo
                 </p>
               </div>
 
-              {/* Google Maps Location */}
-              <div>
-                <Label className="text-sm font-medium flex items-center gap-1.5">
-                  <MapPin className="w-3.5 h-3.5 text-primary" />
-                  Google Maps Location
-                </Label>
-                <Input
-                  value={locationUrl}
-                  onChange={e => {
-                    setLocationUrl(e.target.value);
-                    setResolvedCoords(null);
-                    // Try instant client-side extraction
-                    const coords = extractCoordsFromUrl(e.target.value);
-                    if (coords) setResolvedCoords(coords);
-                  }}
-                  placeholder="Paste Google Maps URL..."
-                  className="mt-1 text-sm"
-                />
-                {resolvedCoords && (
-                  <p className="text-[10px] text-success mt-1 flex items-center gap-1">
-                    <Check className="w-3 h-3" />
-                    Location resolved: {resolvedCoords.lat.toFixed(6)}, {resolvedCoords.lng.toFixed(6)}
-                  </p>
-                )}
-                {!resolvedCoords && (
-                  <p className="text-[10px] text-muted-foreground mt-1">
-                    Open Google Maps → right-click the plot → copy the URL from your browser bar
-                  </p>
-                )}
-              </div>
+              {/* Google Maps Location removed — land number auto-fetches from DDA GIS */}
 
               <Button onClick={handleSearch} disabled={isSearching || isResolvingLocation} className="w-full gap-2">
                 {isSearching || isResolvingLocation ? <Loader2 className="w-4 h-4 animate-spin" /> : <Search className="w-4 h-4" />}

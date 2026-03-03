@@ -699,30 +699,43 @@ export function getCompetitorsAsComparables(clffAreaCode: string) {
   const areaData = getAreaData(clffAreaCode);
   if (!areaData) return [];
 
-  return areaData.competitors.map(c => ({
-    name: c.name,
-    developer: c.developer,
-    area: areaData.displayName,
-    areaCode: clffAreaCode,
-    plotSqft: c.plotSqm ? Math.round(c.plotSqm * 10.764) : null,
-    units: c.totalUnits,
-    floors: c.floors || null,
-    handover: c.completion || null,
-    priceFrom: c.priceFrom || null,
-    studioP: c.studioPct || 0,
-    br1P: c.oneBRPct || 0,
-    br2P: c.twoBRPct || 0,
-    br3P: c.threeBRPct || 0,
-    svc: c.serviceChargePerSqft ? c.serviceChargePerSqft.min : null,
-    payPlan: c.paymentPlan || null,
-    psf: null,
-    studioMixStrategy: c.studioMixStrategy || null,
-    studioPSFRange: c.studioPSFRange || null,
-    oneBRPSFRange: c.oneBRPSFRange || null,
-    twoBRPSFRange: c.twoBRPSFRange || null,
-    threeBRPSFRange: c.threeBRPSFRange || null,
-    notes: c.notes || null,
-  }));
+  return areaData.competitors.map(c => {
+    // Normalize unit mix percentages so they sum to 100%
+    const rawS = c.studioPct || 0;
+    const raw1 = c.oneBRPct || 0;
+    const raw2 = c.twoBRPct || 0;
+    const raw3 = c.threeBRPct || 0;
+    const rawTotal = rawS + raw1 + raw2 + raw3;
+    // If total > 0, normalize to 100%; otherwise leave as-is
+    const norm = rawTotal > 0 && rawTotal !== 100
+      ? (v: number) => Math.round((v / rawTotal) * 100)
+      : (v: number) => v;
+
+    return {
+      name: c.name,
+      developer: c.developer,
+      area: areaData.displayName,
+      areaCode: clffAreaCode,
+      plotSqft: c.plotSqm ? Math.round(c.plotSqm * 10.764) : null,
+      units: c.totalUnits,
+      floors: c.floors || null,
+      handover: c.completion || null,
+      priceFrom: c.priceFrom || null,
+      studioP: norm(rawS),
+      br1P: norm(raw1),
+      br2P: norm(raw2),
+      br3P: norm(raw3),
+      svc: c.serviceChargePerSqft ? c.serviceChargePerSqft.min : null,
+      payPlan: c.paymentPlan || null,
+      psf: null,
+      studioMixStrategy: c.studioMixStrategy || null,
+      studioPSFRange: c.studioPSFRange || null,
+      oneBRPSFRange: c.oneBRPSFRange || null,
+      twoBRPSFRange: c.twoBRPSFRange || null,
+      threeBRPSFRange: c.threeBRPSFRange || null,
+      notes: c.notes || null,
+    };
+  });
 }
 
 /** Minimum reliable transaction count for median calculation */

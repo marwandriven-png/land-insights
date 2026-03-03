@@ -1014,7 +1014,7 @@ export default function DCReport() {
         <div className="max-w-7xl mx-auto px-6 py-6 flex items-center justify-between">
           <div className="flex items-center gap-3">
             <img src={xEstateLogo} alt="X-Estate" className="w-8 h-8 opacity-50" />
-            <span className="text-xs" style={{ color: '#6b7280' }}>HyperPlot AI · Decision Confidence</span>
+            <span className="text-xs" style={{ color: '#6b7280' }}>Land OS · Decision Confidence</span>
           </div>
           <div className="text-xs" style={{ color: '#6b7280' }}>
             Confidential Feasibility Analysis • Generated {new Date(link.createdAt).toLocaleDateString()}

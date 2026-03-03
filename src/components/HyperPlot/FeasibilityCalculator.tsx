@@ -5,6 +5,7 @@ import { Input } from '@/components/ui/input';
 import { calcDSCFeasibility, DSCPlotInput, MIX_TEMPLATES, fmt, fmtM, fmtA, pct, MixKey } from '@/lib/dscFeasibility';
 import { matchCLFFArea, findAnchorArea, getCLFFOverrides, getCLFFOverridesWithMasterData } from '@/lib/clffAreaDefaults';
 import { resolvePlotAreaCode, getAreaScopedMarketData } from '@/lib/areaResearch';
+import { getAreaData } from '@/data/crossAreaMasterData';
 
 export interface FeasibilityParams {
   constructionPsf: number;
@@ -52,57 +53,56 @@ function toDSCInput(plot: PlotData, plan: AffectionPlanData | null): DSCPlotInpu
 }
 
 /**
- * Resolve area-specific market overrides: AI Upload > CLFF > Anchor Area > empty
- * Uses normalizeAreaCode() to ensure all area name variants resolve consistently.
- * This is the SAME logic used by DecisionConfidence to ensure parity.
+ * Resolve area-specific market overrides: CLFF+Master > AI Upload > Anchor > empty
+ * Always ensures master transaction PSF is used as the baseline.
  */
 function resolveAreaMarketOverrides(plot: PlotData): Record<string, unknown> {
   const location = plot.location || plot.project || '';
   const normalizedCode = resolvePlotAreaCode(location);
 
-  // 1. Check AI-parsed uploads and use STRICT area-scoped payload
+  // 1. Start with CLFF + master data as base (ensures transaction PSF)
+  let base: Record<string, unknown> = {};
+  const clffMatch = matchCLFFArea(location);
+  const anchor = !clffMatch ? findAnchorArea(location) : null;
+  const effectiveMatch = clffMatch || anchor;
+
+  if (effectiveMatch) {
+    // Get master data for transaction PSF
+    const masterArea = getAreaData(effectiveMatch.area.code);
+    if (masterArea) {
+      base = getCLFFOverridesWithMasterData(
+        effectiveMatch.area.code,
+        masterArea.salesByUnit as any,
+        masterArea.rentalByUnit as any
+      );
+    } else {
+      base = getCLFFOverrides(effectiveMatch.area.code);
+    }
+  }
+
+  // 2. Layer AI-parsed uploads on top (only override fields they have)
   try {
     const stored = localStorage.getItem('hyperplot_area_research_files');
     if (stored) {
       const files = JSON.parse(stored) as Array<{ areaName: string; aiParsed?: boolean; marketData?: Record<string, unknown> }>;
-
       for (const f of files) {
         if (!f.aiParsed || !f.marketData) continue;
-
         const scoped = getAreaScopedMarketData(
           { ...(f.marketData as any), areaName: f.areaName },
           normalizedCode
         );
-
         if (!scoped) continue;
-        const hasScopedData =
-          !!scoped.unitPsf ||
-          !!scoped.unitSizes ||
-          !!scoped.unitRents ||
-          !!scoped.areaTxn;
-
-        if (!hasScopedData) continue;
-
-        const result: Record<string, unknown> = {};
-        if (scoped.unitPsf) result.unitPsf = scoped.unitPsf;
-        if (scoped.unitSizes) result.unitSizes = scoped.unitSizes;
-        if (scoped.unitRents) result.unitRents = scoped.unitRents;
-        if ((f.marketData as any)?.constructionPsf) result.constructionPsf = (f.marketData as any).constructionPsf;
-        if ((f.marketData as any)?.landCostPsf) result.landCostPsf = (f.marketData as any).landCostPsf;
-        return result;
+        if (scoped.unitPsf) base.unitPsf = { ...((base.unitPsf as any) || {}), ...scoped.unitPsf };
+        if (scoped.unitSizes) base.unitSizes = scoped.unitSizes;
+        if (scoped.unitRents) base.unitRents = { ...((base.unitRents as any) || {}), ...scoped.unitRents };
+        if ((f.marketData as any)?.constructionPsf) base.constructionPsf = (f.marketData as any).constructionPsf;
+        if ((f.marketData as any)?.landCostPsf) base.landCostPsf = (f.marketData as any).landCostPsf;
+        break; // Use first matching file
       }
     }
   } catch { }
 
-  // 2. CLFF exact match
-  const clffMatch = matchCLFFArea(location);
-  if (clffMatch) return getCLFFOverrides(clffMatch.area.code);
-
-  // 3. Anchor area fallback
-  const anchor = findAnchorArea(location);
-  if (anchor) return getCLFFOverrides(anchor.area.code);
-
-  return {};
+  return base;
 }
 
 export function FeasibilityCalculator({ plot, sharedParams, onParamsChange }: FeasibilityCalculatorProps) {
