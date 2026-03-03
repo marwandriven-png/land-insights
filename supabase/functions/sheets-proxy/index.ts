@@ -213,38 +213,42 @@ serve(async (req) => {
       }
 
       const headers = rows[0].map((h: string) => h?.toString().trim().toLowerCase() || '');
-      
-      const plotColNames = ['land number', 'land_number', 'municipality', 'plot number', 'plotnumber', 'plot_number', 'plot no', 'plot', 'p-number', 'pnumber', 'p number'];
-      let plotColIndex = headers.findIndex((h: string) => plotColNames.includes(h.trim()));
-      if (plotColIndex === -1) plotColIndex = headers.findIndex((h: string) => h.includes('land number'));
-      if (plotColIndex === -1) plotColIndex = headers.findIndex((h: string) => h.includes('municipality') || h.includes('plot') || h.includes('land'));
-      if (plotColIndex === -1) plotColIndex = 0;
+
+      const landColNames = ['land number', 'land_number', 'land no', 'landno'];
+      const plotColNames = ['plot number', 'plotnumber', 'plot_number', 'plot no', 'plot', 'p-number', 'pnumber', 'p number', 'municipality'];
+
+      const landColIndex = headers.findIndex((h: string) => landColNames.includes(h.trim()));
+      const plotColIndex = headers.findIndex((h: string) => plotColNames.includes(h.trim()));
 
       const ownerColNames = ['owner reference', 'owner_reference', 'ownerreference', 'owner ref', 'owner id', 'owner_id', 'reference', 'ref', 'owner', 'owner name', 'name'];
       let ownerColIndex = headers.findIndex((h: string) => ownerColNames.includes(h));
       if (ownerColIndex === -1) ownerColIndex = headers.findIndex((h: string) => h.includes('owner'));
       if (ownerColIndex === -1) ownerColIndex = headers.findIndex((h: string) => h === 'name');
 
-      const normalize = (v: string) => v.toString().replace(/[^0-9a-zA-Z]/g, '').toLowerCase();
+      const normalize = (v: string) => {
+        const raw = v.toString().trim().toLowerCase();
+        const withoutDecimal = raw.replace(/\.0+$/, '');
+        const alnum = withoutDecimal.replace(/[^0-9a-zA-Z]/g, '').toLowerCase();
+        return alnum.replace(/^0+(?=\d)/, '');
+      };
       const normalizedLookups = plotNumbers.map((pn: string) => normalize(pn));
 
       console.log(`Headers: [${headers.join(', ')}]`);
-      console.log(`Plot col: "${headers[plotColIndex]}" (${plotColIndex}), Owner col: "${ownerColIndex >= 0 ? headers[ownerColIndex] : 'none'}" (${ownerColIndex})`);
+      console.log(`Land col: "${landColIndex >= 0 ? headers[landColIndex] : 'none'}" (${landColIndex}), Plot col: "${plotColIndex >= 0 ? headers[plotColIndex] : 'none'}" (${plotColIndex}), Owner col: "${ownerColIndex >= 0 ? headers[ownerColIndex] : 'none'}" (${ownerColIndex})`);
       console.log(`Looking up ${plotNumbers.length} plots: ${plotNumbers.slice(0, 5).join(', ')}`);
 
       const matches: Record<string, Record<string, string>> = {};
 
       for (let i = 1; i < rows.length; i++) {
         const row = rows[i];
-        
+
         if (returnAll) {
-          // Return all rows keyed by plot number column value or land number
-          const landNumColNames = ['land number', 'land_number'];
-          let landNumIdx = headers.findIndex((h: string) => landNumColNames.includes(h.trim()));
-          const plotKey = (landNumIdx !== -1 && row[landNumIdx]) 
-            ? row[landNumIdx].toString().trim()
-            : (row[plotColIndex] || '').toString().trim();
-          
+          const plotKey = (landColIndex !== -1 && row[landColIndex])
+            ? row[landColIndex].toString().trim()
+            : (plotColIndex !== -1 && row[plotColIndex])
+              ? row[plotColIndex].toString().trim()
+              : '';
+
           if (plotKey) {
             const rowData: Record<string, string> = {};
             headers.forEach((header: string, colIdx: number) => {
@@ -260,19 +264,19 @@ serve(async (req) => {
           continue;
         }
 
-        const cellValue = normalize((row[plotColIndex] || '').toString());
-        
-        let matchIndex = normalizedLookups.indexOf(cellValue);
-        
-        if (matchIndex === -1) {
-          for (let c = 0; c < row.length; c++) {
-            if (c === plotColIndex) continue;
-            const altValue = normalize((row[c] || '').toString());
-            matchIndex = normalizedLookups.indexOf(altValue);
-            if (matchIndex !== -1) {
-              break;
-            }
-          }
+        const candidateValues: string[] = [];
+        if (landColIndex !== -1) candidateValues.push((row[landColIndex] || '').toString());
+        if (plotColIndex !== -1 && plotColIndex !== landColIndex) candidateValues.push((row[plotColIndex] || '').toString());
+        for (let c = 0; c < row.length; c++) {
+          if (c === landColIndex || c === plotColIndex) continue;
+          candidateValues.push((row[c] || '').toString());
+        }
+
+        let matchIndex = -1;
+        for (const value of candidateValues) {
+          const normalized = normalize(value);
+          matchIndex = normalizedLookups.indexOf(normalized);
+          if (matchIndex !== -1) break;
         }
 
         if (matchIndex !== -1) {

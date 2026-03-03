@@ -258,6 +258,24 @@ export async function lookupOwnerFromSheet(plotNumber: string): Promise<{ owner:
   const { sheetUrl, dataSheetName } = getDataSheetConfig();
   if (!sheetUrl) return null;
 
+  const ownerKeys = ['owner', 'owner name', 'name', 'owner_reference', 'owner reference', 'owner ref'];
+  const mobileKeys = ['mobile', 'phone', 'contact', 'phone number', 'contact number', 'mobile number'];
+
+  const pickOwnerMobile = (row: Record<string, string> | undefined): { owner: string; mobile: string } | null => {
+    if (!row) return null;
+    let owner = '';
+    let mobile = '';
+
+    for (const key of ownerKeys) {
+      if (row[key]) { owner = row[key]; break; }
+    }
+    for (const key of mobileKeys) {
+      if (row[key]) { mobile = row[key]; break; }
+    }
+
+    return owner || mobile ? { owner, mobile } : null;
+  };
+
   try {
     const response = await fetch(
       `${SUPABASE_URL}/functions/v1/sheets-proxy?action=lookup`,
@@ -276,24 +294,12 @@ export async function lookupOwnerFromSheet(plotNumber: string): Promise<{ owner:
     );
 
     const data = await response.json();
-    if (data.error) return null;
-
-    const match = data.matches?.[plotNumber];
-    if (!match) return null;
-
-    const ownerKeys = ['owner', 'owner name', 'name', 'owner_reference', 'owner reference', 'owner ref'];
-    const mobileKeys = ['mobile', 'phone', 'contact', 'phone number', 'contact number', 'mobile number'];
-
-    let owner = '';
-    let mobile = '';
-    for (const key of ownerKeys) {
-      if (match[key]) { owner = match[key]; break; }
-    }
-    for (const key of mobileKeys) {
-      if (match[key]) { mobile = match[key]; break; }
+    if (!response.ok || data.error) {
+      console.warn('Owner lookup failed:', data?.error || response.status);
+      return null;
     }
 
-    return owner || mobile ? { owner, mobile } : null;
+    return pickOwnerMobile(data.matches?.[plotNumber]);
   } catch {
     return null;
   }
