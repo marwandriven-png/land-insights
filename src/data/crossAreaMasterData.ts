@@ -323,9 +323,9 @@ const alSatwaData: AreaMarketData = {
     keyDifferentiator: "Highest PSF in study; JGC 99% of txns; ultra-low vacancy",
   },
   salesByUnit: {
-    studio: { transactions: 128, oqoodPct: 92, avgPSF: 2408, medianPrice: 1039753, medianPSF: 2416, avgSizeSqft: 432, psfRange: { min: 2000, max: 3310, avg: 2408, median: 2416 } },
-    "1br": { transactions: 157, oqoodPct: 92, avgPSF: 2165, medianPrice: 1581000, medianPSF: 2151, avgSizeSqft: 735, psfRange: { min: 1894, max: 3501, avg: 2165, median: 2151 } },
-    "2br": { transactions: 37, avgPSF: 2073, medianPrice: 1800000 },
+    studio: { transactions: 128, oqoodPct: 92, avgPSF: 2408, avgPrice: 1025808, medianPrice: 1039753, medianPSF: 2416, avgSizeSqft: 426, psfRange: { min: 2000, max: 3310, avg: 2408, median: 2416 } },
+    "1br": { transactions: 157, oqoodPct: 92, avgPSF: 2151, avgPrice: 1658421, medianPrice: 1581000, medianPSF: 2151, avgSizeSqft: 771, psfRange: { min: 1894, max: 3501, avg: 2151, median: 2151 } },
+    "2br": { transactions: 37, avgPSF: 2073, avgPrice: 2504184, medianPrice: 1800000, avgSizeSqft: 1208, psfRange: { min: 1800, max: 2400, avg: 2073 } },
   },
   rentalByUnit: {
     studio: { contracts: 118, medianAnnualRent: 50000, avgPSFPerYear: 161, grossYield: 0.048, yieldAssessment: "STRONG — premium market yield floor" },
@@ -736,17 +736,24 @@ export function getAreaSalesData(clffAreaCode: string) {
   const sales = areaData.salesByUnit;
   const total = Object.values(sales).reduce((sum, s) => sum + (s?.transactions || 0), 0);
 
-  const buildUnit = (s: UnitSalesData | undefined) => ({
-    transactions: s?.transactions || 0,
-    sharePct: total > 0 && s?.transactions ? Math.round((s.transactions / total) * 1000) / 10 : 0,
-    avgPSF: s?.avgPSF || 0,
-    medianPSF: s?.medianPSF || 0,
-    avgPrice: s?.avgPrice || 0,
-    medianPrice: s?.medianPrice || 0,
-    avgSize: s?.avgSizeSqft || 0,
-    insufficient: (s?.transactions || 0) > 0 && (s?.transactions || 0) < MIN_RELIABLE_TXNS,
-    noData: !s || (s.transactions || 0) === 0,
-  });
+  const buildUnit = (s: UnitSalesData | undefined) => {
+    const avgPSF = s?.avgPSF || 0;
+    const avgSize = s?.avgSizeSqft || 0;
+    // Derive avgPrice from PSF × size if not explicitly provided
+    const avgPrice = s?.avgPrice || (avgPSF > 0 && avgSize > 0 ? Math.round(avgPSF * avgSize) : 0);
+    const medianPrice = s?.medianPrice || 0;
+    return {
+      transactions: s?.transactions || 0,
+      sharePct: total > 0 && s?.transactions ? Math.round((s.transactions / total) * 1000) / 10 : 0,
+      avgPSF,
+      medianPSF: s?.medianPSF || 0,
+      avgPrice,
+      medianPrice,
+      avgSize,
+      insufficient: (s?.transactions || 0) > 0 && (s?.transactions || 0) < MIN_RELIABLE_TXNS,
+      noData: !s || (s.transactions || 0) === 0,
+    };
+  };
 
   const studio = buildUnit(sales.studio);
   const br1 = buildUnit(sales["1br"]);
