@@ -170,7 +170,9 @@ const toNum = (value: unknown): number | null => {
 const toPct = (value: unknown): number => {
   const n = toNum(value);
   if (n == null) return 0;
-  return n > 0 && n <= 1 ? Math.round(n * 100) : Math.round(n);
+  // Only treat as decimal fraction if strictly < 1 (e.g., 0.38 → 38%)
+  // Values >= 1 are already percentages (e.g., 1 → 1%, 38 → 38%)
+  return n > 0 && n < 1 ? Math.round(n * 100) : Math.round(n);
 };
 
 const normalizeMixPct = (value: unknown): number => {
