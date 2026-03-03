@@ -337,7 +337,7 @@ export function getCLFFOverrides(areaCode: string): Record<string, unknown> {
   const market = CLFF_MARKET_DATA[areaCode];
   if (!area || !market) return {};
 
-  return {
+  const result: Record<string, unknown> = {
     constructionPsf: area.constructionPsf,
     buaMultiplier: area.buaMultiplier,
     efficiency: area.sellablePct / 100,
@@ -354,4 +354,41 @@ export function getCLFFOverrides(areaCode: string): Record<string, unknown> {
       br3: market.avgRentPsfYr ? market.avgRentPsfYr * 0.88 : 0,
     },
   };
+
+  return result;
+}
+
+/**
+ * Enhanced CLFF overrides that include unit sizes and rents from master data.
+ * Call this instead of getCLFFOverrides when master data is available.
+ */
+export function getCLFFOverridesWithMasterData(
+  areaCode: string,
+  masterSalesData: Partial<Record<string, { avgSizeSqft?: number }>>,
+  masterRentalData: Partial<Record<string, { avgPSFPerYear?: number }>>
+): Record<string, unknown> {
+  const base = getCLFFOverrides(areaCode);
+  if (!base || Object.keys(base).length === 0) return base;
+
+  // Override unit sizes from master data
+  const masterSizes: Record<string, number> = {};
+  if (masterSalesData?.studio?.avgSizeSqft) masterSizes.studio = masterSalesData.studio.avgSizeSqft;
+  if (masterSalesData?.['1br']?.avgSizeSqft) masterSizes.br1 = masterSalesData['1br'].avgSizeSqft;
+  if (masterSalesData?.['2br']?.avgSizeSqft) masterSizes.br2 = masterSalesData['2br'].avgSizeSqft;
+  if (masterSalesData?.['3br']?.avgSizeSqft) masterSizes.br3 = masterSalesData['3br'].avgSizeSqft;
+  if (Object.keys(masterSizes).length > 0) {
+    base.unitSizes = masterSizes;
+  }
+
+  // Override unit rents from master data (more granular than flat avgRentPsfYr)
+  const masterRents: Record<string, number> = {};
+  if (masterRentalData?.studio?.avgPSFPerYear) masterRents.studio = masterRentalData.studio.avgPSFPerYear;
+  if (masterRentalData?.['1br']?.avgPSFPerYear) masterRents.br1 = masterRentalData['1br'].avgPSFPerYear;
+  if (masterRentalData?.['2br']?.avgPSFPerYear) masterRents.br2 = masterRentalData['2br'].avgPSFPerYear;
+  if (masterRentalData?.['3br']?.avgPSFPerYear) masterRents.br3 = masterRentalData['3br'].avgPSFPerYear;
+  if (Object.keys(masterRents).length > 0) {
+    base.unitRents = masterRents;
+  }
+
+  return base;
 }

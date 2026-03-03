@@ -3,7 +3,7 @@ import { Calculator, DollarSign, TrendingUp, Building2, Edit3, Check } from 'luc
 import { PlotData, AffectionPlanData, gisService } from '@/services/DDAGISService';
 import { Input } from '@/components/ui/input';
 import { calcDSCFeasibility, DSCPlotInput, MIX_TEMPLATES, fmt, fmtM, fmtA, pct, MixKey } from '@/lib/dscFeasibility';
-import { matchCLFFArea, findAnchorArea, getCLFFOverrides } from '@/lib/clffAreaDefaults';
+import { matchCLFFArea, findAnchorArea, getCLFFOverrides, getCLFFOverridesWithMasterData } from '@/lib/clffAreaDefaults';
 import { resolvePlotAreaCode, getAreaScopedMarketData } from '@/lib/areaResearch';
 
 export interface FeasibilityParams {
