@@ -366,7 +366,7 @@ export function getCLFFOverrides(areaCode: string): Record<string, unknown> {
  */
 export function getCLFFOverridesWithMasterData(
   areaCode: string,
-  _masterSalesData: Partial<Record<string, { avgSizeSqft?: number }>>,
+  masterSalesData: Partial<Record<string, { avgPSF?: number; avgSizeSqft?: number }>>,
   masterRentalData: Partial<Record<string, { avgPSFPerYear?: number }>>
 ): Record<string, unknown> {
   const base = getCLFFOverrides(areaCode);
@@ -375,6 +375,16 @@ export function getCLFFOverridesWithMasterData(
   // NOTE: unitSizes intentionally NOT overridden from master data.
   // The feasibility engine uses standard UNIT_SIZES (426, 771, 1208, 1680)
   // so that Price = standard_size × area_market_PSF.
+
+  // Override unitPsf from master data (transaction avg PSF — more accurate than CLFF)
+  const masterPsf: Record<string, number> = {};
+  if (masterSalesData?.studio?.avgPSF) masterPsf.studio = masterSalesData.studio.avgPSF;
+  if (masterSalesData?.['1br']?.avgPSF) masterPsf.br1 = masterSalesData['1br'].avgPSF;
+  if (masterSalesData?.['2br']?.avgPSF) masterPsf.br2 = masterSalesData['2br'].avgPSF;
+  if (masterSalesData?.['3br']?.avgPSF) masterPsf.br3 = masterSalesData['3br'].avgPSF;
+  if (Object.keys(masterPsf).length > 0) {
+    base.unitPsf = { ...((base.unitPsf as any) || {}), ...masterPsf };
+  }
 
   // Override unit rents from master data (more granular than flat avgRentPsfYr)
   const masterRents: Record<string, number> = {};
