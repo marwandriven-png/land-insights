@@ -6,7 +6,7 @@ import { Label } from '@/components/ui/label';
 import { toast } from '@/hooks/use-toast';
 import { markPlotListed } from '@/services/LandMatchingService';
 import { gisService, PlotData } from '@/services/DDAGISService';
-import { syncListingToSheet } from '@/services/SheetSyncService';
+import { syncListingToSheet, lookupOwnerFromSheet } from '@/services/SheetSyncService';
 import { saveManualLand, createDefaultManualLand } from '@/services/ManualLandService';
 
 interface QuickAddLandModalProps {
@@ -116,6 +116,17 @@ export function QuickAddLandModal({ open, onClose, onLandAdded }: QuickAddLandMo
       } catch (err) {
         console.error('GIS fetch error:', err);
         setGisError('Could not fetch plot from DDA GIS.');
+      }
+
+      // Auto-fill owner/mobile from linked Google Sheet by land number
+      try {
+        const ownerMatch = await lookupOwnerFromSheet(plotNumber.trim());
+        if (ownerMatch) {
+          setEditedOwner(prev => prev || ownerMatch.owner || '');
+          setEditedMobile(prev => prev || ownerMatch.mobile || '');
+        }
+      } catch {
+        // Non-blocking: keep manual input available
       }
 
       // If we have a location URL but no resolved coords yet, resolve now

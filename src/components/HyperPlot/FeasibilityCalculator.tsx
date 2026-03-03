@@ -80,7 +80,7 @@ function resolveAreaMarketOverrides(plot: PlotData): Record<string, unknown> {
     }
   }
 
-  // 2. Layer AI-parsed uploads on top (only override fields they have)
+  // 2. Layer AI-parsed uploads on top (without overriding master unit transaction PSF)
   try {
     const stored = localStorage.getItem('hyperplot_area_research_files');
     if (stored) {
@@ -92,7 +92,11 @@ function resolveAreaMarketOverrides(plot: PlotData): Record<string, unknown> {
           normalizedCode
         );
         if (!scoped) continue;
-        if (scoped.unitPsf) base.unitPsf = { ...((base.unitPsf as any) || {}), ...scoped.unitPsf };
+
+        // Keep transaction-derived unit PSF as source-of-truth when master/CLFF baseline exists
+        if (!effectiveMatch && scoped.unitPsf) {
+          base.unitPsf = { ...((base.unitPsf as any) || {}), ...scoped.unitPsf };
+        }
         if (scoped.unitSizes) base.unitSizes = scoped.unitSizes;
         if (scoped.unitRents) base.unitRents = { ...((base.unitRents as any) || {}), ...scoped.unitRents };
         if ((f.marketData as any)?.constructionPsf) base.constructionPsf = (f.marketData as any).constructionPsf;

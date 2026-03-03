@@ -411,9 +411,13 @@ export function DecisionConfidence({ plot, comparisonPlots = [], isFullscreen, o
       base = getCLFFOverrides(effectiveClff.area.code);
     }
 
-    // AI upload can ADD to or OVERRIDE the base, but only for fields it actually has
+    // AI upload can ADD to base, but must not override transaction-derived unit PSF
+    // when master area data exists (prevents flattened/incorrect per-unit PSF).
     if (scopedAiData) {
-      if (scopedAiData.unitPsf) base.unitPsf = { ...((base.unitPsf as any) || {}), ...scopedAiData.unitPsf };
+      const allowAiUnitPsf = !masterAreaData;
+      if (allowAiUnitPsf && scopedAiData.unitPsf) {
+        base.unitPsf = { ...((base.unitPsf as any) || {}), ...scopedAiData.unitPsf };
+      }
       if (scopedAiData.unitSizes) base.unitSizes = scopedAiData.unitSizes;
       if (scopedAiData.unitRents) base.unitRents = { ...((base.unitRents as any) || {}), ...scopedAiData.unitRents };
       if ((areaReport as any)?.aiMarketData?.constructionPsf) base.constructionPsf = (areaReport as any).aiMarketData.constructionPsf;
@@ -979,10 +983,10 @@ export function DecisionConfidence({ plot, comparisonPlots = [], isFullscreen, o
                     </TableHeader>
                     <TableBody>
                       {[
-                        { type: 'Studio', u: fs.units.studio, sz: (areaMarketOverrides as any).unitSizes?.studio || (areaTxnData.avgSize as any).studio || UNIT_SIZES.studio, pr: fs.prices.studio, rent: (areaMarketOverrides as any).unitRents?.studio || RENT_PSF_YR.studio },
-                        { type: '1 Bedroom', u: fs.units.br1, sz: (areaMarketOverrides as any).unitSizes?.br1 || (areaTxnData.avgSize as any).br1 || UNIT_SIZES.br1, pr: fs.prices.br1, rent: (areaMarketOverrides as any).unitRents?.br1 || RENT_PSF_YR.br1 },
-                        { type: '2 Bedroom', u: fs.units.br2, sz: (areaMarketOverrides as any).unitSizes?.br2 || (areaTxnData.avgSize as any).br2 || UNIT_SIZES.br2, pr: fs.prices.br2, rent: (areaMarketOverrides as any).unitRents?.br2 || RENT_PSF_YR.br2 },
-                        { type: '3 Bedroom', u: fs.units.br3, sz: (areaMarketOverrides as any).unitSizes?.br3 || (areaTxnData.avgSize as any).br3 || UNIT_SIZES.br3, pr: fs.prices.br3, rent: (areaMarketOverrides as any).unitRents?.br3 || RENT_PSF_YR.br3 },
+                        { type: 'Studio', u: fs.units.studio, sz: (areaMarketOverrides as any).unitSizes?.studio || UNIT_SIZES.studio, pr: fs.prices.studio, rent: (areaMarketOverrides as any).unitRents?.studio || RENT_PSF_YR.studio },
+                        { type: '1 Bedroom', u: fs.units.br1, sz: (areaMarketOverrides as any).unitSizes?.br1 || UNIT_SIZES.br1, pr: fs.prices.br1, rent: (areaMarketOverrides as any).unitRents?.br1 || RENT_PSF_YR.br1 },
+                        { type: '2 Bedroom', u: fs.units.br2, sz: (areaMarketOverrides as any).unitSizes?.br2 || UNIT_SIZES.br2, pr: fs.prices.br2, rent: (areaMarketOverrides as any).unitRents?.br2 || RENT_PSF_YR.br2 },
+                        { type: '3 Bedroom', u: fs.units.br3, sz: (areaMarketOverrides as any).unitSizes?.br3 || UNIT_SIZES.br3, pr: fs.prices.br3, rent: (areaMarketOverrides as any).unitRents?.br3 || RENT_PSF_YR.br3 },
                       ].map(r => {
                         // Derive actual PSF from price/size (matches engine calculation exactly)
                         const actualPsf = r.sz > 0 ? Math.round(r.pr / r.sz) : 0;
@@ -1084,10 +1088,10 @@ export function DecisionConfidence({ plot, comparisonPlots = [], isFullscreen, o
                     </TableHeader>
                     <TableBody>
                       {[
-                        { type: 'Studio', u: fs.units.studio, pr: fs.prices.studio, rev: fs.revBreak.studio, sz: (areaMarketOverrides as any).unitSizes?.studio || (areaTxnData.avgSize as any).studio || UNIT_SIZES.studio, rent: (areaMarketOverrides as any).unitRents?.studio || RENT_PSF_YR.studio },
-                        { type: '1 Bedroom', u: fs.units.br1, pr: fs.prices.br1, rev: fs.revBreak.br1, sz: (areaMarketOverrides as any).unitSizes?.br1 || (areaTxnData.avgSize as any).br1 || UNIT_SIZES.br1, rent: (areaMarketOverrides as any).unitRents?.br1 || RENT_PSF_YR.br1 },
-                        { type: '2 Bedroom', u: fs.units.br2, pr: fs.prices.br2, rev: fs.revBreak.br2, sz: (areaMarketOverrides as any).unitSizes?.br2 || (areaTxnData.avgSize as any).br2 || UNIT_SIZES.br2, rent: (areaMarketOverrides as any).unitRents?.br2 || RENT_PSF_YR.br2 },
-                        { type: '3 Bedroom', u: fs.units.br3, pr: fs.prices.br3, rev: fs.revBreak.br3, sz: (areaMarketOverrides as any).unitSizes?.br3 || (areaTxnData.avgSize as any).br3 || UNIT_SIZES.br3, rent: (areaMarketOverrides as any).unitRents?.br3 || RENT_PSF_YR.br3 },
+                        { type: 'Studio', u: fs.units.studio, pr: fs.prices.studio, rev: fs.revBreak.studio, sz: (areaMarketOverrides as any).unitSizes?.studio || UNIT_SIZES.studio, rent: (areaMarketOverrides as any).unitRents?.studio || RENT_PSF_YR.studio },
+                        { type: '1 Bedroom', u: fs.units.br1, pr: fs.prices.br1, rev: fs.revBreak.br1, sz: (areaMarketOverrides as any).unitSizes?.br1 || UNIT_SIZES.br1, rent: (areaMarketOverrides as any).unitRents?.br1 || RENT_PSF_YR.br1 },
+                        { type: '2 Bedroom', u: fs.units.br2, pr: fs.prices.br2, rev: fs.revBreak.br2, sz: (areaMarketOverrides as any).unitSizes?.br2 || UNIT_SIZES.br2, rent: (areaMarketOverrides as any).unitRents?.br2 || RENT_PSF_YR.br2 },
+                        { type: '3 Bedroom', u: fs.units.br3, pr: fs.prices.br3, rev: fs.revBreak.br3, sz: (areaMarketOverrides as any).unitSizes?.br3 || UNIT_SIZES.br3, rent: (areaMarketOverrides as any).unitRents?.br3 || RENT_PSF_YR.br3 },
                       ].map(r => (
                         <TableRow key={r.type}>
                           <TableCell className="text-xs font-medium py-1.5">{r.type}</TableCell>
@@ -1123,7 +1127,7 @@ export function DecisionConfidence({ plot, comparisonPlots = [], isFullscreen, o
                   <KpiCard label="GDV" value={fmtM(fs.grossSales)} sub={`Σ(Units × Avg Price) · ${fmt(fs.units.total)} units`} accent />
                   <KpiCard label="Annual Rental" value={fmtM(fs.annualRent)} sub={`AED ${fmt(Math.round(fs.annualRent / fs.units.total))}/unit/yr`} />
                   <KpiCard label="Rental Yield" value={pct(fs.grossYield)} sub={`vs 5.5–6.5% ${areaName} avg`} positive={fs.grossYield > 0.055} />
-                  <KpiCard label="Avg Selling PSF" value={`AED ${fmt(Math.round(fs.avgPsf))}`} sub={`Wtd avg from ${areaTxnData.count.total || '—'} txns`} positive={fs.avgPsf >= areaMarketBench.avg} />
+                  <KpiCard label="Avg Selling PSF" value={`AED ${fmt(Math.round(fs.avgPsf))}`} sub={`Wtd avg from ${masterTxnData.count.total || '—'} txns`} positive={fs.avgPsf >= areaMarketBench.avg} />
                 </div>
 
                 {/* 5.2 Finance Structure */}
