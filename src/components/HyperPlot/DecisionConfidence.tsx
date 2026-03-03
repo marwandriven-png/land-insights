@@ -399,25 +399,27 @@ export function DecisionConfidence({ plot, comparisonPlots = [], isFullscreen, o
   // Extract area-specific market data: AI upload > CLFF > Anchor > empty
   // CRITICAL: User overrides (effectiveOverrides) are applied AFTER this, so they always win
   const areaMarketOverrides = useMemo(() => {
-    if (scopedAiData) {
-      const result: Record<string, unknown> = {};
-      if (scopedAiData.unitPsf) result.unitPsf = scopedAiData.unitPsf;
-      if (scopedAiData.unitSizes) result.unitSizes = scopedAiData.unitSizes;
-      if (scopedAiData.unitRents) result.unitRents = scopedAiData.unitRents;
-      if ((areaReport as any)?.aiMarketData?.constructionPsf) result.constructionPsf = (areaReport as any).aiMarketData.constructionPsf;
-      if ((areaReport as any)?.aiMarketData?.landCostPsf) result.landCostPsf = (areaReport as any).aiMarketData.landCostPsf;
-      if (Object.keys(result).length > 0) return result;
-    }
-    // Fall back to CLFF with master data enrichment for sizes and rents
+    // Start with CLFF/master base (always provides unit PSF from transaction data)
+    let base: Record<string, unknown> = {};
     if (effectiveClff && masterAreaData) {
-      return getCLFFOverridesWithMasterData(
+      base = getCLFFOverridesWithMasterData(
         effectiveClff.area.code,
         masterAreaData.salesByUnit as any,
         masterAreaData.rentalByUnit as any
       );
+    } else if (effectiveClff) {
+      base = getCLFFOverrides(effectiveClff.area.code);
     }
-    if (effectiveClff) return getCLFFOverrides(effectiveClff.area.code);
-    return {};
+
+    // AI upload can ADD to or OVERRIDE the base, but only for fields it actually has
+    if (scopedAiData) {
+      if (scopedAiData.unitPsf) base.unitPsf = { ...((base.unitPsf as any) || {}), ...scopedAiData.unitPsf };
+      if (scopedAiData.unitSizes) base.unitSizes = scopedAiData.unitSizes;
+      if (scopedAiData.unitRents) base.unitRents = { ...((base.unitRents as any) || {}), ...scopedAiData.unitRents };
+      if ((areaReport as any)?.aiMarketData?.constructionPsf) base.constructionPsf = (areaReport as any).aiMarketData.constructionPsf;
+      if ((areaReport as any)?.aiMarketData?.landCostPsf) base.landCostPsf = (areaReport as any).aiMarketData.landCostPsf;
+    }
+    return base;
   }, [scopedAiData, areaReport, effectiveClff, masterAreaData]);
 
   const ZERO_UNIT = { studio: 0, br1: 0, br2: 0, br3: 0 };
@@ -1303,7 +1305,6 @@ export function DecisionConfidence({ plot, comparisonPlots = [], isFullscreen, o
                           { type: '2BR', pct: c.br2P || 0 },
                           { type: '3BR', pct: c.br3P || 0 },
                         ];
-                        const total = mixes.reduce((s, m) => s + m.pct, 0);
                         const dominant = mixes.reduce((a, b) => a.pct > b.pct ? a : b);
                         const gfa = c.plotSqft && c.plotSqft > 0 ? c.plotSqft : c.bua || 0;
                         const sellable = gfa * 0.95;
@@ -1317,7 +1318,7 @@ export function DecisionConfidence({ plot, comparisonPlots = [], isFullscreen, o
                             <TableCell className={`text-xs text-right py-1.5 ${dominant.type === '2BR' ? 'font-bold text-primary' : ''}`}>{c.br2P || 0}%</TableCell>
                             <TableCell className={`text-xs text-right py-1.5 ${dominant.type === '3BR' ? 'font-bold text-primary' : ''}`}>{c.br3P || 0}%</TableCell>
                             <TableCell className="text-xs text-right font-mono py-1.5">{avgSize ? fmt(avgSize) : '—'}</TableCell>
-                            <TableCell className="text-xs text-right font-bold text-primary py-1.5">{dominant.type} ({dominant.pct}%){total !== 100 && total > 0 ? <span className="text-destructive ml-1 text-[9px]">Σ{total}%</span> : ''}</TableCell>
+                            <TableCell className="text-xs text-right font-bold text-primary py-1.5">{dominant.type} ({dominant.pct}%)</TableCell>
                           </TableRow>
                         );
                       }) : (

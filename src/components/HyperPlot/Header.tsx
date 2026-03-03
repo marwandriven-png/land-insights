@@ -21,9 +21,9 @@ export function Header({ searchQuery, onSearchChange, isLoadingGIS, gisConnected
             </div>
             <div>
               <h1 className="text-lg font-bold gradient-text">
-                HyperPlot AI
+                Land OS
               </h1>
-              <p className="text-[10px] text-muted-foreground">DDA GIS Integrated Platform</p>
+              <p className="text-[10px] text-muted-foreground">DDA GIS Dashboard</p>
             </div>
           </div>
 

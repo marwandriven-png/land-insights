@@ -317,7 +317,7 @@ export function HyperPlotAI() {
             <div className="flex items-center gap-4">
               <img src={xEstateLogo} alt="X-Estate Logo" className="w-12 h-12" />
               <div>
-                <h1 className="text-xl font-bold gradient-text">HyperPlot AI</h1>
+                <h1 className="text-xl font-bold gradient-text">Land OS</h1>
                 <p className="text-sm text-muted-foreground">DDA GIS Dashboard</p>
               </div>
             </div>
