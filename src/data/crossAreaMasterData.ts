@@ -700,16 +700,51 @@ export function getCompetitorsAsComparables(clffAreaCode: string) {
   if (!areaData) return [];
 
   return areaData.competitors.map(c => {
-    // Normalize unit mix percentages so they sum to 100%
+    const sizeByType = {
+      studio: areaData.salesByUnit.studio?.avgSizeSqft || 426,
+      br1: areaData.salesByUnit["1br"]?.avgSizeSqft || 771,
+      br2: areaData.salesByUnit["2br"]?.avgSizeSqft || 1208,
+      br3: areaData.salesByUnit["3br"]?.avgSizeSqft || 1680,
+    };
+
+    // Normalize unit mix percentages so they sum to exactly 100%
     const rawS = c.studioPct || 0;
     const raw1 = c.oneBRPct || 0;
     const raw2 = c.twoBRPct || 0;
     const raw3 = c.threeBRPct || 0;
-    const rawTotal = rawS + raw1 + raw2 + raw3;
-    // If total > 0, normalize to 100%; otherwise leave as-is
-    const norm = rawTotal > 0 && rawTotal !== 100
-      ? (v: number) => Math.round((v / rawTotal) * 100)
-      : (v: number) => v;
+    const raw = [rawS, raw1, raw2, raw3];
+    const rawTotal = raw.reduce((a, b) => a + b, 0);
+
+    let [studioP, br1P, br2P, br3P] = [rawS, raw1, raw2, raw3];
+    if (rawTotal > 0) {
+      const exact = raw.map(v => (v / rawTotal) * 100);
+      const floorVals = exact.map(v => Math.floor(v));
+      let remainder = 100 - floorVals.reduce((a, b) => a + b, 0);
+      const order = exact
+        .map((v, idx) => ({ idx, frac: v - Math.floor(v) }))
+        .sort((a, b) => b.frac - a.frac);
+      for (let i = 0; i < remainder; i++) {
+        floorVals[order[i % order.length].idx] += 1;
+      }
+      [studioP, br1P, br2P, br3P] = floorVals;
+    }
+
+    // Derive project priceFrom when missing using PSF range mins × unit avg sizes
+    const derivedCandidates: number[] = [];
+    if (typeof c.priceFrom === 'number' && c.priceFrom > 0) derivedCandidates.push(c.priceFrom);
+    if (c.studioPSFRange?.min) derivedCandidates.push(Math.round(c.studioPSFRange.min * sizeByType.studio));
+    if (c.oneBRPSFRange?.min) derivedCandidates.push(Math.round(c.oneBRPSFRange.min * sizeByType.br1));
+    if (c.twoBRPSFRange?.min) derivedCandidates.push(Math.round(c.twoBRPSFRange.min * sizeByType.br2));
+    if (c.threeBRPSFRange?.min) derivedCandidates.push(Math.round(c.threeBRPSFRange.min * sizeByType.br3));
+    const derivedPriceFrom = derivedCandidates.length ? Math.min(...derivedCandidates) : null;
+
+    const psfCandidates = [
+      c.studioPSFRange?.avg,
+      c.oneBRPSFRange?.avg,
+      c.twoBRPSFRange?.avg,
+      c.threeBRPSFRange?.avg,
+    ].filter((v): v is number => typeof v === 'number' && v > 0);
+    const derivedPsf = psfCandidates.length ? Math.round(psfCandidates.reduce((a, b) => a + b, 0) / psfCandidates.length) : null;
 
     return {
       name: c.name,
@@ -720,14 +755,14 @@ export function getCompetitorsAsComparables(clffAreaCode: string) {
       units: c.totalUnits,
       floors: c.floors || null,
       handover: c.completion || null,
-      priceFrom: c.priceFrom || null,
-      studioP: norm(rawS),
-      br1P: norm(raw1),
-      br2P: norm(raw2),
-      br3P: norm(raw3),
+      priceFrom: derivedPriceFrom,
+      studioP,
+      br1P,
+      br2P,
+      br3P,
       svc: c.serviceChargePerSqft ? c.serviceChargePerSqft.min : null,
       payPlan: c.paymentPlan || null,
-      psf: null,
+      psf: derivedPsf,
       studioMixStrategy: c.studioMixStrategy || null,
       studioPSFRange: c.studioPSFRange || null,
       oneBRPSFRange: c.oneBRPSFRange || null,
