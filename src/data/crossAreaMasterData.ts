@@ -723,44 +723,46 @@ export function getCompetitorsAsComparables(clffAreaCode: string) {
   }));
 }
 
-/** Get sales transaction data for an area */
+/** Minimum reliable transaction count for median calculation */
+const MIN_RELIABLE_TXNS = 10;
+
+/** Get sales transaction data for an area — enriched with share %, median price, insufficiency flags */
 export function getAreaSalesData(clffAreaCode: string) {
   const areaData = getAreaData(clffAreaCode);
   if (!areaData) return null;
 
   const sales = areaData.salesByUnit;
+  const total = Object.values(sales).reduce((sum, s) => sum + (s?.transactions || 0), 0);
+
+  const buildUnit = (s: UnitSalesData | undefined) => ({
+    transactions: s?.transactions || 0,
+    sharePct: total > 0 && s?.transactions ? Math.round((s.transactions / total) * 1000) / 10 : 0,
+    avgPSF: s?.avgPSF || 0,
+    medianPSF: s?.medianPSF || 0,
+    avgPrice: s?.avgPrice || 0,
+    medianPrice: s?.medianPrice || 0,
+    avgSize: s?.avgSizeSqft || 0,
+    insufficient: (s?.transactions || 0) > 0 && (s?.transactions || 0) < MIN_RELIABLE_TXNS,
+    noData: !s || (s.transactions || 0) === 0,
+  });
+
+  const studio = buildUnit(sales.studio);
+  const br1 = buildUnit(sales["1br"]);
+  const br2 = buildUnit(sales["2br"]);
+  const br3 = buildUnit(sales["3br"]);
+  const br4 = buildUnit(sales["4br"]);
+
   return {
-    avgPsf: {
-      studio: sales.studio?.avgPSF || 0,
-      br1: sales["1br"]?.avgPSF || 0,
-      br2: sales["2br"]?.avgPSF || 0,
-      br3: sales["3br"]?.avgPSF || 0,
-    },
-    medianPsf: {
-      studio: sales.studio?.medianPSF || 0,
-      br1: sales["1br"]?.medianPSF || 0,
-      br2: sales["2br"]?.medianPSF || 0,
-      br3: sales["3br"]?.medianPSF || 0,
-    },
-    avgSize: {
-      studio: sales.studio?.avgSizeSqft || 0,
-      br1: sales["1br"]?.avgSizeSqft || 0,
-      br2: sales["2br"]?.avgSizeSqft || 0,
-      br3: sales["3br"]?.avgSizeSqft || 0,
-    },
-    avgPrice: {
-      studio: sales.studio?.avgPrice || 0,
-      br1: sales["1br"]?.avgPrice || 0,
-      br2: sales["2br"]?.avgPrice || 0,
-      br3: sales["3br"]?.avgPrice || 0,
-    },
-    count: {
-      studio: sales.studio?.transactions || 0,
-      br1: sales["1br"]?.transactions || 0,
-      br2: sales["2br"]?.transactions || 0,
-      br3: sales["3br"]?.transactions || 0,
-      total: Object.values(sales).reduce((sum, s) => sum + (s?.transactions || 0), 0),
-    },
+    avgPsf: { studio: studio.avgPSF, br1: br1.avgPSF, br2: br2.avgPSF, br3: br3.avgPSF },
+    medianPsf: { studio: studio.medianPSF, br1: br1.medianPSF, br2: br2.medianPSF, br3: br3.medianPSF },
+    avgSize: { studio: studio.avgSize, br1: br1.avgSize, br2: br2.avgSize, br3: br3.avgSize },
+    avgPrice: { studio: studio.avgPrice, br1: br1.avgPrice, br2: br2.avgPrice, br3: br3.avgPrice },
+    medianPrice: { studio: studio.medianPrice, br1: br1.medianPrice, br2: br2.medianPrice, br3: br3.medianPrice },
+    count: { studio: studio.transactions, br1: br1.transactions, br2: br2.transactions, br3: br3.transactions, total },
+    sharePct: { studio: studio.sharePct, br1: br1.sharePct, br2: br2.sharePct, br3: br3.sharePct },
+    insufficient: { studio: studio.insufficient, br1: br1.insufficient, br2: br2.insufficient, br3: br3.insufficient },
+    noData: { studio: studio.noData, br1: br1.noData, br2: br2.noData, br3: br3.noData },
+    unitDetails: { studio, br1, br2, br3, br4 },
   };
 }
 
@@ -776,4 +778,137 @@ export function getAreaRentalData(clffAreaCode: string) {
     br2: rentals["2br"] || null,
     br3: rentals["3br"] || null,
   };
+}
+
+/** Generate data-derived area insights */
+export function generateAreaInsights(clffAreaCode: string): string[] {
+  const areaData = getAreaData(clffAreaCode);
+  if (!areaData) return [];
+
+  const insights: string[] = [];
+  const sales = getAreaSalesData(clffAreaCode);
+  if (!sales || sales.count.total === 0) {
+    insights.push("Insufficient sales transaction data to generate area insights.");
+    return insights;
+  }
+
+  // 1. Demand concentration
+  const types = [
+    { label: 'Studios', pct: sales.sharePct.studio },
+    { label: '1BR', pct: sales.sharePct.br1 },
+    { label: '2BR', pct: sales.sharePct.br2 },
+    { label: '3BR', pct: sales.sharePct.br3 },
+  ].filter(t => t.pct > 0).sort((a, b) => b.pct - a.pct);
+
+  if (types.length >= 2) {
+    const topTwo = types.slice(0, 2);
+    const combinedPct = topTwo.reduce((s, t) => s + t.pct, 0);
+    if (combinedPct > 60) {
+      insights.push(`Demand is concentrated in ${topTwo.map(t => t.label).join(' and ')} (${combinedPct.toFixed(0)}% of transactions).`);
+    }
+  }
+
+  // 2. Weak unit types
+  const weakTypes = types.filter(t => t.pct > 0 && t.pct < 5);
+  for (const wt of weakTypes) {
+    insights.push(`${wt.label} units show weak absorption (${wt.pct.toFixed(1)}% of txns) and should be minimized or avoided.`);
+  }
+
+  // 3. No-data unit types
+  const noDataTypes = [
+    { label: 'Studio', noData: sales.noData.studio },
+    { label: '3BR', noData: sales.noData.br3 },
+  ].filter(t => t.noData);
+  for (const nd of noDataTypes) {
+    insights.push(`${nd.label} units have zero recorded transactions — exclude or flag as speculative.`);
+  }
+
+  // 4. PSF stability
+  if (sales.medianPsf.studio > 0 && sales.avgPsf.studio > 0) {
+    const diff = Math.abs(sales.avgPsf.studio - sales.medianPsf.studio) / sales.avgPsf.studio;
+    if (diff < 0.05) {
+      insights.push("Median PSF is stable relative to average, suggesting uniform pricing — healthy market signal.");
+    } else if (diff > 0.15) {
+      insights.push("Significant gap between average and median PSF suggests investor-led pricing or outlier transactions.");
+    }
+  }
+
+  // 5. Rental yield context
+  const rentals = getAreaRentalData(clffAreaCode);
+  if (rentals) {
+    const yieldData = [
+      { label: 'Studio', yield: rentals.studio?.grossYield },
+      { label: '1BR', yield: rentals.br1?.grossYield },
+    ].filter(y => y.yield && y.yield > 0);
+
+    const highYield = yieldData.filter(y => (y.yield || 0) > 0.06);
+    if (highYield.length > 0) {
+      insights.push(`${highYield.map(y => y.label).join(' and ')} offer exceptional rental yield (>6%), supporting investor-focused strategies.`);
+    }
+  }
+
+  // 6. Competitor supply skew
+  const comps = areaData.competitors;
+  if (comps.length >= 2) {
+    const avgStudioPct = comps.reduce((s, c) => s + (c.studioPct || 0), 0) / comps.length;
+    const avg1BRPct = comps.reduce((s, c) => s + (c.oneBRPct || 0), 0) / comps.length;
+    if (avgStudioPct > 40) {
+      insights.push(`Competitor supply is skewed toward studios (avg ${Math.round(avgStudioPct)}%), confirming investor-focused market positioning.`);
+    } else if (avg1BRPct > 45) {
+      insights.push(`Competitor supply favors 1BR units (avg ${Math.round(avg1BRPct)}%), indicating strong end-user/rental demand.`);
+    }
+  }
+
+  // 7. Renewal rate
+  if (areaData.developmentFramework.rentalRenewalRate && areaData.developmentFramework.rentalRenewalRate > 0.4) {
+    insights.push(`High rental renewal rate (${(areaData.developmentFramework.rentalRenewalRate * 100).toFixed(0)}%) indicates low vacancy risk and tenant retention.`);
+  }
+
+  return insights;
+}
+
+/** Evaluate whether a unit mix template should be shown based on demand data */
+export function evaluateTemplateViability(clffAreaCode: string, template: UnitMixTemplate): {
+  show: boolean;
+  warnings: string[];
+  supportData: string[];
+} {
+  const sales = getAreaSalesData(clffAreaCode);
+  const warnings: string[] = [];
+  const supportData: string[] = [];
+
+  if (!sales || sales.count.total === 0) {
+    return { show: true, warnings: ["No transaction data to validate template"], supportData: [] };
+  }
+
+  const studioRec = template.units.find(u => u.unitType === 'studio');
+  const studioThreshold = 45;
+  const minTxnVolume = 20;
+
+  // Check if studio-heavy template is justified
+  if (studioRec && studioRec.recommended >= studioThreshold) {
+    if (sales.sharePct.studio < 30 && sales.count.studio < minTxnVolume) {
+      warnings.push(`Studio share is only ${sales.sharePct.studio.toFixed(1)}% of transactions (${sales.count.studio} txns) — insufficient demand to support a studio-heavy template.`);
+      return { show: false, warnings, supportData };
+    }
+    if (sales.sharePct.studio >= 30) {
+      supportData.push(`Studio demand confirmed: ${sales.sharePct.studio.toFixed(1)}% of transactions (${sales.count.studio} txns).`);
+    }
+  }
+
+  // Check for weak unit types in template
+  for (const entry of template.units) {
+    if (entry.recommended === 0) continue;
+    const key = entry.unitType === 'studio' ? 'studio' : entry.unitType === '1br' ? 'br1' : entry.unitType === '2br' ? 'br2' : entry.unitType === '3br' ? 'br3' : null;
+    if (!key) continue;
+    const txns = sales.count[key as keyof typeof sales.count] || 0;
+    const share = sales.sharePct[key as keyof typeof sales.sharePct] || 0;
+    if (txns === 0 && entry.recommended > 5) {
+      warnings.push(`${entry.unitType.toUpperCase()} has zero transactions but template recommends ${entry.recommended}% — reduce or eliminate.`);
+    } else if (share < 3 && entry.recommended > 10) {
+      warnings.push(`${entry.unitType.toUpperCase()} shows weak demand (${share.toFixed(1)}%) but template allocates ${entry.recommended}%.`);
+    }
+  }
+
+  return { show: true, warnings, supportData };
 }

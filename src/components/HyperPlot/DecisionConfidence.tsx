@@ -8,7 +8,7 @@ import { calcDSCFeasibility, DSCPlotInput, DSCFeasibilityResult, MixKey, MIX_TEM
 import { matchCLFFArea, findAnchorArea, normalizeAreaCode, CLFF_AREAS, CLFF_MARKET_DATA, getCLFFOverrides, type CLFFAreaProfile, type CLFFMarketData } from '@/lib/clffAreaDefaults';
 import { getAreaScopedMarketData, resolvePlotAreaCode, matchesAreaCode, extractAreaCodes } from '@/lib/areaResearch';
 import { findReportForLocation, AreaReport } from '@/data/areaReports';
-import { getAreaData, getCompetitorsAsComparables, getAreaSalesData, getAreaRentalData, type AreaMarketData } from '@/data/crossAreaMasterData';
+import { getAreaData, getCompetitorsAsComparables, getAreaSalesData, getAreaRentalData, generateAreaInsights, evaluateTemplateViability, type AreaMarketData } from '@/data/crossAreaMasterData';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Table, TableHeader, TableBody, TableRow, TableHead, TableCell, TableFooter } from '@/components/ui/table';
 import { Badge } from '@/components/ui/badge';
@@ -425,10 +425,12 @@ export function DecisionConfidence({ plot, comparisonPlots = [], isFullscreen, o
     [masterComps]
   );
 
+  const ZERO_FLAGS = { studio: false, br1: false, br2: false, br3: false };
+
   const masterTxnData = useMemo(() => {
-    if (!scopedAreaCode) return { avgPsf: ZERO_UNIT, medianPsf: ZERO_UNIT, avgSize: ZERO_UNIT, avgPrice: ZERO_UNIT, count: ZERO_COUNT };
+    if (!scopedAreaCode) return { avgPsf: ZERO_UNIT, medianPsf: ZERO_UNIT, avgSize: ZERO_UNIT, avgPrice: ZERO_UNIT, medianPrice: ZERO_UNIT, count: ZERO_COUNT, sharePct: ZERO_UNIT, insufficient: ZERO_FLAGS, noData: ZERO_FLAGS };
     const sales = getAreaSalesData(scopedAreaCode);
-    if (!sales) return { avgPsf: ZERO_UNIT, medianPsf: ZERO_UNIT, avgSize: ZERO_UNIT, avgPrice: ZERO_UNIT, count: ZERO_COUNT };
+    if (!sales) return { avgPsf: ZERO_UNIT, medianPsf: ZERO_UNIT, avgSize: ZERO_UNIT, avgPrice: ZERO_UNIT, medianPrice: ZERO_UNIT, count: ZERO_COUNT, sharePct: ZERO_UNIT, insufficient: ZERO_FLAGS, noData: ZERO_FLAGS };
     return sales;
   }, [scopedAreaCode]);
 
@@ -1335,7 +1337,7 @@ export function DecisionConfidence({ plot, comparisonPlots = [], isFullscreen, o
                 </div>
               </Section>
 
-              {/* Pricing Benchmarks */}
+              {/* Pricing Benchmarks — Enhanced with share %, median, insufficiency flags */}
               <Section title={`Pricing Benchmarks — ${areaName}`} badge="Cross-Area Master v2">
                 <div className="overflow-x-auto">
                   <Table>
@@ -1348,27 +1350,78 @@ export function DecisionConfidence({ plot, comparisonPlots = [], isFullscreen, o
                     </TableHeader>
                     <TableBody>
                       {[
-                        { metric: 'Avg Price From (AED)', vals: [masterTxnData.avgPrice.studio, masterTxnData.avgPrice.br1, masterTxnData.avgPrice.br2, masterTxnData.avgPrice.br3] },
-                        { metric: 'Avg PSF (Sellable)', vals: [masterTxnData.avgPsf.studio, masterTxnData.avgPsf.br1, masterTxnData.avgPsf.br2, masterTxnData.avgPsf.br3] },
-                        { metric: 'Median PSF', vals: [masterTxnData.medianPsf.studio, masterTxnData.medianPsf.br1, masterTxnData.medianPsf.br2, masterTxnData.medianPsf.br3] },
-                        { metric: 'Avg Size (sqft)', vals: [masterTxnData.avgSize.studio, masterTxnData.avgSize.br1, masterTxnData.avgSize.br2, masterTxnData.avgSize.br3] },
-                        { metric: 'Transactions', vals: [masterTxnData.count.studio, masterTxnData.count.br1, masterTxnData.count.br2, masterTxnData.count.br3] },
-                      ].map(row => (
-                        <TableRow key={row.metric}>
-                          <TableCell className="text-xs font-medium py-1.5">{row.metric}</TableCell>
-                          {row.vals.map((v, i) => (
-                            <TableCell key={i} className="text-xs text-right font-mono py-1.5">
-                              {row.metric.includes('Price From') ? (v ? fmtA(v) : '—') :
-                                row.metric.includes('PSF') ? (v ? `AED ${fmt(v)}` : '—') :
-                                  row.metric === 'Avg Size (sqft)' ? (v ? `${fmt(v)} sqft` : '—') :
-                                    (v ? fmt(v) : '—')}
-                            </TableCell>
-                          ))}
-                        </TableRow>
-                      ))}
+                        { metric: 'Transactions', vals: [masterTxnData.count.studio, masterTxnData.count.br1, masterTxnData.count.br2, masterTxnData.count.br3], type: 'count' },
+                        { metric: '% Share', vals: [masterTxnData.sharePct?.studio, masterTxnData.sharePct?.br1, masterTxnData.sharePct?.br2, masterTxnData.sharePct?.br3], type: 'pct' },
+                        { metric: 'Avg PSF (AED)', vals: [masterTxnData.avgPsf.studio, masterTxnData.avgPsf.br1, masterTxnData.avgPsf.br2, masterTxnData.avgPsf.br3], type: 'psf' },
+                        { metric: 'Median PSF (AED)', vals: [masterTxnData.medianPsf.studio, masterTxnData.medianPsf.br1, masterTxnData.medianPsf.br2, masterTxnData.medianPsf.br3], type: 'psf' },
+                        { metric: 'Avg Price (AED)', vals: [masterTxnData.avgPrice.studio, masterTxnData.avgPrice.br1, masterTxnData.avgPrice.br2, masterTxnData.avgPrice.br3], type: 'price' },
+                        { metric: 'Median Price (AED)', vals: [masterTxnData.medianPrice?.studio, masterTxnData.medianPrice?.br1, masterTxnData.medianPrice?.br2, masterTxnData.medianPrice?.br3], type: 'price' },
+                        { metric: 'Avg Size (sqft)', vals: [masterTxnData.avgSize.studio, masterTxnData.avgSize.br1, masterTxnData.avgSize.br2, masterTxnData.avgSize.br3], type: 'size' },
+                      ].map(row => {
+                        const insufficientFlags = masterTxnData.insufficient || { studio: false, br1: false, br2: false, br3: false };
+                        const noDataFlags = masterTxnData.noData || { studio: false, br1: false, br2: false, br3: false };
+                        const flagKeys = ['studio', 'br1', 'br2', 'br3'] as const;
+                        return (
+                          <TableRow key={row.metric}>
+                            <TableCell className="text-xs font-medium py-1.5">{row.metric}</TableCell>
+                            {row.vals.map((v, i) => {
+                              const isInsufficient = insufficientFlags[flagKeys[i]];
+                              const isNoData = noDataFlags[flagKeys[i]];
+                              let display: string;
+                              if (isNoData && row.type !== 'count') {
+                                display = '—';
+                              } else if (row.type === 'price') {
+                                display = v ? fmtA(v) : '—';
+                              } else if (row.type === 'psf') {
+                                display = v ? `AED ${fmt(v)}` : '—';
+                              } else if (row.type === 'size') {
+                                display = v ? `${fmt(v)} sqft` : '—';
+                              } else if (row.type === 'pct') {
+                                display = v ? `${v}%` : '—';
+                              } else {
+                                display = v != null ? fmt(v) : '—';
+                              }
+                              return (
+                                <TableCell key={i} className={`text-xs text-right font-mono py-1.5 ${isInsufficient && row.metric.includes('Median') ? 'text-warning' : ''}`}>
+                                  {display}
+                                  {isInsufficient && row.metric.includes('Median') && (
+                                    <span className="block text-[8px] text-warning font-normal">{`<${masterTxnData.count[flagKeys[i]]} txns`}</span>
+                                  )}
+                                </TableCell>
+                              );
+                            })}
+                          </TableRow>
+                        );
+                      })}
                     </TableBody>
                   </Table>
                 </div>
+
+                {/* Insufficiency warnings */}
+                {masterTxnData.insufficient && Object.entries(masterTxnData.insufficient).some(([, v]) => v) && (
+                  <div className="mt-2 p-2 rounded-lg bg-warning/10 border border-warning/20 text-[10px] text-warning flex items-start gap-1.5">
+                    <FileWarning className="w-3.5 h-3.5 shrink-0 mt-0.5" />
+                    <span>
+                      {Object.entries(masterTxnData.insufficient)
+                        .filter(([, v]) => v)
+                        .map(([k]) => k === 'studio' ? 'Studio' : k === 'br1' ? '1BR' : k === 'br2' ? '2BR' : '3BR')
+                        .join(', ')} — Insufficient transactions ({'<'}10) to compute reliable median. Values shown but may not be statistically significant.
+                    </span>
+                  </div>
+                )}
+
+                {masterTxnData.noData && Object.entries(masterTxnData.noData).some(([, v]) => v) && (
+                  <div className="mt-2 p-2 rounded-lg bg-muted/30 border border-border/30 text-[10px] text-muted-foreground flex items-start gap-1.5">
+                    <FileWarning className="w-3.5 h-3.5 shrink-0 mt-0.5" />
+                    <span>
+                      {Object.entries(masterTxnData.noData)
+                        .filter(([, v]) => v)
+                        .map(([k]) => k === 'studio' ? 'Studio' : k === 'br1' ? '1BR' : k === 'br2' ? '2BR' : '3BR')
+                        .join(', ')} — No recorded transactions for this unit type.
+                    </span>
+                  </div>
+                )}
+
                 {
                   masterComps.length > 0 && (() => {
                     const compPriceValues = masterComps
@@ -1526,6 +1579,101 @@ export function DecisionConfidence({ plot, comparisonPlots = [], isFullscreen, o
                   </div>
                 </div>
               </Section>
+
+              {/* Demand-Driven Unit Mix Templates */}
+              {masterAreaData && masterAreaData.unitMixTemplates.length > 0 && (
+                <Section title={`Unit Mix Templates — ${areaName}`} badge={`${masterAreaData.unitMixTemplates.length} templates`}>
+                  {masterAreaData.unitMixTemplates.map((template, tIdx) => {
+                    const viability = scopedAreaCode ? evaluateTemplateViability(scopedAreaCode, template) : { show: true, warnings: [], supportData: [] };
+
+                    return (
+                      <div key={tIdx} className={`mb-4 p-3 rounded-lg border ${viability.show ? 'bg-card border-border/40' : 'bg-muted/20 border-border/20 opacity-60'}`}>
+                        <div className="flex items-center justify-between mb-2">
+                          <h4 className={`text-xs font-bold uppercase tracking-wider ${viability.show ? 'text-primary' : 'text-muted-foreground line-through'}`}>
+                            Template {tIdx + 1} — {template.name}
+                          </h4>
+                          {!viability.show && (
+                            <Badge variant="outline" className="text-[9px] border-destructive/40 text-destructive">Hidden — insufficient demand</Badge>
+                          )}
+                        </div>
+                        <p className="text-[10px] text-muted-foreground mb-2">{template.description}</p>
+
+                        {viability.show && (
+                          <div className="overflow-x-auto">
+                            <Table>
+                              <TableHeader>
+                                <TableRow>
+                                  {['Unit Type', 'Range', 'Recommended', 'Rationale', 'Viability'].map(h => (
+                                    <TableHead key={h} className="text-[10px] text-right first:text-left">{h}</TableHead>
+                                  ))}
+                                </TableRow>
+                              </TableHeader>
+                              <TableBody>
+                                {template.units.map((entry, eIdx) => (
+                                  <TableRow key={eIdx}>
+                                    <TableCell className="text-xs font-medium py-1.5 uppercase">{entry.unitType}</TableCell>
+                                    <TableCell className="text-xs text-right font-mono py-1.5">{entry.rangeMin}–{entry.rangeMax}%</TableCell>
+                                    <TableCell className="text-xs text-right font-bold font-mono py-1.5 text-primary">{entry.recommended}%</TableCell>
+                                    <TableCell className="text-[10px] text-right py-1.5 text-muted-foreground max-w-[200px] truncate" title={entry.rationale}>{entry.rationale}</TableCell>
+                                    <TableCell className="text-xs text-right py-1.5">
+                                      <span className={`font-bold ${entry.viability === '★' ? 'text-primary' : entry.viability === '✓' ? 'text-success' : entry.viability === '✗' ? 'text-destructive' : 'text-warning'}`}>
+                                        {entry.viability}
+                                      </span>
+                                    </TableCell>
+                                  </TableRow>
+                                ))}
+                              </TableBody>
+                            </Table>
+                          </div>
+                        )}
+
+                        {/* Warnings */}
+                        {viability.warnings.length > 0 && (
+                          <div className="mt-2 space-y-1">
+                            {viability.warnings.map((w, i) => (
+                              <div key={i} className="flex items-start gap-1.5 p-1.5 rounded bg-warning/10 border border-warning/20 text-[10px] text-warning">
+                                <FileWarning className="w-3 h-3 shrink-0 mt-0.5" />
+                                <span>{w}</span>
+                              </div>
+                            ))}
+                          </div>
+                        )}
+                        {viability.supportData.length > 0 && (
+                          <div className="mt-2 space-y-1">
+                            {viability.supportData.map((s, i) => (
+                              <div key={i} className="flex items-start gap-1.5 p-1.5 rounded bg-success/10 border border-success/20 text-[10px] text-success">
+                                <Target className="w-3 h-3 shrink-0 mt-0.5" />
+                                <span>{s}</span>
+                              </div>
+                            ))}
+                          </div>
+                        )}
+                      </div>
+                    );
+                  })}
+                </Section>
+              )}
+
+              {/* Auto-Generated Area Insights */}
+              {scopedAreaCode && (() => {
+                const insights = generateAreaInsights(scopedAreaCode);
+                if (!insights.length) return null;
+                return (
+                  <Section title={`${areaName} Market Insights`} badge="Data-Derived">
+                    <div className="space-y-2">
+                      {insights.map((insight, i) => (
+                        <div key={i} className="flex items-start gap-2 p-2.5 rounded-lg bg-muted/30 border border-border/30">
+                          <Lightbulb className="w-4 h-4 text-warning shrink-0 mt-0.5" />
+                          <p className="text-xs text-foreground leading-relaxed">{insight}</p>
+                        </div>
+                      ))}
+                    </div>
+                    <div className="mt-3 text-[9px] text-muted-foreground p-2 rounded bg-muted/20 border border-border/20">
+                      Insights are computed from {areaName} transaction data, competitor supply analysis, and rental yield benchmarks. Not manually authored.
+                    </div>
+                  </Section>
+                );
+              })()}
             </>
           )
           }
