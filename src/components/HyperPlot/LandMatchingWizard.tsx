@@ -105,9 +105,9 @@ export function LandMatchingWizard({
   const [matchResults, setMatchResults] = useState<MatchResult[]>([]);
   const [isProcessing, setIsProcessing] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [sheetId, setSheetId] = useState(() => localStorage.getItem('hp_sheetId') || '');
+  const [sheetId, setSheetId] = useState(() => localStorage.getItem('hp_sheetId') || localStorage.getItem('hyperplot_sheet_url') || '');
   const [sheetName, setSheetName] = useState(() => localStorage.getItem('hp_sheetName') || '');
-  const [sheetConnected, setSheetConnected] = useState(() => localStorage.getItem('hp_sheetConnected') === 'true');
+  const [sheetConnected, setSheetConnected] = useState(() => localStorage.getItem('hp_sheetConnected') === 'true' || !!localStorage.getItem('hp_sheetId') || !!localStorage.getItem('hyperplot_sheet_url'));
   const [isConnectingSheet, setIsConnectingSheet] = useState(false);
   const [showReviewModal, setShowReviewModal] = useState(false);
   const [selectedMatchIds, setSelectedMatchIds] = useState<Set<string>>(new Set());
@@ -469,6 +469,7 @@ export function LandMatchingWizard({
           setSheetConnected(true);
           localStorage.setItem('hp_sheetConnected', 'true');
           localStorage.setItem('hp_sheetId', sheetId);
+          localStorage.setItem('hyperplot_sheet_url', sheetId); // keep Add Plot + Wizard in sync
           localStorage.setItem('hp_sheetName', sheetName);
           setError(null);
         } else {
