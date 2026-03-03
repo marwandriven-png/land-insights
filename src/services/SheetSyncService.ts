@@ -3,18 +3,24 @@
 const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL;
 const SUPABASE_KEY = import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY;
 
-function getSheetConfig() {
-  // For listing sync, prefer the Settings Wizard URL (listings sheet)
-  const sheetUrl = localStorage.getItem('hyperplot_sheet_url') || '';
+function getUnifiedSheetConfig() {
+  // One shared source for both Add Plot and Matching Wizard
+  const wizardSheetUrl = localStorage.getItem('hp_sheetId') || '';
+  const settingsSheetUrl = localStorage.getItem('hyperplot_sheet_url') || '';
+  const sheetUrl = wizardSheetUrl || settingsSheetUrl;
+  const fallbackSheetUrl = settingsSheetUrl && settingsSheetUrl !== sheetUrl ? settingsSheetUrl : '';
   const dataSheetName = localStorage.getItem('hp_sheetName') || '';
+  return { sheetUrl, fallbackSheetUrl, dataSheetName };
+}
+
+function getSheetConfig() {
+  const { sheetUrl, dataSheetName } = getUnifiedSheetConfig();
   return { sheetUrl, dataSheetName };
 }
 
 function getDataSheetConfig() {
-  // For owner lookup (land matching), prefer the Matching Wizard URL (database sheet)
-  const sheetUrl = localStorage.getItem('hp_sheetId') || localStorage.getItem('hyperplot_sheet_url') || '';
-  const dataSheetName = localStorage.getItem('hp_sheetName') || '';
-  return { sheetUrl, dataSheetName };
+  const { sheetUrl, fallbackSheetUrl, dataSheetName } = getUnifiedSheetConfig();
+  return { sheetUrl, fallbackSheetUrl, dataSheetName };
 }
 
 // The LISTING sheet is where listings are written/synced
@@ -255,7 +261,7 @@ export async function deleteListingFromSheet(plotNumber: string): Promise<boolea
 }
 
 export async function lookupOwnerFromSheet(plotNumber: string): Promise<{ owner: string; mobile: string } | null> {
-  const { sheetUrl, dataSheetName } = getDataSheetConfig();
+  const { sheetUrl, fallbackSheetUrl, dataSheetName } = getDataSheetConfig();
   if (!sheetUrl) return null;
 
   const ownerKeys = ['owner', 'owner name', 'name', 'owner_reference', 'owner reference', 'owner ref'];
@@ -276,7 +282,7 @@ export async function lookupOwnerFromSheet(plotNumber: string): Promise<{ owner:
     return owner || mobile ? { owner, mobile } : null;
   };
 
-  try {
+  const runLookup = async (targetSheetUrl: string) => {
     const response = await fetch(
       `${SUPABASE_URL}/functions/v1/sheets-proxy?action=lookup`,
       {
@@ -286,7 +292,7 @@ export async function lookupOwnerFromSheet(plotNumber: string): Promise<{ owner:
           'Content-Type': 'application/json',
         },
         body: JSON.stringify({
-          spreadsheetId: sheetUrl,
+          spreadsheetId: targetSheetUrl,
           sheetName: dataSheetName || undefined,
           plotNumbers: [plotNumber],
         }),
@@ -294,12 +300,18 @@ export async function lookupOwnerFromSheet(plotNumber: string): Promise<{ owner:
     );
 
     const data = await response.json();
-    if (!response.ok || data.error) {
-      console.warn('Owner lookup failed:', data?.error || response.status);
-      return null;
-    }
-
+    if (!response.ok || data.error) return null;
     return pickOwnerMobile(data.matches?.[plotNumber]);
+  };
+
+  try {
+    const primary = await runLookup(sheetUrl);
+    if (primary) return primary;
+    if (fallbackSheetUrl) {
+      const fallback = await runLookup(fallbackSheetUrl);
+      if (fallback) return fallback;
+    }
+    return null;
   } catch {
     return null;
   }

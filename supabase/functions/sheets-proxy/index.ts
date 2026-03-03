@@ -225,12 +225,26 @@ serve(async (req) => {
       if (ownerColIndex === -1) ownerColIndex = headers.findIndex((h: string) => h.includes('owner'));
       if (ownerColIndex === -1) ownerColIndex = headers.findIndex((h: string) => h === 'name');
 
+      const toAsciiDigits = (v: string) =>
+        v
+          .replace(/[٠-٩]/g, (d) => String(d.charCodeAt(0) - 1632))
+          .replace(/[۰-۹]/g, (d) => String(d.charCodeAt(0) - 1776));
+
       const normalize = (v: string) => {
-        const raw = v.toString().trim().toLowerCase();
+        const raw = toAsciiDigits((v ?? '').toString().trim().toLowerCase());
+        if (!raw) return '';
+
+        // Handle scientific notation like 3.343029e+6
+        const sci = Number(raw.replace(/,/g, ''));
+        if (Number.isFinite(sci) && /e[+-]?\d+/i.test(raw)) {
+          return Math.trunc(sci).toString();
+        }
+
         const withoutDecimal = raw.replace(/\.0+$/, '');
         const alnum = withoutDecimal.replace(/[^0-9a-zA-Z]/g, '').toLowerCase();
         return alnum.replace(/^0+(?=\d)/, '');
       };
+
       const normalizedLookups = plotNumbers.map((pn: string) => normalize(pn));
 
       console.log(`Headers: [${headers.join(', ')}]`);
@@ -238,6 +252,21 @@ serve(async (req) => {
       console.log(`Looking up ${plotNumbers.length} plots: ${plotNumbers.slice(0, 5).join(', ')}`);
 
       const matches: Record<string, Record<string, string>> = {};
+
+      const resolveLookupIndex = (value: string) => {
+        const normalized = normalize(value);
+        if (!normalized) return -1;
+
+        // 1) exact normalized match
+        let idx = normalizedLookups.indexOf(normalized);
+        if (idx !== -1) return idx;
+
+        // 2) containment fallback for formatting drift (e.g. 3343029-1)
+        idx = normalizedLookups.findIndex((lookup) =>
+          lookup && (normalized.includes(lookup) || lookup.includes(normalized))
+        );
+        return idx;
+      };
 
       for (let i = 1; i < rows.length; i++) {
         const row = rows[i];
@@ -274,8 +303,7 @@ serve(async (req) => {
 
         let matchIndex = -1;
         for (const value of candidateValues) {
-          const normalized = normalize(value);
-          matchIndex = normalizedLookups.indexOf(normalized);
+          matchIndex = resolveLookupIndex(value);
           if (matchIndex !== -1) break;
         }
 
