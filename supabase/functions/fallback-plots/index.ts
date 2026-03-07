@@ -176,8 +176,48 @@ serve(async (req) => {
       });
     }
 
-    // ── BULK IMPORT (POST) ──
-    if (req.method === 'POST') {
+    // ── UPDATE: edit a single fallback plot ──
+    if (action === 'update' && req.method === 'POST') {
+      const body = await req.json();
+      const plotId = body.id as string;
+
+      if (!plotId) {
+        return new Response(JSON.stringify({ error: 'id required' }), {
+          status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+        });
+      }
+
+      // Build update object from allowed fields
+      const allowedFields = [
+        'area_name', 'area_code', 'common_name', 'zoning', 'floors',
+        'land_use', 'developer', 'project_name', 'status', 'notes',
+        'plot_area_sqm', 'plot_area_sqft', 'gfa_sqm', 'latitude', 'longitude',
+        'municipality_number_original'
+      ];
+
+      const updates: Record<string, unknown> = { updated_at: new Date().toISOString() };
+      for (const field of allowedFields) {
+        if (field in body) {
+          updates[field] = body[field];
+        }
+      }
+
+      const { data, error } = await supabase
+        .from('fallback_plots')
+        .update(updates)
+        .eq('id', plotId)
+        .select('*')
+        .maybeSingle();
+
+      if (error) throw error;
+
+      return new Response(JSON.stringify({ success: true, plot: data }), {
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+      });
+    }
+
+    // ── BULK IMPORT (POST without action) ──
+    if (req.method === 'POST' && !action) {
       const body = await req.json();
       const csvText = body.csv_data as string;
 
