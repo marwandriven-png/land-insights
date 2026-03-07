@@ -235,6 +235,72 @@ export function PlotDetailPanel({ plot, onClose, onSelectPlot, onGoToLocation, s
   const [listed, setListed] = useState(() => isPlotListed(plot.id));
   const [exported, setExported] = useState(() => getExportedPlotIds().has(plot.id));
   const isManual = plot.verificationSource === 'Manual';
+  const isFallback = !!(plot.rawAttributes as any)?._isFallbackPlot;
+
+  // Editable state for fallback plots
+  const [isEditing, setIsEditing] = useState(false);
+  const [editData, setEditData] = useState({
+    plot_area_sqm: String(plot.area || ''),
+    gfa_sqm: String(plot.gfa || ''),
+    floors: plot.floors || '',
+    zoning: plot.zoning || '',
+    developer: plot.developer || '',
+    project_name: plot.project || '',
+    status: plot.status || 'Available',
+    notes: '',
+  });
+  const [isSaving, setIsSaving] = useState(false);
+
+  const handleSaveEdit = async () => {
+    if (!isFallback) return;
+    const fallbackId = (plot.rawAttributes as any)?._fallbackId;
+    if (!fallbackId) { toast.error('Missing fallback ID'); return; }
+
+    setIsSaving(true);
+    try {
+      const resp = await fetch(
+        `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/fallback-plots?action=update`,
+        {
+          method: 'POST',
+          headers: {
+            'Authorization': `Bearer ${import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY}`,
+            'Content-Type': 'application/json'
+          },
+          body: JSON.stringify({
+            id: fallbackId,
+            plot_area_sqm: editData.plot_area_sqm ? parseFloat(editData.plot_area_sqm) : null,
+            gfa_sqm: editData.gfa_sqm ? parseFloat(editData.gfa_sqm) : null,
+            floors: editData.floors || null,
+            zoning: editData.zoning || null,
+            developer: editData.developer || null,
+            project_name: editData.project_name || null,
+            status: editData.status || 'Available',
+            notes: editData.notes || null,
+          })
+        }
+      );
+      if (!resp.ok) throw new Error('Failed to update');
+      const result = await resp.json();
+      if (result.success) {
+        toast.success('Plot updated successfully');
+        setIsEditing(false);
+        // Update local plot data
+        plot.area = parseFloat(editData.plot_area_sqm) || plot.area;
+        plot.gfa = parseFloat(editData.gfa_sqm) || plot.gfa;
+        plot.floors = editData.floors || plot.floors;
+        plot.zoning = editData.zoning || plot.zoning;
+        plot.developer = editData.developer || plot.developer;
+        plot.project = editData.project_name || plot.project;
+        plot.status = editData.status || plot.status;
+      } else {
+        throw new Error(result.error || 'Update failed');
+      }
+    } catch (err: any) {
+      toast.error(err.message || 'Failed to save changes');
+    } finally {
+      setIsSaving(false);
+    }
+  };
 
   // Re-evaluate listing status when refreshKey or plot changes
   useEffect(() => {
