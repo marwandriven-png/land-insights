@@ -168,12 +168,12 @@ export function LeafletMap({ plots, selectedPlot, onPlotClick, highlightedPlots,
           [lat, lng] = convertToLatLng(plot.x * 10 + 495000, plot.y * 10 + 2766000);
         }
         polygon = L.circleMarker([lat, lng], {
-          radius: 8,
-          color: isSelected ? '#ffffff' : active ? '#00e5ff' : DDA_BLUE,
-          weight: 2,
-          fillColor: DDA_BLUE,
-          fillOpacity: 0.6,
-          className: active ? 'plot-glow-circle' : ''
+          radius: isFallbackPlot ? 10 : 8,
+          color: plotBorderColor,
+          weight: isFallbackPlot ? 3 : 2,
+          fillColor: plotFillColor,
+          fillOpacity: isFallbackPlot ? 0.3 : 0.6,
+          className: active ? 'plot-glow-circle' : isFallbackPlot ? 'plot-fallback-circle' : ''
         });
       }
 
