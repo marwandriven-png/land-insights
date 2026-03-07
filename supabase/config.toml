@@ -14,3 +14,6 @@ verify_jwt = false
 
 [functions.land-matching-wizard]
 verify_jwt = false
+
+[functions.fallback-plots]
+verify_jwt = false

@@ -331,6 +331,81 @@ export type Database = {
         }
         Relationships: []
       }
+      fallback_plots: {
+        Row: {
+          area_code: string | null
+          area_name: string | null
+          common_name: string | null
+          created_at: string
+          data_source: string | null
+          developer: string | null
+          floors: string | null
+          geom: unknown
+          gfa_sqm: number | null
+          id: string
+          land_use: string | null
+          latitude: number
+          longitude: number
+          municipality_number: string
+          municipality_number_original: string | null
+          notes: string | null
+          plot_area_sqft: number | null
+          plot_area_sqm: number | null
+          project_name: string | null
+          status: string | null
+          updated_at: string
+          zoning: string | null
+        }
+        Insert: {
+          area_code?: string | null
+          area_name?: string | null
+          common_name?: string | null
+          created_at?: string
+          data_source?: string | null
+          developer?: string | null
+          floors?: string | null
+          geom?: unknown
+          gfa_sqm?: number | null
+          id?: string
+          land_use?: string | null
+          latitude: number
+          longitude: number
+          municipality_number: string
+          municipality_number_original?: string | null
+          notes?: string | null
+          plot_area_sqft?: number | null
+          plot_area_sqm?: number | null
+          project_name?: string | null
+          status?: string | null
+          updated_at?: string
+          zoning?: string | null
+        }
+        Update: {
+          area_code?: string | null
+          area_name?: string | null
+          common_name?: string | null
+          created_at?: string
+          data_source?: string | null
+          developer?: string | null
+          floors?: string | null
+          geom?: unknown
+          gfa_sqm?: number | null
+          id?: string
+          land_use?: string | null
+          latitude?: number
+          longitude?: number
+          municipality_number?: string
+          municipality_number_original?: string | null
+          notes?: string | null
+          plot_area_sqft?: number | null
+          plot_area_sqm?: number | null
+          project_name?: string | null
+          status?: string | null
+          updated_at?: string
+          zoning?: string | null
+        }
+        Relationships: []
+      }
       market_snapshots: {
         Row: {
           area_id: string
@@ -1181,6 +1256,23 @@ export type Database = {
           longitude: number
           plot_id: string
           property_type: string
+        }[]
+      }
+      search_fallback_plots_by_radius: {
+        Args: { center_lat: number; center_lng: number; radius_meters?: number }
+        Returns: {
+          area_code: string
+          area_name: string
+          common_name: string
+          distance_m: number
+          id: string
+          latitude: number
+          longitude: number
+          municipality_number: string
+          municipality_number_original: string
+          plot_area_sqm: number
+          status: string
+          zoning: string
         }[]
       }
       st_3dclosestpoint: {

@@ -103,7 +103,10 @@ export function LeafletMap({ plots, selectedPlot, onPlotClick, highlightedPlots,
       const active = isSelectedOrHighlighted(plot.id);
       const isSelected = selectedPlot?.id === plot.id;
       const isManualLatLng = rawAttrs && (rawAttrs as Record<string, unknown>)._isManualLatLng === true;
-
+      const isFallbackPlot = rawAttrs && (rawAttrs as Record<string, unknown>)._isFallbackPlot === true;
+      const FALLBACK_NEON = '#00ffcc';
+      const plotBorderColor = isSelected ? '#ffffff' : active ? '#00e5ff' : isFallbackPlot ? FALLBACK_NEON : DDA_BLUE;
+      const plotFillColor = isFallbackPlot ? FALLBACK_NEON : DDA_BLUE;
       if (rawAttrs && (rawAttrs as Record<string, unknown>).geometry) {
         const geom = (rawAttrs as Record<string, unknown>).geometry as { rings?: number[][][]; x?: number; y?: number };
         if (geom.rings && geom.rings.length > 0) {
@@ -133,11 +136,11 @@ export function LeafletMap({ plots, selectedPlot, onPlotClick, highlightedPlots,
           }
 
           polygon = L.polygon(latLngs, {
-            color: isSelected ? '#ffffff' : active ? '#00e5ff' : DDA_BLUE,
-            weight: isSelected ? 2.5 : active ? 2 : 1,
+            color: plotBorderColor,
+            weight: isSelected ? 2.5 : active ? 2 : isFallbackPlot ? 2.5 : 1,
             opacity: 1,
-            fillColor: DDA_BLUE,
-            fillOpacity: active ? 0.65 : 0.35
+            fillColor: plotFillColor,
+            fillOpacity: active ? 0.65 : isFallbackPlot ? 0.25 : 0.35
           });
         } else {
           // Fallback to point
@@ -148,12 +151,12 @@ export function LeafletMap({ plots, selectedPlot, onPlotClick, highlightedPlots,
             [lat, lng] = convertToLatLng(plot.x * 10 + 495000, plot.y * 10 + 2766000);
           }
           polygon = L.circleMarker([lat, lng], {
-            radius: 8,
-            color: isSelected ? '#ffffff' : active ? '#00e5ff' : DDA_BLUE,
-            weight: 2,
-            fillColor: DDA_BLUE,
-            fillOpacity: 0.6,
-            className: active ? 'plot-glow-circle' : ''
+            radius: isFallbackPlot ? 10 : 8,
+            color: plotBorderColor,
+            weight: isFallbackPlot ? 3 : 2,
+            fillColor: plotFillColor,
+            fillOpacity: isFallbackPlot ? 0.3 : 0.6,
+            className: active ? 'plot-glow-circle' : isFallbackPlot ? 'plot-fallback-circle' : ''
           });
         }
       } else {
@@ -165,12 +168,12 @@ export function LeafletMap({ plots, selectedPlot, onPlotClick, highlightedPlots,
           [lat, lng] = convertToLatLng(plot.x * 10 + 495000, plot.y * 10 + 2766000);
         }
         polygon = L.circleMarker([lat, lng], {
-          radius: 8,
-          color: isSelected ? '#ffffff' : active ? '#00e5ff' : DDA_BLUE,
-          weight: 2,
-          fillColor: DDA_BLUE,
-          fillOpacity: 0.6,
-          className: active ? 'plot-glow-circle' : ''
+          radius: isFallbackPlot ? 10 : 8,
+          color: plotBorderColor,
+          weight: isFallbackPlot ? 3 : 2,
+          fillColor: plotFillColor,
+          fillOpacity: isFallbackPlot ? 0.3 : 0.6,
+          className: active ? 'plot-glow-circle' : isFallbackPlot ? 'plot-fallback-circle' : ''
         });
       }
 
@@ -178,6 +181,7 @@ export function LeafletMap({ plots, selectedPlot, onPlotClick, highlightedPlots,
         <div class="p-2 min-w-[180px]">
           <div class="font-bold text-sm">${plot.id}</div>
           <div class="text-xs text-gray-400">${plot.location || plot.project || 'Dubai'}</div>
+          ${isFallbackPlot ? '<div class="text-xs mt-1 px-1.5 py-0.5 rounded" style="background:#00ffcc22;color:#00ffcc;border:1px solid #00ffcc44">📍 Fallback DB</div>' : ''}
           <hr class="my-1 border-gray-600" />
           <div class="grid grid-cols-2 gap-1 text-xs">
             <span class="text-gray-400">Area:</span>

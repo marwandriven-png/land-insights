@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback, useMemo, useRef } from 'react';
-import { Map, Home, Brain, AlertCircle, X, RefreshCw, Wifi, WifiOff, Target, Clock, Settings, Shield, GitCompareArrows, Plus, Minimize2, Maximize2 } from 'lucide-react';
+import { Map, Home, Brain, AlertCircle, X, RefreshCw, Wifi, WifiOff, Target, Clock, Settings, Shield, GitCompareArrows, Plus, Minimize2, Maximize2, Database } from 'lucide-react';
 import { isPlotListed, markPlotListed, getDeletedBlacklist } from '@/services/LandMatchingService';
 import { lookupOwnerFromSheet, importPlotsFromSheet } from '@/services/SheetSyncService';
 import { Badge } from '@/components/ui/badge';
@@ -20,6 +20,7 @@ import { FeasibilitySettings } from './FeasibilitySettings';
 import { ManualLandForm } from './ManualLandForm';
 import { ListingsPage } from './ListingsPage';
 import { QuickAddLandModal } from './QuickAddLandModal';
+import { FallbackUploadModal } from './FallbackUploadModal';
 import { FeasibilityParams, DEFAULT_FEASIBILITY_PARAMS } from './FeasibilityCalculator';
 import { Button } from '@/components/ui/button';
 import { ScrollArea } from '@/components/ui/scroll-area';
@@ -55,6 +56,7 @@ export function HyperPlotAI() {
   const [showFeasibilitySettings, setShowFeasibilitySettings] = useState(false);
   const [showManualLandForm, setShowManualLandForm] = useState(false);
   const [showQuickAdd, setShowQuickAdd] = useState(false);
+  const [showFallbackUpload, setShowFallbackUpload] = useState(false);
   const [editingManualLand, setEditingManualLand] = useState<ManualLandEntry | null>(null);
   const [decisionFullscreen, setDecisionFullscreen] = useState(false);
   const [lastSeen, setLastSeen] = useState<LastSeenEntry[]>(getLastSeen());
@@ -359,6 +361,16 @@ export function HyperPlotAI() {
               >
                 <Target className="w-4 h-4" />
                 Matching Wizard
+              </Button>
+
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => setShowFallbackUpload(true)}
+                className="gap-2"
+              >
+                <Database className="w-4 h-4" />
+                Fallback DB
               </Button>
 
               <Button
@@ -805,6 +817,12 @@ export function HyperPlotAI() {
         open={showQuickAdd}
         onClose={() => setShowQuickAdd(false)}
         onLandAdded={handleQuickAddDone}
+      />
+
+      {/* Fallback Plot Database Upload */}
+      <FallbackUploadModal
+        open={showFallbackUpload}
+        onClose={() => setShowFallbackUpload(false)}
       />
     </div>
   );
