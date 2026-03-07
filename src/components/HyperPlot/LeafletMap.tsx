@@ -136,11 +136,11 @@ export function LeafletMap({ plots, selectedPlot, onPlotClick, highlightedPlots,
           }
 
           polygon = L.polygon(latLngs, {
-            color: isSelected ? '#ffffff' : active ? '#00e5ff' : DDA_BLUE,
-            weight: isSelected ? 2.5 : active ? 2 : 1,
+            color: plotBorderColor,
+            weight: isSelected ? 2.5 : active ? 2 : isFallbackPlot ? 2.5 : 1,
             opacity: 1,
-            fillColor: DDA_BLUE,
-            fillOpacity: active ? 0.65 : 0.35
+            fillColor: plotFillColor,
+            fillOpacity: active ? 0.65 : isFallbackPlot ? 0.25 : 0.35
           });
         } else {
           // Fallback to point
