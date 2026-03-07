@@ -154,6 +154,7 @@ class DDAGISService {
 
   async fetchPlotById(plotId: string): Promise<PlotData | null> {
     try {
+      // Step 1: Try official GIS/DDA API
       const response = await fetch(
         `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/dda-gis-proxy?action=plot&plotId=${encodeURIComponent(plotId)}`,
         {
@@ -165,18 +166,76 @@ class DDAGISService {
         }
       );
 
-      if (!response.ok) {
-        throw new Error(`Edge function returned ${response.status}`);
+      if (response.ok) {
+        const data = await response.json();
+        if (data.features && data.features.length > 0) {
+          return this.transformGISData(data.features)[0];
+        }
       }
 
-      const data = await response.json();
-
-      if (data.features && data.features.length > 0) {
-        return this.transformGISData(data.features)[0];
-      }
-      return null;
+      // Step 2: GIS returned nothing → check fallback database
+      console.log(`GIS returned no data for ${plotId}, checking fallback database...`);
+      return await this.fetchFallbackPlot(plotId);
     } catch (error) {
       console.error('Error fetching plot by ID:', error);
+      // Still try fallback on error
+      try {
+        return await this.fetchFallbackPlot(plotId);
+      } catch {
+        return null;
+      }
+    }
+  }
+
+  /** Query the fallback_plots PostGIS table when GIS API has no data */
+  private async fetchFallbackPlot(plotId: string): Promise<PlotData | null> {
+    try {
+      const normalized = plotId.replace(/[^0-9a-zA-Z]/g, '').replace(/^0+(?=\d)/, '');
+      const resp = await fetch(
+        `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/fallback-plots?action=lookup&municipality_number=${encodeURIComponent(normalized)}`,
+        {
+          method: 'GET',
+          headers: {
+            'Authorization': `Bearer ${import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY}`,
+            'Content-Type': 'application/json'
+          }
+        }
+      );
+      if (!resp.ok) return null;
+      const result = await resp.json();
+      if (!result.found || !result.plot) return null;
+
+      const p = result.plot;
+      return {
+        id: p.municipality_number_original || p.municipality_number,
+        area: p.plot_area_sqm || 0,
+        gfa: p.gfa_sqm || 0,
+        floors: p.floors || 'N/A',
+        zoning: p.zoning || 'Mixed Use',
+        location: p.common_name || p.area_name || 'Dubai',
+        x: p.longitude,
+        y: p.latitude,
+        color: '#8b5cf6',
+        status: p.status || 'Available',
+        constructionCost: 800,
+        salePrice: 1500,
+        developer: p.developer,
+        project: p.project_name,
+        entity: p.area_name,
+        isFrozen: false,
+        rawAttributes: {
+          _isFallbackPlot: true,
+          _fallbackId: p.id,
+          municipality_number: p.municipality_number,
+          area_code: p.area_code,
+        },
+        verificationSource: 'DLD' as VerificationSource,
+        verificationDate: new Date().toISOString(),
+        municipalityNumber: p.municipality_number,
+        isApproximateLocation: true,
+      };
+    } catch (err) {
+      console.error('Fallback plot lookup error:', err);
       return null;
     }
   }

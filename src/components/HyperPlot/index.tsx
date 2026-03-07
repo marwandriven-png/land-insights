@@ -818,6 +818,12 @@ export function HyperPlotAI() {
         onClose={() => setShowQuickAdd(false)}
         onLandAdded={handleQuickAddDone}
       />
+
+      {/* Fallback Plot Database Upload */}
+      <FallbackUploadModal
+        open={showFallbackUpload}
+        onClose={() => setShowFallbackUpload(false)}
+      />
     </div>
   );
 }
