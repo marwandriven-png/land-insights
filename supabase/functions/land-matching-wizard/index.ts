@@ -14,7 +14,7 @@ const corsHeaders = {
 };
 
 const CONFIG = {
-  TIMEOUTS: { GIS_DDA: 10_000, PROPERTY_STATUS: 8_000 },
+  TIMEOUTS: { GIS_DDA: 15_000, PROPERTY_STATUS: 8_000 },
   GIS_BASE_URL: 'https://gis.dda.gov.ae/server/rest/services/DDA/BASIC_LAND_BASE/MapServer',
   RADIUS: { MIN_METERS: 1, MAX_METERS: 50_000 },
   CONFIDENCE: { GIS_DDA: 1.00, FALLBACK: 0.65 },
@@ -110,6 +110,23 @@ interface APIResponse {
   response_time_ms: number;
 }
 
+/** Fetch with one automatic retry on DNS/network errors */
+async function fetchWithRetry(url: string, opts: RequestInit, retries = 1): Promise<Response> {
+  for (let attempt = 0; attempt <= retries; attempt++) {
+    try {
+      return await fetch(url, opts);
+    } catch (err) {
+      if (attempt < retries) {
+        console.log(`[GIS] Retry ${attempt + 1}/${retries} after: ${(err as Error).message}`);
+        await new Promise(r => setTimeout(r, 1000));
+      } else {
+        throw err;
+      }
+    }
+  }
+  throw new Error('Unreachable');
+}
+
 // ── GIS/DDA via our existing dda-gis-proxy spatial endpoint ──
 async function queryGIS_DDA(request: SearchRequest): Promise<APIResponse> {
   const t0 = Date.now();
@@ -129,7 +146,7 @@ async function queryGIS_DDA(request: SearchRequest): Promise<APIResponse> {
       resultRecordCount: '200'
     });
 
-    const resp = await fetch(`${CONFIG.GIS_BASE_URL}/2/query?${params}`, {
+    const resp = await fetchWithRetry(`${CONFIG.GIS_BASE_URL}/2/query?${params}`, {
       method: 'GET',
       headers: { 'Accept': 'application/json', 'User-Agent': 'HyperPlot-AI/1.0' }
     });
