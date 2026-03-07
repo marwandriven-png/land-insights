@@ -302,7 +302,7 @@ serve(async (req) => {
 
         console.log(`Fetching spatial ${radius}m at [${lat}, ${lng}], fields: ${fields === '*' ? 'wildcard' : 'standard'}`);
 
-        const response = await fetch(`${DDA_GIS_BASE_URL}/2/query?${params}`, {
+        const response = await fetchWithRetry(`${DDA_GIS_BASE_URL}/2/query?${params}`, {
           method: 'GET',
           headers: { 'Accept': 'application/json', 'User-Agent': 'HyperPlot-AI/1.0' }
         });
