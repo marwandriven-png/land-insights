@@ -366,6 +366,16 @@ export function HyperPlotAI() {
               <Button
                 variant="outline"
                 size="sm"
+                onClick={() => setShowFallbackUpload(true)}
+                className="gap-2"
+              >
+                <Database className="w-4 h-4" />
+                Fallback DB
+              </Button>
+
+              <Button
+                variant="outline"
+                size="sm"
                 onClick={loadGISData}
                 disabled={isLoadingGIS}
                 className="gap-2"
