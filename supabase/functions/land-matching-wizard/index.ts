@@ -252,13 +252,64 @@ async function queryPropertyStatus(request: SearchRequest): Promise<APIResponse>
   }
 }
 
+// ── Fallback Plots DB (PostGIS) ──
+async function queryFallbackPlots(request: SearchRequest): Promise<APIResponse> {
+  const t0 = Date.now();
+  try {
+    const supabaseUrl = Deno.env.get('SUPABASE_URL');
+    const supabaseKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY');
+    if (!supabaseUrl || !supabaseKey) {
+      return { source: 'GIS/DDA', success: false, plots: [], error: 'Not configured', response_time_ms: Date.now() - t0 };
+    }
+
+    const supabase = createClient(supabaseUrl, supabaseKey);
+    const { data, error } = await supabase.rpc('search_fallback_plots_by_radius', {
+      center_lat: request.latitude,
+      center_lng: request.longitude,
+      radius_meters: request.radius_meters,
+    });
+
+    if (error) {
+      console.error('[FallbackPlots] RPC error:', error);
+      return { source: 'GIS/DDA', success: false, plots: [], error: error.message, response_time_ms: Date.now() - t0 };
+    }
+
+    const plots: PlotResult[] = ((data ?? []) as any[]).map((row) => ({
+      plot_id: generatePlotId('DLD', row.municipality_number),
+      land_number: row.municipality_number_original || row.municipality_number,
+      area: normalizeArea(row.common_name || row.area_name),
+      latitude: parseFloat(row.latitude),
+      longitude: parseFloat(row.longitude),
+      distance_from_center_m: Math.round(parseFloat(row.distance_m)),
+      land_status: row.status ?? undefined,
+      land_status_source: 'Property Status / GIS' as const,
+      data_source_master: 'Property Status / GIS' as const,
+      is_fallback: true,
+      confidence_score: CONFIG.CONFIDENCE.FALLBACK,
+    }));
+
+    console.log(`[FallbackPlots] ✓ ${plots.length} plot(s) in ${Date.now() - t0}ms`);
+    return { source: 'Property Status / GIS', success: true, plots, response_time_ms: Date.now() - t0 };
+  } catch (err) {
+    const msg = err instanceof Error ? err.message : String(err);
+    console.error('[FallbackPlots] ✗', msg);
+    return { source: 'Property Status / GIS', success: false, plots: [], error: msg, response_time_ms: Date.now() - t0 };
+  }
+}
+
 // ── CONSOLIDATION ENGINE ──
-function consolidateResults(gisDDA: APIResponse, propertyStatus: APIResponse, request: SearchRequest) {
+function consolidateResults(gisDDA: APIResponse, propertyStatus: APIResponse, fallbackPlots: APIResponse, request: SearchRequest) {
   const t0 = Date.now();
 
   const psIndex = new Map<string, PlotResult>();
   for (const ps of propertyStatus.plots) {
     psIndex.set(buildMatchKey(ps.land_number, ps.area), ps);
+  }
+
+  // Also index fallback plots
+  const fbIndex = new Map<string, PlotResult>();
+  for (const fb of fallbackPlots.plots) {
+    fbIndex.set(buildMatchKey(fb.land_number, fb.area), fb);
   }
 
   const consolidated: PlotResult[] = [];
@@ -287,8 +338,22 @@ function consolidateResults(gisDDA: APIResponse, propertyStatus: APIResponse, re
   for (const ps of propertyStatus.plots) {
     const key = buildMatchKey(ps.land_number, ps.area);
     if (!processedKeys.has(key)) {
+      processedKeys.add(key);
       consolidated.push({
         ...ps,
+        is_fallback: true,
+        confidence_score: CONFIG.CONFIDENCE.FALLBACK,
+        data_source_master: 'Property Status / GIS',
+      });
+    }
+  }
+
+  // Rule 3: Fallback DB plots not already present
+  for (const fb of fallbackPlots.plots) {
+    const key = buildMatchKey(fb.land_number, fb.area);
+    if (!processedKeys.has(key)) {
+      consolidated.push({
+        ...fb,
         is_fallback: true,
         confidence_score: CONFIG.CONFIDENCE.FALLBACK,
         data_source_master: 'Property Status / GIS',
