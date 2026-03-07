@@ -14,7 +14,7 @@ const corsHeaders = {
 };
 
 const CONFIG = {
-  TIMEOUTS: { GIS_DDA: 10_000, PROPERTY_STATUS: 8_000 },
+  TIMEOUTS: { GIS_DDA: 15_000, PROPERTY_STATUS: 8_000 },
   GIS_BASE_URL: 'https://gis.dda.gov.ae/server/rest/services/DDA/BASIC_LAND_BASE/MapServer',
   RADIUS: { MIN_METERS: 1, MAX_METERS: 50_000 },
   CONFIDENCE: { GIS_DDA: 1.00, FALLBACK: 0.65 },
