@@ -103,7 +103,10 @@ export function LeafletMap({ plots, selectedPlot, onPlotClick, highlightedPlots,
       const active = isSelectedOrHighlighted(plot.id);
       const isSelected = selectedPlot?.id === plot.id;
       const isManualLatLng = rawAttrs && (rawAttrs as Record<string, unknown>)._isManualLatLng === true;
-
+      const isFallbackPlot = rawAttrs && (rawAttrs as Record<string, unknown>)._isFallbackPlot === true;
+      const FALLBACK_NEON = '#00ffcc';
+      const plotBorderColor = isSelected ? '#ffffff' : active ? '#00e5ff' : isFallbackPlot ? FALLBACK_NEON : DDA_BLUE;
+      const plotFillColor = isFallbackPlot ? FALLBACK_NEON : DDA_BLUE;
       if (rawAttrs && (rawAttrs as Record<string, unknown>).geometry) {
         const geom = (rawAttrs as Record<string, unknown>).geometry as { rings?: number[][][]; x?: number; y?: number };
         if (geom.rings && geom.rings.length > 0) {
