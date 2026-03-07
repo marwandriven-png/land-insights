@@ -1,9 +1,11 @@
-import { X, MapPin, Building2, Layers, TrendingUp, FileText, AlertCircle, CheckCircle, Shield, Clock, Hash, Loader2, FileWarning, LayoutGrid, Navigation } from 'lucide-react';
+import { X, MapPin, Building2, Layers, TrendingUp, FileText, AlertCircle, CheckCircle, Shield, Clock, Hash, Loader2, FileWarning, LayoutGrid, Navigation, Pencil, Save } from 'lucide-react';
 import { PlotData, calculateFeasibility, VerificationSource, AffectionPlanData, gisService } from '@/services/DDAGISService';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
+import { Input } from '@/components/ui/input';
 import { isPlotListed, getExportedPlotIds } from '@/services/LandMatchingService';
 import { useState, useEffect } from 'react';
+import { toast } from 'sonner';
 import { SimilarLandPanel } from './SimilarLandPanel';
 import { FeasibilityCalculator, FeasibilityParams } from './FeasibilityCalculator';
 
