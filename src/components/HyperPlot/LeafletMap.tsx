@@ -181,6 +181,7 @@ export function LeafletMap({ plots, selectedPlot, onPlotClick, highlightedPlots,
         <div class="p-2 min-w-[180px]">
           <div class="font-bold text-sm">${plot.id}</div>
           <div class="text-xs text-gray-400">${plot.location || plot.project || 'Dubai'}</div>
+          ${isFallbackPlot ? '<div class="text-xs mt-1 px-1.5 py-0.5 rounded" style="background:#00ffcc22;color:#00ffcc;border:1px solid #00ffcc44">📍 Fallback DB</div>' : ''}
           <hr class="my-1 border-gray-600" />
           <div class="grid grid-cols-2 gap-1 text-xs">
             <span class="text-gray-400">Area:</span>
