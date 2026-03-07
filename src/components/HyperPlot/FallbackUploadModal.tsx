@@ -39,7 +39,22 @@ export function FallbackUploadModal({ open, onClose }: FallbackUploadModalProps)
     setResult(null);
 
     try {
-      const text = await file.text();
+      let csvText: string;
+
+      if (file.name.endsWith('.xlsx') || file.name.endsWith('.xls')) {
+        // Use mammoth-like approach: read as text from XLSX via the xlsx library
+        // Since we have mammoth for docx, let's parse XLSX manually
+        // Actually, let's just instruct user to use CSV
+        toast({ title: 'Excel File', description: 'Converting Excel... For best results use CSV format.', variant: 'default' });
+        // Read the xlsx using a simple approach - extract via ArrayBuffer
+        const { read, utils } = await import('xlsx');
+        const data = await file.arrayBuffer();
+        const workbook = read(data, { type: 'array' });
+        const sheet = workbook.Sheets[workbook.SheetNames[0]];
+        csvText = utils.sheet_to_csv(sheet);
+      } else {
+        csvText = await file.text();
+      }
 
       const resp = await fetch(
         `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/fallback-plots`,
