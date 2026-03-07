@@ -490,7 +490,7 @@ serve(async (req) => {
     }
 
     // 2. PARALLEL EXECUTION (Cache Miss or Partial Stale)
-    const [gisResult, psResult] = await Promise.all([
+    const [gisResult, psResult, fbResult] = await Promise.all([
       withTimeout(queryGIS_DDA(request), CONFIG.TIMEOUTS.GIS_DDA, 'GIS/DDA')
         .catch((err): APIResponse => ({
           source: 'GIS/DDA', success: false, plots: [],
@@ -503,11 +503,17 @@ serve(async (req) => {
           error: err instanceof Error ? err.message : String(err),
           response_time_ms: CONFIG.TIMEOUTS.PROPERTY_STATUS,
         })),
+      withTimeout(queryFallbackPlots(request), CONFIG.TIMEOUTS.PROPERTY_STATUS, 'Fallback Plots')
+        .catch((err): APIResponse => ({
+          source: 'Property Status / GIS', success: false, plots: [],
+          error: err instanceof Error ? err.message : String(err),
+          response_time_ms: CONFIG.TIMEOUTS.PROPERTY_STATUS,
+        })),
     ]);
 
-    console.log(`[LandMatchingWizard] GIS=${gisResult.plots.length}, PS=${psResult.plots.length}`);
+    console.log(`[LandMatchingWizard] GIS=${gisResult.plots.length}, PS=${psResult.plots.length}, FB=${fbResult.plots.length}`);
 
-    const { plots, metadata } = consolidateResults(gisResult, psResult, request);
+    const { plots, metadata } = consolidateResults(gisResult, psResult, fbResult, request);
 
     // 3. UPDATE CACHE
     if (plots.length > 0) {
