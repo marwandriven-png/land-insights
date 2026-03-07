@@ -50,7 +50,7 @@ serve(async (req) => {
         f: 'json'
       });
 
-      const response = await fetch(`${DDA_GIS_BASE_URL}/2/query?${params}`, {
+      const response = await fetchWithRetry(`${DDA_GIS_BASE_URL}/2/query?${params}`, {
         method: 'GET',
         headers: { 'Accept': 'application/json', 'User-Agent': 'HyperPlot-AI/1.0' }
       });
