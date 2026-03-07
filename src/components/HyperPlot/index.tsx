@@ -56,6 +56,7 @@ export function HyperPlotAI() {
   const [showFeasibilitySettings, setShowFeasibilitySettings] = useState(false);
   const [showManualLandForm, setShowManualLandForm] = useState(false);
   const [showQuickAdd, setShowQuickAdd] = useState(false);
+  const [showFallbackUpload, setShowFallbackUpload] = useState(false);
   const [editingManualLand, setEditingManualLand] = useState<ManualLandEntry | null>(null);
   const [decisionFullscreen, setDecisionFullscreen] = useState(false);
   const [lastSeen, setLastSeen] = useState<LastSeenEntry[]>(getLastSeen());
