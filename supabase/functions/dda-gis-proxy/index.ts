@@ -15,6 +15,23 @@ const STANDARD_OUT_FIELDS = [
   'MAX_PLOT_COVERAGE', 'PLOT_COVERAGE', 'IS_FROZEN', 'FREEZE_REASON'
 ].join(',');
 
+/** Fetch with one automatic retry on DNS/network errors */
+async function fetchWithRetry(url: string, opts: RequestInit, retries = 1): Promise<Response> {
+  for (let attempt = 0; attempt <= retries; attempt++) {
+    try {
+      return await fetch(url, opts);
+    } catch (err) {
+      if (attempt < retries) {
+        console.log(`Retry ${attempt + 1}/${retries} after error: ${(err as Error).message}`);
+        await new Promise(r => setTimeout(r, 1000));
+      } else {
+        throw err;
+      }
+    }
+  }
+  throw new Error('Unreachable');
+}
+
 serve(async (req) => {
   if (req.method === 'OPTIONS') {
     return new Response(null, { headers: corsHeaders });

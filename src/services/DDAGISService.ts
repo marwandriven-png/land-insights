@@ -145,10 +145,84 @@ class DDAGISService {
       }
 
       console.log(`Received ${data.features.length} features from GIS`);
-      return this.transformGISData(data.features);
+      const gisPlots = this.transformGISData(data.features);
+
+      // Also load fallback plots and merge
+      const fallbackPlots = await this.fetchFallbackPlotsList(limit);
+      if (fallbackPlots.length > 0) {
+        const gisIds = new Set(gisPlots.map(p => p.id));
+        const uniqueFallbacks = fallbackPlots.filter(p => !gisIds.has(p.id));
+        console.log(`Merging ${uniqueFallbacks.length} fallback plots with ${gisPlots.length} GIS plots`);
+        return [...gisPlots, ...uniqueFallbacks];
+      }
+
+      return gisPlots;
     } catch (error) {
       console.error('DDA GIS API Error:', error);
+      // GIS completely down → load from fallback DB instead of showing nothing
+      console.log('GIS unavailable, loading plots from fallback database...');
+      try {
+        const fallbackPlots = await this.fetchFallbackPlotsList(limit);
+        if (fallbackPlots.length > 0) {
+          console.log(`Loaded ${fallbackPlots.length} plots from fallback database`);
+          return fallbackPlots;
+        }
+      } catch (fbErr) {
+        console.error('Fallback plots also failed:', fbErr);
+      }
       throw error;
+    }
+  }
+
+  /** Load list of plots from fallback_plots table */
+  private async fetchFallbackPlotsList(limit: number): Promise<PlotData[]> {
+    try {
+      const resp = await fetch(
+        `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/fallback-plots?action=list&limit=${limit}`,
+        {
+          method: 'GET',
+          headers: {
+            'Authorization': `Bearer ${import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY}`,
+            'Content-Type': 'application/json'
+          }
+        }
+      );
+      if (!resp.ok) return [];
+      const result = await resp.json();
+      if (!result.success || !result.plots) return [];
+
+      return result.plots.map((p: any) => ({
+        id: p.municipality_number_original || p.municipality_number,
+        area: p.plot_area_sqm || 0,
+        gfa: p.gfa_sqm || 0,
+        floors: p.floors || 'N/A',
+        zoning: p.zoning || 'Mixed Use',
+        location: p.common_name || p.area_name || 'Dubai',
+        x: p.longitude,
+        y: p.latitude,
+        color: '#8b5cf6',
+        status: p.status || 'Available',
+        constructionCost: 800,
+        salePrice: 1500,
+        developer: p.developer,
+        project: p.project_name,
+        entity: p.area_name,
+        isFrozen: false,
+        rawAttributes: {
+          _isFallbackPlot: true,
+          _isManualLatLng: true,
+          _fallbackId: p.id,
+          municipality_number: p.municipality_number,
+          area_code: p.area_code,
+        },
+        verificationSource: 'DLD' as VerificationSource,
+        verificationDate: new Date().toISOString(),
+        municipalityNumber: p.municipality_number,
+        isApproximateLocation: true,
+      }));
+    } catch (err) {
+      console.error('Failed to fetch fallback plots list:', err);
+      return [];
     }
   }
 
