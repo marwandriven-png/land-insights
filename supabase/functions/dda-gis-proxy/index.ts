@@ -159,20 +159,12 @@ serve(async (req) => {
 
       const sanitizedPlotId = plotId.replace(/[^a-zA-Z0-9_\-]/g, '');
 
-      const affectionFields = [
-        'PLOT_NUMBER', 'ENTITY_NAME', 'PROJECT_NAME', 'LAND_NAME',
-        'AREA_SQM', 'GFA_SQM', 'MAX_HEIGHT_FLOORS', 'MAX_HEIGHT_METERS', 'MAX_HEIGHT', 'HEIGHT_CATEGORY',
-        'MAX_PLOT_COVERAGE', 'MIN_PLOT_COVERAGE', 'PLOT_COVERAGE',
-        'BUILDING_SETBACK_SIDE1', 'BUILDING_SETBACK_SIDE2', 'BUILDING_SETBACK_SIDE3', 'BUILDING_SETBACK_SIDE4',
-        'PODIUM_SETBACK_SIDE1', 'PODIUM_SETBACK_SIDE2', 'PODIUM_SETBACK_SIDE3', 'PODIUM_SETBACK_SIDE4',
-        'MAIN_LANDUSE', 'SUB_LANDUSE', 'LANDUSE_DETAILS', 'LANDUSE_CATEGORY',
-        'GENERAL_NOTES', 'SITEPLAN_ISSUE_DATE', 'SITEPLAN_EXPIRY_DATE',
-        'SITE_STATUS', 'IS_FROZEN', 'FREEZE_REASON', 'GFA_TYPE'
-      ].join(',');
+      // Try with wildcard first (safest), no need for specific fields that may not exist
+      let data: Record<string, unknown> | null = null;
 
       const params = new URLSearchParams({
         where: `PLOT_NUMBER='${sanitizedPlotId}'`,
-        outFields: affectionFields,
+        outFields: '*',
         returnGeometry: 'true',
         outSR: '3997',
         f: 'json'
@@ -187,8 +179,8 @@ serve(async (req) => {
 
       if (!response.ok) throw new Error(`GIS API returned ${response.status}`);
 
-      const data = await response.json();
-      console.log(`Affection plan for ${sanitizedPlotId}: ${data.features?.length || 0} features`);
+      data = await response.json();
+      console.log(`Affection plan for ${sanitizedPlotId}: ${(data as any)?.features?.length || 0} features`);
 
       return new Response(JSON.stringify(data), {
         headers: { ...corsHeaders, 'Content-Type': 'application/json' }
