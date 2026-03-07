@@ -45,6 +45,16 @@ export function FallbackUploadModal({ open, onClose }: FallbackUploadModalProps)
 
     try {
       const csvText = await file.text();
+
+      const resp = await fetch(
+        `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/fallback-plots`,
+        {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            Authorization: `Bearer ${import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY}`,
+          },
+          body: JSON.stringify({ csv_data: csvText }),
         }
       );
 
