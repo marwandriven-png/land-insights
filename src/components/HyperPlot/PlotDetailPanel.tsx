@@ -1,9 +1,11 @@
-import { X, MapPin, Building2, Layers, TrendingUp, FileText, AlertCircle, CheckCircle, Shield, Clock, Hash, Loader2, FileWarning, LayoutGrid, Navigation } from 'lucide-react';
+import { X, MapPin, Building2, Layers, TrendingUp, FileText, AlertCircle, CheckCircle, Shield, Clock, Hash, Loader2, FileWarning, LayoutGrid, Navigation, Pencil, Save } from 'lucide-react';
 import { PlotData, calculateFeasibility, VerificationSource, AffectionPlanData, gisService } from '@/services/DDAGISService';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
+import { Input } from '@/components/ui/input';
 import { isPlotListed, getExportedPlotIds } from '@/services/LandMatchingService';
 import { useState, useEffect } from 'react';
+import { toast } from 'sonner';
 import { SimilarLandPanel } from './SimilarLandPanel';
 import { FeasibilityCalculator, FeasibilityParams } from './FeasibilityCalculator';
 
@@ -233,6 +235,72 @@ export function PlotDetailPanel({ plot, onClose, onSelectPlot, onGoToLocation, s
   const [listed, setListed] = useState(() => isPlotListed(plot.id));
   const [exported, setExported] = useState(() => getExportedPlotIds().has(plot.id));
   const isManual = plot.verificationSource === 'Manual';
+  const isFallback = !!(plot.rawAttributes as any)?._isFallbackPlot;
+
+  // Editable state for fallback plots
+  const [isEditing, setIsEditing] = useState(false);
+  const [editData, setEditData] = useState({
+    plot_area_sqm: String(plot.area || ''),
+    gfa_sqm: String(plot.gfa || ''),
+    floors: plot.floors || '',
+    zoning: plot.zoning || '',
+    developer: plot.developer || '',
+    project_name: plot.project || '',
+    status: plot.status || 'Available',
+    notes: '',
+  });
+  const [isSaving, setIsSaving] = useState(false);
+
+  const handleSaveEdit = async () => {
+    if (!isFallback) return;
+    const fallbackId = (plot.rawAttributes as any)?._fallbackId;
+    if (!fallbackId) { toast.error('Missing fallback ID'); return; }
+
+    setIsSaving(true);
+    try {
+      const resp = await fetch(
+        `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/fallback-plots?action=update`,
+        {
+          method: 'POST',
+          headers: {
+            'Authorization': `Bearer ${import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY}`,
+            'Content-Type': 'application/json'
+          },
+          body: JSON.stringify({
+            id: fallbackId,
+            plot_area_sqm: editData.plot_area_sqm ? parseFloat(editData.plot_area_sqm) : null,
+            gfa_sqm: editData.gfa_sqm ? parseFloat(editData.gfa_sqm) : null,
+            floors: editData.floors || null,
+            zoning: editData.zoning || null,
+            developer: editData.developer || null,
+            project_name: editData.project_name || null,
+            status: editData.status || 'Available',
+            notes: editData.notes || null,
+          })
+        }
+      );
+      if (!resp.ok) throw new Error('Failed to update');
+      const result = await resp.json();
+      if (result.success) {
+        toast.success('Plot updated successfully');
+        setIsEditing(false);
+        // Update local plot data
+        plot.area = parseFloat(editData.plot_area_sqm) || plot.area;
+        plot.gfa = parseFloat(editData.gfa_sqm) || plot.gfa;
+        plot.floors = editData.floors || plot.floors;
+        plot.zoning = editData.zoning || plot.zoning;
+        plot.developer = editData.developer || plot.developer;
+        plot.project = editData.project_name || plot.project;
+        plot.status = editData.status || plot.status;
+      } else {
+        throw new Error(result.error || 'Update failed');
+      }
+    } catch (err: any) {
+      toast.error(err.message || 'Failed to save changes');
+    } finally {
+      setIsSaving(false);
+    }
+  };
 
   // Re-evaluate listing status when refreshKey or plot changes
   useEffect(() => {
@@ -286,20 +354,79 @@ export function PlotDetailPanel({ plot, onClose, onSelectPlot, onGoToLocation, s
                 <Badge className="bg-warning/20 text-warning border-warning/30">Manual Entry</Badge>
               )}
             </div>
-            {onGoToLocation && (
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={() => onGoToLocation(plot)}
-                className="gap-1.5 text-xs h-8"
-              >
-                <Navigation className="w-3.5 h-3.5" />
-                Go to Land
-              </Button>
-            )}
+            <div className="flex items-center gap-1.5">
+              {isFallback && !isEditing && (
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => setIsEditing(true)}
+                  className="gap-1.5 text-xs h-8"
+                >
+                  <Pencil className="w-3.5 h-3.5" />
+                  Edit
+                </Button>
+              )}
+              {onGoToLocation && (
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => onGoToLocation(plot)}
+                  className="gap-1.5 text-xs h-8"
+                >
+                  <Navigation className="w-3.5 h-3.5" />
+                  Go to Land
+                </Button>
+              )}
+            </div>
           </div>
           {plot.isFrozen && plot.freezeReason && (
             <p className="text-xs text-destructive mb-4">⚠️ {plot.freezeReason}</p>
+          )}
+
+          {/* Inline Edit Form for Fallback Plots */}
+          {isEditing && isFallback && (
+            <div className="mb-4 p-3 rounded-lg border border-primary/30 bg-primary/5 space-y-3">
+              <h4 className="text-xs font-bold text-primary uppercase tracking-wide">Edit Plot Data</h4>
+              <div className="grid grid-cols-2 gap-2">
+                <div>
+                  <label className="text-[10px] text-muted-foreground">Plot Area (m²)</label>
+                  <Input value={editData.plot_area_sqm} onChange={e => setEditData(d => ({ ...d, plot_area_sqm: e.target.value }))} className="h-8 text-xs" type="number" />
+                </div>
+                <div>
+                  <label className="text-[10px] text-muted-foreground">GFA (m²)</label>
+                  <Input value={editData.gfa_sqm} onChange={e => setEditData(d => ({ ...d, gfa_sqm: e.target.value }))} className="h-8 text-xs" type="number" />
+                </div>
+                <div>
+                  <label className="text-[10px] text-muted-foreground">Floors</label>
+                  <Input value={editData.floors} onChange={e => setEditData(d => ({ ...d, floors: e.target.value }))} className="h-8 text-xs" placeholder="e.g. G+4" />
+                </div>
+                <div>
+                  <label className="text-[10px] text-muted-foreground">Zoning</label>
+                  <Input value={editData.zoning} onChange={e => setEditData(d => ({ ...d, zoning: e.target.value }))} className="h-8 text-xs" placeholder="e.g. Residential" />
+                </div>
+                <div>
+                  <label className="text-[10px] text-muted-foreground">Developer</label>
+                  <Input value={editData.developer} onChange={e => setEditData(d => ({ ...d, developer: e.target.value }))} className="h-8 text-xs" />
+                </div>
+                <div>
+                  <label className="text-[10px] text-muted-foreground">Project Name</label>
+                  <Input value={editData.project_name} onChange={e => setEditData(d => ({ ...d, project_name: e.target.value }))} className="h-8 text-xs" />
+                </div>
+              </div>
+              <div>
+                <label className="text-[10px] text-muted-foreground">Notes</label>
+                <Input value={editData.notes} onChange={e => setEditData(d => ({ ...d, notes: e.target.value }))} className="h-8 text-xs" placeholder="Add notes..." />
+              </div>
+              <div className="flex gap-2">
+                <Button size="sm" onClick={handleSaveEdit} disabled={isSaving} className="gap-1.5 text-xs h-7 flex-1">
+                  {isSaving ? <Loader2 className="w-3 h-3 animate-spin" /> : <Save className="w-3 h-3" />}
+                  {isSaving ? 'Saving...' : 'Save'}
+                </Button>
+                <Button size="sm" variant="outline" onClick={() => setIsEditing(false)} className="text-xs h-7">
+                  Cancel
+                </Button>
+              </div>
+            </div>
           )}
 
           {/* Plot Details Grid */}
