@@ -20,6 +20,7 @@ import { FeasibilitySettings } from './FeasibilitySettings';
 import { ManualLandForm } from './ManualLandForm';
 import { ListingsPage } from './ListingsPage';
 import { QuickAddLandModal } from './QuickAddLandModal';
+import { FallbackUploadModal } from './FallbackUploadModal';
 import { FeasibilityParams, DEFAULT_FEASIBILITY_PARAMS } from './FeasibilityCalculator';
 import { Button } from '@/components/ui/button';
 import { ScrollArea } from '@/components/ui/scroll-area';
