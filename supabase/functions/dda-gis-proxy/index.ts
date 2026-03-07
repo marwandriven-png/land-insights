@@ -15,6 +15,23 @@ const STANDARD_OUT_FIELDS = [
   'MAX_PLOT_COVERAGE', 'PLOT_COVERAGE', 'IS_FROZEN', 'FREEZE_REASON'
 ].join(',');
 
+/** Fetch with one automatic retry on DNS/network errors */
+async function fetchWithRetry(url: string, opts: RequestInit, retries = 1): Promise<Response> {
+  for (let attempt = 0; attempt <= retries; attempt++) {
+    try {
+      return await fetch(url, opts);
+    } catch (err) {
+      if (attempt < retries) {
+        console.log(`Retry ${attempt + 1}/${retries} after error: ${(err as Error).message}`);
+        await new Promise(r => setTimeout(r, 1000));
+      } else {
+        throw err;
+      }
+    }
+  }
+  throw new Error('Unreachable');
+}
+
 serve(async (req) => {
   if (req.method === 'OPTIONS') {
     return new Response(null, { headers: corsHeaders });
@@ -33,7 +50,7 @@ serve(async (req) => {
         f: 'json'
       });
 
-      const response = await fetch(`${DDA_GIS_BASE_URL}/2/query?${params}`, {
+      const response = await fetchWithRetry(`${DDA_GIS_BASE_URL}/2/query?${params}`, {
         method: 'GET',
         headers: { 'Accept': 'application/json', 'User-Agent': 'HyperPlot-AI/1.0' }
       });
@@ -69,7 +86,7 @@ serve(async (req) => {
 
         console.log(`Fetching plots with limit: ${limit}, fields: ${fields === '*' ? 'wildcard' : 'standard'}`);
 
-        const response = await fetch(`${DDA_GIS_BASE_URL}/2/query?${params}`, {
+        const response = await fetchWithRetry(`${DDA_GIS_BASE_URL}/2/query?${params}`, {
           method: 'GET',
           headers: { 'Accept': 'application/json', 'User-Agent': 'HyperPlot-AI/1.0' }
         });
@@ -115,7 +132,7 @@ serve(async (req) => {
         f: 'json'
       });
 
-      const response = await fetch(`${DDA_GIS_BASE_URL}/2/query?${params}`, {
+      const response = await fetchWithRetry(`${DDA_GIS_BASE_URL}/2/query?${params}`, {
         method: 'GET',
         headers: { 'Accept': 'application/json', 'User-Agent': 'HyperPlot-AI/1.0' }
       });
@@ -163,7 +180,7 @@ serve(async (req) => {
 
       console.log(`Fetching affection plan for plot ${sanitizedPlotId}`);
 
-      const response = await fetch(`${DDA_GIS_BASE_URL}/2/query?${params}`, {
+      const response = await fetchWithRetry(`${DDA_GIS_BASE_URL}/2/query?${params}`, {
         method: 'GET',
         headers: { 'Accept': 'application/json', 'User-Agent': 'HyperPlot-AI/1.0' }
       });
@@ -226,7 +243,7 @@ serve(async (req) => {
 
         console.log(`Searching plots: ${whereClause}, fields: ${fields === '*' ? 'wildcard' : 'standard'}`);
 
-        const response = await fetch(`${DDA_GIS_BASE_URL}/2/query?${params}`, {
+        const response = await fetchWithRetry(`${DDA_GIS_BASE_URL}/2/query?${params}`, {
           method: 'GET',
           headers: { 'Accept': 'application/json', 'User-Agent': 'HyperPlot-AI/1.0' }
         });
@@ -285,7 +302,7 @@ serve(async (req) => {
 
         console.log(`Fetching spatial ${radius}m at [${lat}, ${lng}], fields: ${fields === '*' ? 'wildcard' : 'standard'}`);
 
-        const response = await fetch(`${DDA_GIS_BASE_URL}/2/query?${params}`, {
+        const response = await fetchWithRetry(`${DDA_GIS_BASE_URL}/2/query?${params}`, {
           method: 'GET',
           headers: { 'Accept': 'application/json', 'User-Agent': 'HyperPlot-AI/1.0' }
         });

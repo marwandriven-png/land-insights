@@ -161,6 +161,21 @@ serve(async (req) => {
       });
     }
 
+    // ── LIST: return all fallback plots (for map display) ──
+    if (action === 'list') {
+      const limit = parseInt(url.searchParams.get('limit') || '500', 10);
+      const { data, error } = await supabase
+        .from('fallback_plots')
+        .select('*')
+        .limit(Math.min(limit, 1000));
+
+      if (error) throw error;
+
+      return new Response(JSON.stringify({ success: true, plots: data || [] }), {
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+      });
+    }
+
     // ── BULK IMPORT (POST) ──
     if (req.method === 'POST') {
       const body = await req.json();
