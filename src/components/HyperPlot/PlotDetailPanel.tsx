@@ -354,20 +354,79 @@ export function PlotDetailPanel({ plot, onClose, onSelectPlot, onGoToLocation, s
                 <Badge className="bg-warning/20 text-warning border-warning/30">Manual Entry</Badge>
               )}
             </div>
-            {onGoToLocation && (
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={() => onGoToLocation(plot)}
-                className="gap-1.5 text-xs h-8"
-              >
-                <Navigation className="w-3.5 h-3.5" />
-                Go to Land
-              </Button>
-            )}
+            <div className="flex items-center gap-1.5">
+              {isFallback && !isEditing && (
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => setIsEditing(true)}
+                  className="gap-1.5 text-xs h-8"
+                >
+                  <Pencil className="w-3.5 h-3.5" />
+                  Edit
+                </Button>
+              )}
+              {onGoToLocation && (
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => onGoToLocation(plot)}
+                  className="gap-1.5 text-xs h-8"
+                >
+                  <Navigation className="w-3.5 h-3.5" />
+                  Go to Land
+                </Button>
+              )}
+            </div>
           </div>
           {plot.isFrozen && plot.freezeReason && (
             <p className="text-xs text-destructive mb-4">⚠️ {plot.freezeReason}</p>
+          )}
+
+          {/* Inline Edit Form for Fallback Plots */}
+          {isEditing && isFallback && (
+            <div className="mb-4 p-3 rounded-lg border border-primary/30 bg-primary/5 space-y-3">
+              <h4 className="text-xs font-bold text-primary uppercase tracking-wide">Edit Plot Data</h4>
+              <div className="grid grid-cols-2 gap-2">
+                <div>
+                  <label className="text-[10px] text-muted-foreground">Plot Area (m²)</label>
+                  <Input value={editData.plot_area_sqm} onChange={e => setEditData(d => ({ ...d, plot_area_sqm: e.target.value }))} className="h-8 text-xs" type="number" />
+                </div>
+                <div>
+                  <label className="text-[10px] text-muted-foreground">GFA (m²)</label>
+                  <Input value={editData.gfa_sqm} onChange={e => setEditData(d => ({ ...d, gfa_sqm: e.target.value }))} className="h-8 text-xs" type="number" />
+                </div>
+                <div>
+                  <label className="text-[10px] text-muted-foreground">Floors</label>
+                  <Input value={editData.floors} onChange={e => setEditData(d => ({ ...d, floors: e.target.value }))} className="h-8 text-xs" placeholder="e.g. G+4" />
+                </div>
+                <div>
+                  <label className="text-[10px] text-muted-foreground">Zoning</label>
+                  <Input value={editData.zoning} onChange={e => setEditData(d => ({ ...d, zoning: e.target.value }))} className="h-8 text-xs" placeholder="e.g. Residential" />
+                </div>
+                <div>
+                  <label className="text-[10px] text-muted-foreground">Developer</label>
+                  <Input value={editData.developer} onChange={e => setEditData(d => ({ ...d, developer: e.target.value }))} className="h-8 text-xs" />
+                </div>
+                <div>
+                  <label className="text-[10px] text-muted-foreground">Project Name</label>
+                  <Input value={editData.project_name} onChange={e => setEditData(d => ({ ...d, project_name: e.target.value }))} className="h-8 text-xs" />
+                </div>
+              </div>
+              <div>
+                <label className="text-[10px] text-muted-foreground">Notes</label>
+                <Input value={editData.notes} onChange={e => setEditData(d => ({ ...d, notes: e.target.value }))} className="h-8 text-xs" placeholder="Add notes..." />
+              </div>
+              <div className="flex gap-2">
+                <Button size="sm" onClick={handleSaveEdit} disabled={isSaving} className="gap-1.5 text-xs h-7 flex-1">
+                  {isSaving ? <Loader2 className="w-3 h-3 animate-spin" /> : <Save className="w-3 h-3" />}
+                  {isSaving ? 'Saving...' : 'Save'}
+                </Button>
+                <Button size="sm" variant="outline" onClick={() => setIsEditing(false)} className="text-xs h-7">
+                  Cancel
+                </Button>
+              </div>
+            </div>
           )}
 
           {/* Plot Details Grid */}
