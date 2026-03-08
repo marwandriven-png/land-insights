@@ -614,8 +614,31 @@ export function HyperPlotAI() {
                                       if (matchedPlot) {
                                         handlePlotClick(matchedPlot, true);
                                       } else {
-                                        const fetched = await gisService.fetchPlotById(entry.plotId);
-                                        if (fetched) handlePlotFound(fetched);
+                                        // Try GIS first
+                                        try {
+                                          const fetched = await gisService.fetchPlotById(entry.plotId);
+                                          if (fetched) { handlePlotFound(fetched); return; }
+                                        } catch { /* continue to fallback reconstruction */ }
+                                        // Reconstruct from saved entry (fallback/manual plots not in GIS)
+                                        const reconstructed: PlotData = {
+                                          id: entry.plotId,
+                                          x: entry.coordinates.x,
+                                          y: entry.coordinates.y,
+                                          area: entry.area,
+                                          gfa: entry.gfa,
+                                          zoning: entry.zoning,
+                                          status: entry.status,
+                                          location: entry.location,
+                                          project: entry.plotName,
+                                          floors: '',
+                                          developer: '',
+                                          verificationSource: 'Recent',
+                                          rawAttributes: {
+                                            _isFallbackPlot: true,
+                                            _isManualLatLng: true,
+                                          }
+                                        };
+                                        handlePlotFound(reconstructed);
                                       }
                                     }}
                                   >
