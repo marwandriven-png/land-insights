@@ -56,7 +56,7 @@ Return ONLY valid JSON (no markdown, no code fences) with this exact structure:
     "expectedSellOut": string
   },
   "comparablePlots": [
-    { "plotId": string, "sizeSqft": number, "zoning": string, "status": string }
+    { "plotId": string, "sizeSqft": number, "gfaSqft": number, "zoning": string, "status": string, "sizeDiffPct": number, "gfaDiffPct": number }
   ],
   "alternativeAreas": [
     { "area": string, "demandScore": "High"|"Medium"|"Low", "absorption": "Fast"|"Stable"|"Slow", "reason": string }
@@ -67,8 +67,8 @@ Return ONLY valid JSON (no markdown, no code fences) with this exact structure:
 All percentages as numbers (e.g. 48 not "48%"). Use real Dubai market knowledge. Be specific and data-driven.
 
 CRITICAL INSTRUCTIONS:
-- For "comparablePlots": You MUST extract real plot IDs, sizes, zoning, and status from the NEARBY PLOTS data provided below. Only list plots that exist in the data. Do NOT invent fake plot IDs.
-- For "developmentPattern": Analyze the ACTUAL zoning, land use, and construction status from the nearby plots data to determine real development patterns. Count the real occurrences.
+- For "comparablePlots": You MUST find plots from the NEARBY PLOTS data that are COMPARABLE to the selected plot based on BOTH plot size (area sqft within ±30%) AND GFA (sqft within ±30%). Include their real plot IDs, sizes, GFA, zoning, and status. Add "sizeDiffPct" and "gfaDiffPct" showing how much they differ from the selected plot. Rank by closest combined match. Do NOT invent fake plot IDs.
+- For "developmentPattern": ONLY analyze plots with Residential or Mixed Use zoning/land use from the nearby plots data. Group them by GFA range and plot size range to identify the dominant development scale and type. Count real occurrences. Ignore commercial-only, industrial, or infrastructure plots.
 - For "completedBenchmarks": Only include benchmarks from nearby plots that have construction status "Completed" or similar.
 - Always reference the area name (entity/project/location) in your insights.`;
 
