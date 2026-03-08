@@ -42,6 +42,7 @@ const TABS = [
   { id: 'map', icon: Map, label: 'Map' },
   { id: 'feasibility', icon: Shield, label: 'Decision' },
   { id: 'assembly', icon: Combine, label: 'Assembly' },
+  { id: 'urban', icon: TreePine, label: 'Urban' },
   { id: 'settings', icon: Settings, label: 'Settings' },
 ];
 
