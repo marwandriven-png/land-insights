@@ -75,10 +75,10 @@ CRITICAL INSTRUCTIONS:
     const areaName = selectedPlot.location || selectedPlot.developer || 'Unknown Area';
 
     const nearbyDesc = (nearbyPlots || []).map((p: any, i: number) => 
-      `${i+1}. Plot ${p.id}: ${p.areaSqft} sqft, GFA ${p.gfaSqft} sqft, Zoning: ${p.zoning}, Status: ${p.status}, Floors: ${p.floors || 'N/A'}, Developer: ${p.developer || 'N/A'}, Location: ${p.location || 'N/A'}, Construction: ${p.constructionStatus || 'N/A'}`
+      `${i+1}. Plot ${p.id}: ${p.areaSqft} sqft, GFA ${p.gfaSqft} sqft, Zoning: ${p.zoning}, Status: ${p.status}, Floors: ${p.floors || 'N/A'}, Developer: ${p.developer || 'N/A'}, Location: ${p.location || 'N/A'}, Construction: ${p.constructionStatus || 'N/A'}, LandUse: ${p.landUseDetails || 'N/A'}`
     ).join('\n');
 
-    const userPrompt = `Analyze this selected plot and its ${(nearbyPlots || []).length} nearby plots within 1km in ${areaName}:
+    const userPrompt = `Analyze this selected plot and its ${(nearbyPlots || []).length} nearby plots in the same area of ${areaName}:
 
 SELECTED PLOT:
 - ID: ${selectedPlot.id}
@@ -92,10 +92,10 @@ SELECTED PLOT:
 - Developer: ${selectedPlot.developer || 'N/A'}
 - Construction Status: ${selectedPlot.constructionStatus || 'N/A'}
 
-NEARBY PLOTS (within 1km in ${areaName}):
+NEARBY PLOTS IN ${areaName.toUpperCase()} (same area/community, up to 5km + area search):
 ${nearbyDesc || 'No nearby plots found.'}
 
-Generate a comprehensive land assembly and development intelligence report for ${areaName}. For comparable plots and development patterns, use ONLY the real data from the nearby plots listed above.`;
+Generate a comprehensive land assembly and development intelligence report for ${areaName}. For comparable plots, size clusters, and development patterns, use ONLY the real data from the nearby plots listed above. The "sizeCluster" section should analyze plot sizes across the ENTIRE area, not just immediate neighbors.`;
 
     const response = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
       method: "POST",
