@@ -96,8 +96,8 @@ export function UrbanContextAnalysis({ plot, onClose }: UrbanContextAnalysisProp
         landUseDetails: plot.landUseDetails || '',
         buildingSetbacks: buildingSetbacks || null,
         podiumSetbacks: podiumSetbacks || null,
-        lat: plot.y,
-        lng: plot.x,
+        lat: lat,
+        lng: lng,
       };
 
       const nearbyPlotsData = nearbyPlots.slice(0, 50).map(p => ({
