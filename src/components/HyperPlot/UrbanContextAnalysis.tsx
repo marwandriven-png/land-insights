@@ -5,9 +5,20 @@ import { supabase } from '@/integrations/supabase/client';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
+import proj4 from 'proj4';
+
+proj4.defs('EPSG:3997', '+proj=tmerc +lat_0=0 +lon_0=55.33333333333334 +k=1 +x_0=500000 +y_0=0 +ellps=WGS84 +towgs84=0,0,0,0,0,0,0 +units=m +no_defs');
 
 const SQM_TO_SQFT = 10.7639;
 
+function toWGS84(x: number, y: number): [number, number] {
+  try {
+    const result = proj4('EPSG:3997', 'EPSG:4326', [x, y]);
+    return [result[1], result[0]]; // [lat, lng]
+  } catch {
+    return [0, 0];
+  }
+}
 interface UrbanContextAnalysisProps {
   plot: PlotData;
   onClose: () => void;
@@ -39,12 +50,22 @@ export function UrbanContextAnalysis({ plot, onClose }: UrbanContextAnalysisProp
     setLoading(true);
     setError(null);
     try {
-      const lat = plot.y;
-      const lng = plot.x;
+      const rawX = plot.x;
+      const rawY = plot.y;
+      let lat: number, lng: number;
+      
+      // Detect if coordinates are in EPSG:3997 (projected) vs WGS84
+      if (rawX > 1000 && rawY > 1000) {
+        [lat, lng] = toWGS84(rawX, rawY);
+      } else {
+        lat = rawY;
+        lng = rawX;
+      }
+      
       let nearbyPlots: PlotData[] = [];
 
       if (lat && lng && lat !== 0 && lng !== 0) {
-        nearbyPlots = await gisService.searchByLocation(lat, lng, 1000);
+        nearbyPlots = await gisService.searchByLocation(lat, lng, 5000, 200);
         nearbyPlots = nearbyPlots.filter(p => p.id !== plot.id);
       }
       setNearbyCount(nearbyPlots.length);
@@ -75,24 +96,27 @@ export function UrbanContextAnalysis({ plot, onClose }: UrbanContextAnalysisProp
         landUseDetails: plot.landUseDetails || '',
         buildingSetbacks: buildingSetbacks || null,
         podiumSetbacks: podiumSetbacks || null,
-        lat: plot.y,
-        lng: plot.x,
+        lat: lat,
+        lng: lng,
       };
 
-      const nearbyPlotsData = nearbyPlots.slice(0, 50).map(p => ({
-        id: p.id,
-        location: p.location || p.project || p.entity || '',
-        areaSqft: Math.round(p.area * SQM_TO_SQFT),
-        gfaSqft: Math.round(p.gfa * SQM_TO_SQFT),
-        zoning: p.zoning,
-        status: p.status,
-        floors: p.floors,
-        developer: p.developer || '',
-        constructionStatus: p.constructionStatus || '',
-        landUseDetails: p.landUseDetails || '',
-        lat: p.y,
-        lng: p.x,
-      }));
+      const nearbyPlotsData = nearbyPlots.slice(0, 100).map(p => {
+        const [pLat, pLng] = (p.x > 1000 && p.y > 1000) ? toWGS84(p.x, p.y) : [p.y, p.x];
+        return {
+          id: p.id,
+          location: p.location || p.project || p.entity || '',
+          areaSqft: Math.round(p.area * SQM_TO_SQFT),
+          gfaSqft: Math.round(p.gfa * SQM_TO_SQFT),
+          zoning: p.zoning,
+          status: p.status,
+          floors: p.floors,
+          developer: p.developer || '',
+          constructionStatus: p.constructionStatus || '',
+          landUseDetails: p.landUseDetails || '',
+          lat: pLat,
+          lng: pLng,
+        };
+      });
 
       const { data: result, error: fnError } = await supabase.functions.invoke('urban-context', {
         body: { selectedPlot, nearbyPlots: nearbyPlotsData }
@@ -117,7 +141,7 @@ export function UrbanContextAnalysis({ plot, onClose }: UrbanContextAnalysisProp
           </div>
           <div>
             <h3 className="font-bold text-lg">Urban Context Analysis</h3>
-            <p className="text-sm text-muted-foreground mt-1">Scanning environment within 1km radius...</p>
+            <p className="text-sm text-muted-foreground mt-1">Scanning environment within 5km radius...</p>
           </div>
         </div>
       </div>
