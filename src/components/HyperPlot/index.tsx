@@ -589,7 +589,7 @@ export function HyperPlotAI() {
                     >
                       <Minimize2 className="w-3.5 h-3.5" />
                     </button>
-                    {/* macOS traffic light: Fullscreen (green) */}
+                    {/* Fullscreen toggle */}
                     <button
                       onClick={() => {
                         if (bottomPanelMaximized) {
@@ -599,12 +599,11 @@ export function HyperPlotAI() {
                           setBottomPanelMinimized(false);
                         }
                       }}
-                      className={`w-3 h-3 rounded-full transition-all border ${bottomPanelMaximized
-                        ? 'bg-green-400 border-green-500 shadow-[0_0_6px_rgba(74,222,128,0.5)]'
-                        : 'bg-green-400/70 border-green-500/50 hover:bg-green-400 hover:border-green-500 hover:shadow-[0_0_6px_rgba(74,222,128,0.4)]'
-                        }`}
+                      className="p-1 rounded hover:bg-muted/50 text-muted-foreground hover:text-foreground transition-all"
                       title={bottomPanelMaximized ? 'Exit Full Screen' : 'Full Screen'}
-                    />
+                    >
+                      <Maximize2 className="w-3.5 h-3.5" />
+                    </button>
                   </div>
                 </div>
 
