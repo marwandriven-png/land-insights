@@ -235,7 +235,10 @@ export function LeafletMap({ plots, selectedPlot, onPlotClick, highlightedPlots,
         </div>
       </div>
 
-      <CinematicPlotOverlay map={mapInstance} plot={selectedPlot} />
+      <CinematicPlotOverlay 
+        map={mapInstance} 
+        plot={selectedPlot && !(selectedPlot.rawAttributes as Record<string, unknown>)?._isFallbackPlot ? selectedPlot : null} 
+      />
 
       <style>{`
         .dda-map-btn {
