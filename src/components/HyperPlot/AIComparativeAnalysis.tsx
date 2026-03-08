@@ -504,10 +504,10 @@ Use Dubai market averages for these zones. Consider current Q1 2026 market condi
             <section>
               <SectionHeader num={++sectionNum} icon={Combine} title="Land Assembly Intelligence" />
               <div className="grid grid-cols-2 gap-4">
-                {[{ label: plotALabel, intel: r.landAssemblyIntelligence.plotA }, { label: plotBLabel, intel: r.landAssemblyIntelligence.plotB }].map(({ label, intel }) => (
+                {[{ label: plotALabel, area: plotAArea, intel: r.landAssemblyIntelligence.plotA }, { label: plotBLabel, area: plotBArea, intel: r.landAssemblyIntelligence.plotB }].map(({ label, area, intel }) => (
                   <div key={label} className="p-4 rounded-xl border border-border/50 bg-card/50 space-y-3">
                     <div className="font-bold text-sm flex items-center justify-between">
-                      {label}
+                      <div><span>{label}</span>{area && <div className="text-[10px] text-muted-foreground font-normal">{area}</div>}</div>
                       <Badge variant="outline" className="text-[10px]">{intel.dominantDevType}</Badge>
                     </div>
                     <div className="space-y-2 text-xs">
