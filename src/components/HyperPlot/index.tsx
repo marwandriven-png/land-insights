@@ -362,31 +362,11 @@ export function HyperPlotAI() {
               <Button
                 variant="outline"
                 size="sm"
-                onClick={() => setShowFeasibilitySettings(true)}
-                className="gap-2"
-              >
-                <Settings className="w-4 h-4" />
-                Settings Wizard
-              </Button>
-
-              <Button
-                variant="outline"
-                size="sm"
                 onClick={() => setShowWizard(true)}
                 className="gap-2"
               >
                 <Target className="w-4 h-4" />
                 Matching Wizard
-              </Button>
-
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={() => setShowFallbackUpload(true)}
-                className="gap-2"
-              >
-                <Database className="w-4 h-4" />
-                Fallback DB
               </Button>
 
               <Button
