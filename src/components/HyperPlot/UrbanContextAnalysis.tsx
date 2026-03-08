@@ -100,20 +100,23 @@ export function UrbanContextAnalysis({ plot, onClose }: UrbanContextAnalysisProp
         lng: lng,
       };
 
-      const nearbyPlotsData = nearbyPlots.slice(0, 50).map(p => ({
-        id: p.id,
-        location: p.location || p.project || p.entity || '',
-        areaSqft: Math.round(p.area * SQM_TO_SQFT),
-        gfaSqft: Math.round(p.gfa * SQM_TO_SQFT),
-        zoning: p.zoning,
-        status: p.status,
-        floors: p.floors,
-        developer: p.developer || '',
-        constructionStatus: p.constructionStatus || '',
-        landUseDetails: p.landUseDetails || '',
-        lat: p.y,
-        lng: p.x,
-      }));
+      const nearbyPlotsData = nearbyPlots.slice(0, 100).map(p => {
+        const [pLat, pLng] = (p.x > 1000 && p.y > 1000) ? toWGS84(p.x, p.y) : [p.y, p.x];
+        return {
+          id: p.id,
+          location: p.location || p.project || p.entity || '',
+          areaSqft: Math.round(p.area * SQM_TO_SQFT),
+          gfaSqft: Math.round(p.gfa * SQM_TO_SQFT),
+          zoning: p.zoning,
+          status: p.status,
+          floors: p.floors,
+          developer: p.developer || '',
+          constructionStatus: p.constructionStatus || '',
+          landUseDetails: p.landUseDetails || '',
+          lat: pLat,
+          lng: pLng,
+        };
+      });
 
       const { data: result, error: fnError } = await supabase.functions.invoke('urban-context', {
         body: { selectedPlot, nearbyPlots: nearbyPlotsData }
