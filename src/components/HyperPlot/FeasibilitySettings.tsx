@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from 'react';
-import { Settings, Save, RotateCcw, FileText, Plus, Link2, Upload, X, File, CheckCircle2, Loader2 } from 'lucide-react';
+import { Settings, Save, RotateCcw, FileText, Plus, Link2, Upload, X, File, CheckCircle2, Loader2, Database } from 'lucide-react';
 import mammoth from 'mammoth';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -322,9 +322,10 @@ interface FeasibilitySettingsProps {
   onClose: () => void;
   onSettingsChange?: (settings: FeasibilitySettingsData) => void;
   onOpenAddLand?: () => void;
+  onOpenFallbackDB?: () => void;
 }
 
-export function FeasibilitySettings({ open, onClose, onSettingsChange, onOpenAddLand }: FeasibilitySettingsProps) {
+export function FeasibilitySettings({ open, onClose, onSettingsChange, onOpenAddLand, onOpenFallbackDB }: FeasibilitySettingsProps) {
   const [settings, setSettings] = useState<FeasibilitySettingsData>(loadFeasibilitySettings);
   const [sheetUrl, setSheetUrl] = useState(() => localStorage.getItem('hyperplot_sheet_url') || '');
   const [activeWizardTab, setActiveWizardTab] = useState('prompt');
@@ -378,6 +379,10 @@ export function FeasibilitySettings({ open, onClose, onSettingsChange, onOpenAdd
               <TabsTrigger value="sheet" className="flex-1 gap-1.5">
                 <Link2 className="w-3.5 h-3.5" />
                 Google Sheet
+              </TabsTrigger>
+              <TabsTrigger value="fallbackdb" className="flex-1 gap-1.5">
+                <Database className="w-3.5 h-3.5" />
+                Fallback DB
               </TabsTrigger>
             </TabsList>
           </div>
@@ -435,6 +440,27 @@ export function FeasibilitySettings({ open, onClose, onSettingsChange, onOpenAdd
                   The sheet will be used to enrich listing data and sync updates.
                 </p>
               </div>
+            </div>
+          </TabsContent>
+
+          {/* Fallback DB Tab */}
+          <TabsContent value="fallbackdb" className="flex-1 overflow-y-auto px-5 pb-3 mt-3">
+            <div className="text-center py-12">
+              <Database className="w-12 h-12 text-muted-foreground/30 mx-auto mb-3" />
+              <h3 className="text-lg font-bold mb-2">Fallback Plot Database</h3>
+              <p className="text-sm text-muted-foreground mb-4">
+                Upload CSV data to the fallback plot database for areas not covered by live GIS.
+              </p>
+              <Button
+                onClick={() => {
+                  onClose();
+                  onOpenFallbackDB?.();
+                }}
+                className="gap-2"
+              >
+                <Database className="w-4 h-4" />
+                Open Fallback DB Manager
+              </Button>
             </div>
           </TabsContent>
         </Tabs>

@@ -38,6 +38,7 @@ const SQM_TO_SQFT = 10.7639;
 const TABS = [
   { id: 'map', icon: Map, label: 'Map' },
   { id: 'feasibility', icon: Shield, label: 'Decision' },
+  { id: 'settings', icon: Settings, label: 'Settings' },
 ];
 
 export function HyperPlotAI() {
@@ -361,31 +362,11 @@ export function HyperPlotAI() {
               <Button
                 variant="outline"
                 size="sm"
-                onClick={() => setShowFeasibilitySettings(true)}
-                className="gap-2"
-              >
-                <Settings className="w-4 h-4" />
-                Settings Wizard
-              </Button>
-
-              <Button
-                variant="outline"
-                size="sm"
                 onClick={() => setShowWizard(true)}
                 className="gap-2"
               >
                 <Target className="w-4 h-4" />
                 Matching Wizard
-              </Button>
-
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={() => setShowFallbackUpload(true)}
-                className="gap-2"
-              >
-                <Database className="w-4 h-4" />
-                Fallback DB
               </Button>
 
               <Button
@@ -491,8 +472,53 @@ export function HyperPlotAI() {
                     </div>
                   </div>
                 ) : null}
-                {activeTab === 'ai' && (
-                  <AIAssistant plots={filteredPlots} selectedPlot={selectedPlot} onSelectPlot={handlePlotClick} />
+                {activeTab === 'settings' && (
+                  <div className="h-full glass-card glow-border p-6 overflow-y-auto">
+                    <div className="flex items-center gap-3 mb-6">
+                      <div className="w-10 h-10 rounded-xl flex items-center justify-center"
+                        style={{ background: 'linear-gradient(135deg, hsl(var(--primary)), hsl(var(--secondary)))' }}>
+                        <Settings className="w-5 h-5 text-background" />
+                      </div>
+                      <div>
+                        <h3 className="font-bold text-foreground text-lg">Settings Wizard</h3>
+                        <p className="text-xs text-muted-foreground">Configure area research, plots, and data sources</p>
+                      </div>
+                    </div>
+                    <div className="grid grid-cols-2 gap-4">
+                      <button
+                        onClick={() => setShowFeasibilitySettings(true)}
+                        className="glass-card p-5 rounded-xl text-left hover:bg-muted/50 transition-all group"
+                      >
+                        <Settings className="w-8 h-8 text-primary mb-3 group-hover:scale-110 transition-transform" />
+                        <h4 className="font-semibold text-sm mb-1">Area Research & Settings</h4>
+                        <p className="text-xs text-muted-foreground">Upload area docs, configure Google Sheets, and manage plot data</p>
+                      </button>
+                      <button
+                        onClick={() => setShowFallbackUpload(true)}
+                        className="glass-card p-5 rounded-xl text-left hover:bg-muted/50 transition-all group"
+                      >
+                        <Database className="w-8 h-8 text-primary mb-3 group-hover:scale-110 transition-transform" />
+                        <h4 className="font-semibold text-sm mb-1">Fallback DB</h4>
+                        <p className="text-xs text-muted-foreground">Upload CSV to fallback database for offline GIS coverage</p>
+                      </button>
+                      <button
+                        onClick={() => setShowManualLandForm(true)}
+                        className="glass-card p-5 rounded-xl text-left hover:bg-muted/50 transition-all group"
+                      >
+                        <Plus className="w-8 h-8 text-primary mb-3 group-hover:scale-110 transition-transform" />
+                        <h4 className="font-semibold text-sm mb-1">Add Manual Plot</h4>
+                        <p className="text-xs text-muted-foreground">Manually add a plot with location and planning data</p>
+                      </button>
+                      <button
+                        onClick={() => setShowWizard(true)}
+                        className="glass-card p-5 rounded-xl text-left hover:bg-muted/50 transition-all group"
+                      >
+                        <Target className="w-8 h-8 text-primary mb-3 group-hover:scale-110 transition-transform" />
+                        <h4 className="font-semibold text-sm mb-1">Matching Wizard</h4>
+                        <p className="text-xs text-muted-foreground">Find and match plots by area, GFA, or location radius</p>
+                      </button>
+                    </div>
+                  </div>
                 )}
 
                 {/* Floating Detail Panel */}
@@ -549,7 +575,6 @@ export function HyperPlotAI() {
                     </span>
                   </button>
                   <div className="flex items-center gap-1.5 px-2">
-                    {/* macOS traffic light: Close/Minimize (yellow) */}
                     <button
                       onClick={() => {
                         if (bottomPanelMinimized) {
@@ -559,13 +584,12 @@ export function HyperPlotAI() {
                           setBottomPanelMaximized(false);
                         }
                       }}
-                      className={`w-3 h-3 rounded-full transition-all border ${bottomPanelMinimized
-                        ? 'bg-yellow-400 border-yellow-500 shadow-[0_0_6px_rgba(250,204,21,0.5)]'
-                        : 'bg-yellow-400/70 border-yellow-500/50 hover:bg-yellow-400 hover:border-yellow-500 hover:shadow-[0_0_6px_rgba(250,204,21,0.4)]'
-                        }`}
+                      className="p-1 rounded hover:bg-muted/50 text-muted-foreground hover:text-foreground transition-all"
                       title={bottomPanelMinimized ? 'Restore' : 'Minimize'}
-                    />
-                    {/* macOS traffic light: Fullscreen (green) */}
+                    >
+                      <Minimize2 className="w-3.5 h-3.5" />
+                    </button>
+                    {/* Fullscreen toggle */}
                     <button
                       onClick={() => {
                         if (bottomPanelMaximized) {
@@ -575,12 +599,11 @@ export function HyperPlotAI() {
                           setBottomPanelMinimized(false);
                         }
                       }}
-                      className={`w-3 h-3 rounded-full transition-all border ${bottomPanelMaximized
-                        ? 'bg-green-400 border-green-500 shadow-[0_0_6px_rgba(74,222,128,0.5)]'
-                        : 'bg-green-400/70 border-green-500/50 hover:bg-green-400 hover:border-green-500 hover:shadow-[0_0_6px_rgba(74,222,128,0.4)]'
-                        }`}
+                      className="p-1 rounded hover:bg-muted/50 text-muted-foreground hover:text-foreground transition-all"
                       title={bottomPanelMaximized ? 'Exit Full Screen' : 'Full Screen'}
-                    />
+                    >
+                      <Maximize2 className="w-3.5 h-3.5" />
+                    </button>
                   </div>
                 </div>
 
@@ -590,39 +613,38 @@ export function HyperPlotAI() {
                     {bottomPanel === 'recent' && (
                       <ScrollArea className="h-full">
                         {lastSeen.length === 0 ? (
-                          <div className="text-center py-6 text-muted-foreground">
-                            <Clock className="w-6 h-6 mx-auto mb-2 opacity-30" />
-                            <p className="text-xs">No recent plots</p>
+                          <div className="text-center py-8 text-muted-foreground">
+                            <Clock className="w-8 h-8 mx-auto mb-3 opacity-20" />
+                            <p className="text-sm font-medium">No recent plots</p>
+                            <p className="text-xs mt-1 opacity-60">Search or click a plot to start tracking</p>
                           </div>
                         ) : (
                           <div className="min-w-[600px]">
                             <Table>
                               <TableHeader>
-                                <TableRow>
-                                  <TableHead className="font-bold text-xs">Land Number</TableHead>
-                                  <TableHead className="font-bold text-xs">Location</TableHead>
-                                  <TableHead className="font-bold text-xs">Area (sqft)</TableHead>
-                                  <TableHead className="font-bold text-xs">GFA (sqft)</TableHead>
-                                  <TableHead className="font-bold text-xs">Zoning</TableHead>
-                                  <TableHead className="font-bold text-xs">Status</TableHead>
-                                  <TableHead className="font-bold text-xs">Viewed</TableHead>
+                                <TableRow className="border-border/30">
+                                  <TableHead className="font-semibold text-sm text-muted-foreground tracking-wide">Land Number</TableHead>
+                                  <TableHead className="font-semibold text-sm text-muted-foreground tracking-wide">Location</TableHead>
+                                  <TableHead className="font-semibold text-sm text-muted-foreground tracking-wide">Area (sqft)</TableHead>
+                                  <TableHead className="font-semibold text-sm text-muted-foreground tracking-wide">GFA (sqft)</TableHead>
+                                  <TableHead className="font-semibold text-sm text-muted-foreground tracking-wide">Zoning</TableHead>
+                                  <TableHead className="font-semibold text-sm text-muted-foreground tracking-wide">Status</TableHead>
+                                  <TableHead className="font-semibold text-sm text-muted-foreground tracking-wide">Viewed</TableHead>
                                 </TableRow>
                               </TableHeader>
                               <TableBody>
                                 {recentWithPlots.map(({ entry, plot: matchedPlot }) => (
                                   <TableRow
                                     key={entry.plotId}
-                                    className="cursor-pointer hover:bg-muted/30 transition-colors"
+                                    className="cursor-pointer hover:bg-primary/5 transition-all duration-200 border-border/20"
                                     onClick={async () => {
                                       if (matchedPlot) {
                                         handlePlotClick(matchedPlot, true);
                                       } else {
-                                        // Try GIS first
                                         try {
                                           const fetched = await gisService.fetchPlotById(entry.plotId);
                                           if (fetched) { handlePlotFound(fetched); return; }
                                         } catch { /* continue to fallback reconstruction */ }
-                                        // Reconstruct from saved entry (fallback/manual plots not in GIS)
                                         const reconstructed: PlotData = {
                                           id: entry.plotId,
                                           x: entry.coordinates.x,
@@ -649,18 +671,25 @@ export function HyperPlotAI() {
                                       }
                                     }}
                                   >
-                                    <TableCell className="font-bold text-sm">{entry.plotId}</TableCell>
-                                    <TableCell className="text-xs">{entry.location || '—'}</TableCell>
-                                    <TableCell className="font-mono text-xs">{Math.round(entry.area * SQM_TO_SQFT).toLocaleString()}</TableCell>
-                                    <TableCell className="font-mono text-xs">{Math.round(entry.gfa * SQM_TO_SQFT).toLocaleString()}</TableCell>
+                                    <TableCell className="font-bold text-sm text-foreground">{entry.plotId}</TableCell>
+                                    <TableCell className="text-sm text-muted-foreground">{entry.location || '—'}</TableCell>
+                                    <TableCell className="font-mono text-sm tabular-nums">{Math.round(entry.area * SQM_TO_SQFT).toLocaleString()}</TableCell>
+                                    <TableCell className="font-mono text-sm tabular-nums">{Math.round(entry.gfa * SQM_TO_SQFT).toLocaleString()}</TableCell>
                                     <TableCell>
-                                      <Badge variant="outline" className="text-[10px]">{entry.zoning}</Badge>
+                                      <Badge variant="outline" className="text-xs font-medium px-2 py-0.5">{entry.zoning}</Badge>
                                     </TableCell>
                                     <TableCell>
-                                      <Badge variant="outline" className="text-[10px]">{entry.status}</Badge>
+                                      <Badge
+                                        variant="outline"
+                                        className={`text-xs font-medium px-2 py-0.5 ${
+                                          entry.status === 'Available' ? 'border-success/40 text-success bg-success/10' :
+                                          entry.status === 'Frozen' ? 'border-destructive/40 text-destructive bg-destructive/10' :
+                                          'border-border'
+                                        }`}
+                                      >{entry.status}</Badge>
                                     </TableCell>
-                                    <TableCell className="text-xs text-muted-foreground">
-                                      {new Date(entry.timestamp).toLocaleDateString()}
+                                    <TableCell className="text-xs text-muted-foreground/70 font-medium">
+                                      {new Date(entry.timestamp).toLocaleDateString('en-GB', { day: '2-digit', month: 'short' })}
                                     </TableCell>
                                   </TableRow>
                                 ))}
@@ -851,6 +880,7 @@ export function HyperPlotAI() {
         open={showFeasibilitySettings}
         onClose={() => setShowFeasibilitySettings(false)}
         onOpenAddLand={() => setShowManualLandForm(true)}
+        onOpenFallbackDB={() => setShowFallbackUpload(true)}
       />
 
       {/* Manual Land Entry Form */}
