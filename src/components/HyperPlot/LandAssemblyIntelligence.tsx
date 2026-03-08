@@ -92,6 +92,24 @@ export function LandAssemblyIntelligence({ plot, onSelectPlot, onClose }: LandAs
         }
       }
 
+      // Smart sort: prioritize same-area plots and commercial/facilities/parks
+      const selectedArea = (plot.location || plot.project || plot.entity || '').toUpperCase();
+      nearbyPlots.sort((a, b) => {
+        const aArea = (a.location || a.project || a.entity || '').toUpperCase();
+        const bArea = (b.location || b.project || b.entity || '').toUpperCase();
+        const aLU = (a.landUseDetails || '').toUpperCase();
+        const bLU = (b.landUseDetails || '').toUpperCase();
+        const isImportant = (lu: string) => lu.includes('COMMERCIAL') || lu.includes('SHOPPING') || lu.includes('RETAIL') || lu.includes('PARK') || lu.includes('GARDEN') || lu.includes('FACILITIES') || lu.includes('MASJID') || lu.includes('MOSQUE') || lu.includes('SCHOOL') || lu.includes('HOSPITAL');
+        const aSameArea = aArea === selectedArea ? 1 : 0;
+        const bSameArea = bArea === selectedArea ? 1 : 0;
+        const aImportant = isImportant(aLU) ? 1 : 0;
+        const bImportant = isImportant(bLU) ? 1 : 0;
+        // Same area first, then important land use, then rest
+        const aScore = aSameArea * 2 + aImportant;
+        const bScore = bSameArea * 2 + bImportant;
+        return bScore - aScore;
+      });
+
       setNearbyCount(nearbyPlots.length);
       // Step 2: Call edge function
       const selectedPlot = {
