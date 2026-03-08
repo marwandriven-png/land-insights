@@ -186,8 +186,8 @@ export function UrbanContextAnalysis({ plot, onClose }: UrbanContextAnalysisProp
     return 'text-destructive';
   };
 
-  return (
-    <div className="h-full glass-card glow-border flex flex-col overflow-hidden">
+  const content = (
+    <div className={`${maximized ? 'fixed inset-0 z-50 bg-background' : 'h-full'} glass-card glow-border flex flex-col overflow-hidden`}>
       {/* Header */}
       <div className="flex items-center justify-between p-4 border-b border-border/50 shrink-0">
         <div className="flex items-center gap-3">
@@ -203,6 +203,9 @@ export function UrbanContextAnalysis({ plot, onClose }: UrbanContextAnalysisProp
           <div className={`text-lg font-black ${scoreColor(data.urbanScore.overall)}`}>
             {data.urbanScore.overall}/10
           </div>
+          <button onClick={() => setMaximized(m => !m)} className="p-1.5 rounded-md hover:bg-muted/50 transition-colors" title={maximized ? 'Minimize' : 'Maximize'}>
+            {maximized ? <Minimize2 className="w-4 h-4" /> : <Maximize2 className="w-4 h-4" />}
+          </button>
           <button onClick={onClose} className="p-1.5 rounded-md hover:bg-muted/50 transition-colors">
             <X className="w-4 h-4" />
           </button>
