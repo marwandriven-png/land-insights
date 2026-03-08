@@ -95,6 +95,93 @@ interface Props {
   onClose: () => void;
 }
 
+// Build DC context for a single plot
+function buildDCContext(plot: PlotData) {
+  const areaSqft = plot.area * SQM_TO_SQFT;
+  const gfaSqft = plot.gfa * SQM_TO_SQFT;
+  const ratio = areaSqft > 0 ? gfaSqft / areaSqft : 4.5;
+  const dscInput: DSCPlotInput = {
+    id: plot.id,
+    name: plot.project || plot.location || plot.id,
+    area: areaSqft,
+    ratio,
+    height: plot.maxHeight ? `${plot.maxHeight}m` : plot.floors,
+    zone: plot.zoning,
+    constraints: 'Standard guidelines',
+  };
+
+  // Resolve area
+  const areaCode = plot.location || plot.project || '';
+  const clff = matchCLFFArea(areaCode);
+  const overrides = clff ? getCLFFOverridesWithMasterData(clff.code) : {};
+
+  // Run feasibility for all 3 strategies
+  const feasResults: Record<string, any> = {};
+  for (const mixKey of ['investor', 'balanced', 'family'] as const) {
+    const r = calcDSCFeasibility(dscInput, mixKey, overrides);
+    feasResults[mixKey] = {
+      grossSales: Math.round(r.grossSales),
+      totalCost: Math.round(r.totalCost),
+      grossProfit: Math.round(r.grossProfit),
+      grossMargin: (r.grossMargin * 100).toFixed(1) + '%',
+      roi: (r.roi * 100).toFixed(1) + '%',
+      breakEvenPsf: Math.round(r.breakEvenPsf),
+      avgPsf: Math.round(r.avgPsf),
+      grossYield: (r.grossYield * 100).toFixed(1) + '%',
+      totalUnits: r.units.total,
+      unitBreakdown: { studio: r.units.studio, br1: r.units.br1, br2: r.units.br2, br3: r.units.br3 },
+      sensitivity: r.sens.map(s => ({ delta: (s.delta * 100).toFixed(0) + '%', profit: Math.round(s.profit), margin: (s.margin * 100).toFixed(1) + '%', roi: (s.roi * 100).toFixed(1) + '%' })),
+    };
+  }
+
+  // Market data
+  const normalizedCode = clff?.code || '';
+  const salesData = getAreaSalesData(normalizedCode);
+  const rentalData = getAreaRentalData(normalizedCode);
+  const areaData = getAreaData(normalizedCode);
+  const competitors = areaData?.competitors?.slice(0, 5).map(c => ({
+    name: c.name, developer: c.developer, totalUnits: c.totalUnits,
+    studioP: c.studioPct || 0, oneBRP: c.oneBRPct || 0, twoBRP: c.twoBRPct || 0, threeBRP: c.threeBRPct || 0,
+    priceFrom: c.priceFrom, completion: c.completion,
+  })) || [];
+  const insights = areaData ? generateAreaInsights(normalizedCode) : [];
+
+  return {
+    areaName: clff?.name || areaCode,
+    marketTier: clff?.marketTier || 'Unknown',
+    feasibility: feasResults,
+    transactions: salesData ? {
+      total: salesData.count.total,
+      byType: { studio: salesData.count.studio, br1: salesData.count.br1, br2: salesData.count.br2, br3: salesData.count.br3 },
+      avgPsf: { studio: salesData.avgPSF.studio, br1: salesData.avgPSF.br1, br2: salesData.avgPSF.br2, br3: salesData.avgPSF.br3 },
+      sharePct: salesData.sharePct,
+    } : null,
+    rental: rentalData ? {
+      avgRentPsf: { studio: rentalData.avgPSF.studio, br1: rentalData.avgPSF.br1, br2: rentalData.avgPSF.br2, br3: rentalData.avgPSF.br3 },
+      yields: { studio: rentalData.yield.studio, br1: rentalData.yield.br1, br2: rentalData.yield.br2, br3: rentalData.yield.br3 },
+    } : null,
+    competitors,
+    insights,
+    framework: areaData?.developmentFramework ? {
+      constructionPSF: areaData.developmentFramework.constructionPSF,
+      yieldRange: areaData.developmentFramework.grossYieldRange,
+      serviceCharge: areaData.developmentFramework.serviceChargeRange,
+    } : null,
+  };
+}
+
+const ANALYSIS_DIMENSIONS = [
+  { label: 'Plot Intelligence Score', icon: '🎯', duration: 2000 },
+  { label: 'Demand Heatmap', icon: '📊', duration: 1800 },
+  { label: 'Risk Detection System', icon: '⚠️', duration: 1500 },
+  { label: 'Valuation Opportunity', icon: '💰', duration: 1600 },
+  { label: 'Land Assembly Detector', icon: '🧩', duration: 1400 },
+  { label: 'Land Assembly Intelligence', icon: '🔗', duration: 1800 },
+  { label: 'Urban Context Analysis', icon: '🌳', duration: 1500 },
+  { label: 'Exit Strategy Planner', icon: '📈', duration: 1200 },
+  { label: 'AI Comparative Verdict', icon: '🛡️', duration: 2000 },
+];
+
 function ScoreBar({ score, max = 10 }: { score: number; max?: number }) {
   const pct = (score / max) * 100;
   const color = score >= 7 ? 'bg-success' : score >= 5 ? 'bg-warning' : 'bg-destructive';
