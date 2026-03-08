@@ -73,9 +73,24 @@ CRITICAL RULES:
 
 All scores 0-10. Distances should include units (e.g. "350m"). Be specific and data-driven. Never fabricate infrastructure that isn't evidenced in the provided data.`;
 
-    const nearbyDesc = (nearbyPlots || []).map((p: any, i: number) =>
-      `${i + 1}. Plot ${p.id}: ${p.areaSqft} sqft, Zoning: ${p.zoning}, Status: ${p.status}, Floors: ${p.floors || 'N/A'}, Developer: ${p.developer || 'N/A'}, Location: ${p.location || 'N/A'}, Construction: ${p.constructionStatus || 'N/A'}, LandUse: ${p.landUseDetails || 'N/A'}`
+    // Categorize nearby plots by land use for better analysis
+    const allNearby = nearbyPlots || [];
+    const facilitiesPlots = allNearby.filter((p: any) => {
+      const lu = (p.landUseDetails || '').toUpperCase();
+      return lu.includes('PARK') || lu.includes('GARDEN') || lu.includes('MASJID') || lu.includes('MOSQUE') ||
+        lu.includes('SCHOOL') || lu.includes('HOSPITAL') || lu.includes('CLINIC') || lu.includes('RETAIL') ||
+        lu.includes('FACILITIES') || lu.includes('SUBSTATION') || lu.includes('UTILITY') || lu.includes('PETROL') ||
+        lu.includes('FIRE') || lu.includes('POLICE') || lu.includes('COMMUNITY') || lu.includes('OPEN SPACE');
+    });
+
+    const nearbyDesc = allNearby.map((p: any, i: number) =>
+      `${i + 1}. Plot ${p.id}: ${p.areaSqft} sqft, Zoning: ${p.zoning}, Status: ${p.status}, Floors: ${p.floors || 'N/A'}, Developer: ${p.developer || 'N/A'}, Location: ${p.location || 'N/A'}, Construction: ${p.constructionStatus || 'N/A'}, LandUse: ${p.landUseDetails || 'N/A'}, Lat: ${p.lat || 'N/A'}, Lng: ${p.lng || 'N/A'}`
     ).join('\n');
+
+    const facilitiesDesc = facilitiesPlots.length > 0
+      ? `\n\nCONFIRMED FACILITIES/AMENITIES IN NEARBY PLOTS (extracted from GIS land use data):\n` +
+        facilitiesPlots.map((p: any) => `- Plot ${p.id}: LandUse="${p.landUseDetails}", Location="${p.location || 'N/A'}"`).join('\n')
+      : '\n\nNo confirmed facilities/amenities found in nearby plot land use data.';
 
     // Build setback info from real GIS data
     const setbackInfo = selectedPlot.buildingSetbacks
@@ -105,10 +120,12 @@ SELECTED PLOT:
 - Developer: ${selectedPlot.developer || 'N/A'}
 - Construction Status: ${selectedPlot.constructionStatus || 'N/A'}
 - Land Use Details: ${selectedPlot.landUseDetails || 'N/A'}
+- Coordinates: Lat ${selectedPlot.lat || 'N/A'}, Lng ${selectedPlot.lng || 'N/A'}
 ${setbackInfo}
 
-SURROUNDING PLOTS WITHIN 1KM (${(nearbyPlots || []).length} plots):
+SURROUNDING PLOTS WITHIN 1KM (${allNearby.length} plots):
 ${nearbyDesc || 'No nearby plots data available.'}
+${facilitiesDesc}
 
 IMPORTANT for Street Facing Analysis: Use the EXACT building setback values from the DDA Affection Plan data above. The setback values represent the mandatory distance (in meters) from each side of the plot boundary to the building line. Larger setbacks on a side typically indicate a main road frontage. A side with 0m podium setback means the podium can extend to the plot boundary on that side. Use these real values to determine road widths, frontage quality, and street hierarchy.
 
