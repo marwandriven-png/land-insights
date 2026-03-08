@@ -782,17 +782,19 @@ export function LandMatchingWizard({
                           };
                         });
 
-                        results = await crossCheckWithSheet(results);
-
-                        // Log source breakdown
-                        console.log(`[LandMatchingWizard] Consolidated: ${searchMeta.total_count} plots (GIS: ${searchMeta.gis_dda_count}, PS: ${searchMeta.property_status_count}, fallback: ${searchMeta.fallback_count}, freehold-enriched: ${searchMeta.freehold_enriched_count})`);
-
+                        // Show results immediately, cross-check sheet in background
                         setMatchResults(results);
                         setSelectedMatchIds(new Set(results.map(r => r.matchedPlotId)));
                         setStep('results');
-                        // Push all matched plots to the map so pins appear
                         onAddPlots?.(apiPlots);
                         onHighlightPlots(results.map(r => r.matchedPlotId));
+
+                        // Non-blocking sheet cross-check
+                        crossCheckWithSheet(results).then(enriched => {
+                          setMatchResults(enriched);
+                        }).catch(() => {});
+
+                        console.log(`[LandMatchingWizard] Consolidated: ${searchMeta.total_count} plots (GIS: ${searchMeta.gis_dda_count}, PS: ${searchMeta.property_status_count}, fallback: ${searchMeta.fallback_count}, freehold-enriched: ${searchMeta.freehold_enriched_count})`);
                       } catch (e: any) {
                         setError(e.message || 'Location search failed');
                         setStep('upload');
