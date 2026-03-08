@@ -38,7 +38,7 @@ interface AssemblyData {
   gfaComparison: { higherGfaPct: number; similarGfaPct: number; lowerGfaPct: number; assessment: string };
   assemblyOpportunity: { detected: boolean; plotCount: number; totalCombinedSqft: number; potentialScale: string; criteria: string };
   developmentPattern: { dominantType: string; patterns: { type: string; count: number; pct: number }[]; recommendation: string };
-  absorptionRate: { studio: string; oneBR: string; twoBR: string; threeBR: string; expectedSellOut: string };
+  absorptionRate: { studio: string; oneBR: string; twoBR: string; threeBR: string; expectedSellOut: string; commercialProximity?: { plotId: string; landUse: string; distance: string; absorptionImpact: string }[]; demandDriverInsight?: string };
   comparablePlots: { plotId: string; sizeSqft: number; gfaSqft?: number; zoning: string; status: string; sizeDiffPct?: number; gfaDiffPct?: number }[];
   alternativeAreas: { area: string; demandScore: string; absorption: string; reason: string }[];
   aiInsight: string;
@@ -305,6 +305,30 @@ export function LandAssemblyIntelligence({ plot, onSelectPlot, onClose }: LandAs
               <span className="text-muted-foreground">Expected Sell-Out: </span>
               <span className="font-bold text-primary">{data.absorptionRate.expectedSellOut}</span>
             </div>
+
+            {/* Commercial Proximity - Demand Drivers */}
+            {data.absorptionRate.commercialProximity && data.absorptionRate.commercialProximity.length > 0 && (
+              <div className="mt-3 space-y-1.5">
+                <p className="text-[10px] font-semibold text-primary uppercase tracking-wider">📍 Nearby Commercial Infrastructure</p>
+                {data.absorptionRate.commercialProximity.map((cp, i) => (
+                  <div key={i} className="p-2 rounded-md bg-muted/30 border border-border/50">
+                    <div className="flex items-center justify-between">
+                      <span className="text-xs font-bold">Plot {cp.plotId}</span>
+                      <Badge variant="outline" className="text-[9px] px-1.5 py-0">{cp.distance}</Badge>
+                    </div>
+                    <p className="text-[10px] text-primary font-medium mt-0.5">{cp.landUse}</p>
+                    <p className="text-[10px] text-muted-foreground mt-0.5">{cp.absorptionImpact}</p>
+                  </div>
+                ))}
+              </div>
+            )}
+
+            {data.absorptionRate.demandDriverInsight && (
+              <div className="mt-2 p-2 rounded-md bg-accent/10 border border-accent/20 text-xs">
+                <Lightbulb className="w-3 h-3 inline mr-1 text-accent-foreground" />
+                <span className="text-muted-foreground">{data.absorptionRate.demandDriverInsight}</span>
+              </div>
+            )}
           </Section>
 
           {/* 7. Comparable Plots (by GFA + Plot Size) */}

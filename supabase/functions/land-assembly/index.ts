@@ -53,7 +53,11 @@ Return ONLY valid JSON (no markdown, no code fences) with this exact structure:
     "oneBR": string,
     "twoBR": string,
     "threeBR": string,
-    "expectedSellOut": string
+    "expectedSellOut": string,
+    "commercialProximity": [
+      { "plotId": string, "landUse": string, "distance": string, "absorptionImpact": string }
+    ],
+    "demandDriverInsight": string
   },
   "comparablePlots": [
     { "plotId": string, "sizeSqft": number, "gfaSqft": number, "zoning": string, "status": string, "sizeDiffPct": number, "gfaDiffPct": number }
@@ -67,6 +71,7 @@ Return ONLY valid JSON (no markdown, no code fences) with this exact structure:
 All percentages as numbers (e.g. 48 not "48%"). Use real Dubai market knowledge. Be specific and data-driven.
 
 CRITICAL INSTRUCTIONS:
+- For "absorptionRate": In addition to unit-type absorption estimates, you MUST scan ALL nearby plots for COMMERCIAL land use (e.g. "COMMERCIAL: SHOPPING CENTER", "COMMERCIAL: RETAIL", "COMMERCIAL: SUPERMARKET", etc.). List each confirmed commercial plot in "commercialProximity" with its real plot ID, exact LandUse string, estimated distance, and how it impacts residential absorption (e.g. "Opposite shopping center drives foot traffic and retail convenience, boosting 1BR/Studio demand"). In "demandDriverInsight", summarize how nearby commercial infrastructure affects overall residential absorption for the area.
 - For "comparablePlots": You MUST find plots from the NEARBY PLOTS data that are COMPARABLE to the selected plot based on BOTH plot size (area sqft within ±30%) AND GFA (sqft within ±30%). Include their real plot IDs, sizes, GFA, zoning, and status. Add "sizeDiffPct" and "gfaDiffPct" showing how much they differ from the selected plot. Rank by closest combined match. Do NOT invent fake plot IDs.
 - For "developmentPattern": ONLY analyze plots with Residential or Mixed Use zoning/land use from the nearby plots data. Classify building types based on the FLOORS data — if floors indicate multi-story (G+3 or higher), classify as "Residential Building/Tower", NOT "Residential Villa". Villas are ONLY G+1 or G+2 with very small unit counts. Group by GFA range and plot size range to identify the dominant development scale and type. Count real occurrences. Ignore commercial-only, industrial, or infrastructure plots.
 - For "completedBenchmarks": ONLY include plots from the SAME AREA/COMMUNITY as the selected plot that have construction status "Completed" or similar. Filter to plots with GFA within ±50% of the selected plot's GFA. Include their real data (plot size, GFA, floors, developer, building type). Classify building type correctly based on floors data — multi-story = Building/Tower, not Villa. Do NOT invent benchmarks.
