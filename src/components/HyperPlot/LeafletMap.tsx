@@ -55,10 +55,9 @@ export function LeafletMap({ plots, selectedPlot, onPlotClick, highlightedPlots,
       worldCopyJump: false
     });
 
-    L.tileLayer('https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png', {
+    L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}', {
       maxZoom: 19,
-      noWrap: true,
-      subdomains: 'abcd'
+      noWrap: true
     }).addTo(map);
 
     L.control.zoom({ position: 'topleft' }).addTo(map);
