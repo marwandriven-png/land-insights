@@ -19,6 +19,7 @@ import { LandMatchingWizard } from './LandMatchingWizard';
 import { FeasibilitySettings } from './FeasibilitySettings';
 import { ManualLandForm } from './ManualLandForm';
 import { ListingsPage } from './ListingsPage';
+import { AIComparativeAnalysis } from './AIComparativeAnalysis';
 import { QuickAddLandModal } from './QuickAddLandModal';
 import { FallbackUploadModal } from './FallbackUploadModal';
 import { FeasibilityParams, DEFAULT_FEASIBILITY_PARAMS } from './FeasibilityCalculator';
