@@ -474,10 +474,10 @@ Use Dubai market averages for these zones. Consider current Q1 2026 market condi
           <section>
             <SectionHeader num={++sectionNum} icon={Layers} title="Land Assembly Detector" />
             <div className="grid grid-cols-2 gap-4">
-              {[{ label: plotALabel, asm: r.landAssembly.plotA }, { label: plotBLabel, asm: r.landAssembly.plotB }].map(({ label, asm }) => (
+              {[{ label: plotALabel, area: plotAArea, asm: r.landAssembly.plotA }, { label: plotBLabel, area: plotBArea, asm: r.landAssembly.plotB }].map(({ label, area, asm }) => (
                 <div key={label} className={`p-4 rounded-xl border ${asm.detected ? 'border-primary/40 bg-primary/5' : 'border-border/50 bg-card/50'}`}>
                   <div className="font-bold text-sm mb-2 flex items-center gap-2">
-                    {label}
+                    <div><span>{label}</span>{area && <div className="text-[10px] text-muted-foreground font-normal">{area}</div>}</div>
                     {asm.detected ? (
                       <Badge variant="outline" className="text-xs border-primary/40 text-primary bg-primary/10">Opportunity Detected</Badge>
                     ) : (
