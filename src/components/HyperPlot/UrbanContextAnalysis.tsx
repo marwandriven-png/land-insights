@@ -49,6 +49,19 @@ export function UrbanContextAnalysis({ plot, onClose }: UrbanContextAnalysisProp
       }
       setNearbyCount(nearbyPlots.length);
 
+      // Fetch real affection plan data for building setbacks
+      let buildingSetbacks: Record<string, string | null> | null = null;
+      let podiumSetbacks: Record<string, string | null> | null = null;
+      try {
+        const affection = await gisService.getAffectionPlan(plot.id);
+        if (affection) {
+          buildingSetbacks = affection.buildingSetbacks;
+          podiumSetbacks = affection.podiumSetbacks;
+        }
+      } catch (e) {
+        console.log('Affection plan fetch skipped:', e);
+      }
+
       const selectedPlot = {
         id: plot.id,
         location: plot.location || plot.project || plot.entity || '',
@@ -60,6 +73,8 @@ export function UrbanContextAnalysis({ plot, onClose }: UrbanContextAnalysisProp
         developer: plot.developer || '',
         constructionStatus: plot.constructionStatus || '',
         landUseDetails: plot.landUseDetails || '',
+        buildingSetbacks: buildingSetbacks || null,
+        podiumSetbacks: podiumSetbacks || null,
       };
 
       const nearbyPlotsData = nearbyPlots.slice(0, 50).map(p => ({
