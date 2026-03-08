@@ -19,6 +19,7 @@ import { LandMatchingWizard } from './LandMatchingWizard';
 import { FeasibilitySettings } from './FeasibilitySettings';
 import { ManualLandForm } from './ManualLandForm';
 import { ListingsPage } from './ListingsPage';
+import { AIComparativeAnalysis } from './AIComparativeAnalysis';
 import { QuickAddLandModal } from './QuickAddLandModal';
 import { FallbackUploadModal } from './FallbackUploadModal';
 import { FeasibilityParams, DEFAULT_FEASIBILITY_PARAMS } from './FeasibilityCalculator';
@@ -461,7 +462,13 @@ export function HyperPlotAI() {
                     />
                   </div>
                 )}
-                {activeTab === 'feasibility' && selectedPlot ? (
+                {activeTab === 'feasibility' && comparisonPlots.length >= 2 ? (
+                  <AIComparativeAnalysis
+                    plotA={comparisonPlots[0]}
+                    plotB={comparisonPlots[1]}
+                    onClose={() => setComparisonPlots([])}
+                  />
+                ) : activeTab === 'feasibility' && selectedPlot ? (
                   <DecisionConfidence plot={selectedPlot} comparisonPlots={comparisonPlots} isFullscreen={false} onToggleFullscreen={() => setDecisionFullscreen(true)} onExitComparison={() => setComparisonPlots([])} sharedFeasibilityParams={sharedFeasibilityParams} onFeasibilityParamsChange={setSharedFeasibilityParams} />
                 ) : activeTab === 'feasibility' ? (
                   <div className="h-full flex items-center justify-center glass-card glow-border">
@@ -823,7 +830,9 @@ export function HyperPlotAI() {
                             setComparisonPlots(prev => {
                               if (prev.find(p => p.id === plot.id)) return prev.filter(p => p.id !== plot.id);
                               if (prev.length >= 3) return prev;
-                              return [...prev, plot];
+                              const next = [...prev, plot];
+                              if (next.length >= 2) setActiveTab('feasibility');
+                              return next;
                             });
                           }}
                           className={`absolute top-2 right-2 p-1.5 rounded-md transition-all ${comparisonPlots.find(p => p.id === plot.id)

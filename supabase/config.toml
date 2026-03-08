@@ -17,3 +17,6 @@ verify_jwt = false
 
 [functions.fallback-plots]
 verify_jwt = false
+
+[functions.plot-comparison]
+verify_jwt = false
