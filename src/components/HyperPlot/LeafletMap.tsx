@@ -112,7 +112,7 @@ export function LeafletMap({ plots, selectedPlot, onPlotClick, highlightedPlots,
 
     plots.forEach(plot => {
       const rawAttrs = plot.rawAttributes;
-      let polygon: L.Polygon | L.CircleMarker;
+      let polygon: L.Polygon | L.CircleMarker | L.Marker;
       let glowLayer: L.Polygon | L.CircleMarker | null = null;
       const active = isSelectedOrHighlighted(plot.id);
       const isSelected = selectedPlot?.id === plot.id;
