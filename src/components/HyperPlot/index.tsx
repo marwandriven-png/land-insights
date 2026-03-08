@@ -40,6 +40,7 @@ const SQM_TO_SQFT = 10.7639;
 const TABS = [
   { id: 'map', icon: Map, label: 'Map' },
   { id: 'feasibility', icon: Shield, label: 'Decision' },
+  { id: 'assembly', icon: Combine, label: 'Assembly' },
   { id: 'settings', icon: Settings, label: 'Settings' },
 ];
 
