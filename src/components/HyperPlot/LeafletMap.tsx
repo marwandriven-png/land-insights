@@ -159,13 +159,7 @@ export function LeafletMap({ plots, selectedPlot, onPlotClick, highlightedPlots,
               return L.latLng(lat, lng);
             });
           }
-          if (active) {
-            glowLayer = L.polygon(latLngs, {
-              color: '#00e5ff', weight: 8, opacity: 0.4,
-              fillColor: 'transparent', fillOpacity: 0,
-              interactive: false, className: 'plot-glow-layer'
-            });
-          }
+          // No glow layer — clean border only
           polygon = L.polygon(latLngs, {
             color: plotBorderColor,
             weight: isSelected ? 2.5 : active ? 2 : 1,
