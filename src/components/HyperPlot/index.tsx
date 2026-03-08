@@ -632,7 +632,7 @@ export function HyperPlotAI() {
                                           project: entry.plotName,
                                           floors: '',
                                           developer: '',
-                                          verificationSource: 'Recent',
+                                          verificationSource: 'DLD' as const,
                                           rawAttributes: {
                                             _isFallbackPlot: true,
                                             _isManualLatLng: true,
