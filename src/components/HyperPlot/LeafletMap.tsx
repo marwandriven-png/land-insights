@@ -98,8 +98,8 @@ export function LeafletMap({ plots, selectedPlot, onPlotClick, highlightedPlots,
 
     // Helper: generate a fixed 10×10 m rectangle around a lat/lng
     function areaToRect(lat: number, lng: number, _areaSqm: number): L.LatLng[] {
-      const halfW = 17.5; // 35m / 2
-      const halfH = 17.5;
+      const halfW = 5; // 10m / 2
+      const halfH = 5;
       const latPerM = 1 / 111320;
       const lngPerM = 1 / (111320 * Math.cos(lat * Math.PI / 180));
       const dLat = halfH * latPerM;
