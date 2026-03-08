@@ -53,7 +53,7 @@ export function UrbanContextAnalysis({ plot, onClose }: UrbanContextAnalysisProp
       let buildingSetbacks: Record<string, string | null> | null = null;
       let podiumSetbacks: Record<string, string | null> | null = null;
       try {
-        const affection = await gisService.getAffectionPlan(plot.id);
+        const affection = await gisService.fetchAffectionPlan(plot.id);
         if (affection) {
           buildingSetbacks = affection.buildingSetbacks;
           podiumSetbacks = affection.podiumSetbacks;
