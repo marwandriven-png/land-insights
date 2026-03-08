@@ -65,10 +65,12 @@ Return ONLY valid JSON (no markdown, no code fences) with this exact structure:
   "alternativeAreas": [
     { "area": string, "demandScore": "High"|"Medium"|"Low", "absorption": "Fast"|"Stable"|"Slow", "reason": string }
   ],
-  "aiInsight": string
+  "aiInsight": string,
+  "locationDescription": string
 }
 
 All percentages as numbers (e.g. 48 not "48%"). Use real Dubai market knowledge. Be specific and data-driven.
+- "locationDescription" should describe the plot's location quality as premium, mid-tier, or emerging based on: proximity to commercial infrastructure (shopping centers, retail), parks/green spaces, road frontage, existing development density, and brand of the master developer. Mention specific nearby commercial plots by ID and their land use.
 
 CRITICAL INSTRUCTIONS:
 - For "absorptionRate": In addition to unit-type absorption estimates, you MUST scan ALL nearby plots for COMMERCIAL land use (e.g. "COMMERCIAL: SHOPPING CENTER", "COMMERCIAL: RETAIL", "COMMERCIAL: SUPERMARKET", etc.). List each confirmed commercial plot in "commercialProximity" with its real plot ID, exact LandUse string, estimated distance, and how it impacts residential absorption (e.g. "Opposite shopping center drives foot traffic and retail convenience, boosting 1BR/Studio demand"). In "demandDriverInsight", summarize how nearby commercial infrastructure affects overall residential absorption for the area.
