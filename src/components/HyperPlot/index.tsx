@@ -472,8 +472,53 @@ export function HyperPlotAI() {
                     </div>
                   </div>
                 ) : null}
-                {activeTab === 'ai' && (
-                  <AIAssistant plots={filteredPlots} selectedPlot={selectedPlot} onSelectPlot={handlePlotClick} />
+                {activeTab === 'settings' && (
+                  <div className="h-full glass-card glow-border p-6 overflow-y-auto">
+                    <div className="flex items-center gap-3 mb-6">
+                      <div className="w-10 h-10 rounded-xl flex items-center justify-center"
+                        style={{ background: 'linear-gradient(135deg, hsl(var(--primary)), hsl(var(--secondary)))' }}>
+                        <Settings className="w-5 h-5 text-background" />
+                      </div>
+                      <div>
+                        <h3 className="font-bold text-foreground text-lg">Settings Wizard</h3>
+                        <p className="text-xs text-muted-foreground">Configure area research, plots, and data sources</p>
+                      </div>
+                    </div>
+                    <div className="grid grid-cols-2 gap-4">
+                      <button
+                        onClick={() => setShowFeasibilitySettings(true)}
+                        className="glass-card p-5 rounded-xl text-left hover:bg-muted/50 transition-all group"
+                      >
+                        <Settings className="w-8 h-8 text-primary mb-3 group-hover:scale-110 transition-transform" />
+                        <h4 className="font-semibold text-sm mb-1">Area Research & Settings</h4>
+                        <p className="text-xs text-muted-foreground">Upload area docs, configure Google Sheets, and manage plot data</p>
+                      </button>
+                      <button
+                        onClick={() => setShowFallbackUpload(true)}
+                        className="glass-card p-5 rounded-xl text-left hover:bg-muted/50 transition-all group"
+                      >
+                        <Database className="w-8 h-8 text-primary mb-3 group-hover:scale-110 transition-transform" />
+                        <h4 className="font-semibold text-sm mb-1">Fallback DB</h4>
+                        <p className="text-xs text-muted-foreground">Upload CSV to fallback database for offline GIS coverage</p>
+                      </button>
+                      <button
+                        onClick={() => setShowManualLandForm(true)}
+                        className="glass-card p-5 rounded-xl text-left hover:bg-muted/50 transition-all group"
+                      >
+                        <Plus className="w-8 h-8 text-primary mb-3 group-hover:scale-110 transition-transform" />
+                        <h4 className="font-semibold text-sm mb-1">Add Manual Plot</h4>
+                        <p className="text-xs text-muted-foreground">Manually add a plot with location and planning data</p>
+                      </button>
+                      <button
+                        onClick={() => setShowWizard(true)}
+                        className="glass-card p-5 rounded-xl text-left hover:bg-muted/50 transition-all group"
+                      >
+                        <Target className="w-8 h-8 text-primary mb-3 group-hover:scale-110 transition-transform" />
+                        <h4 className="font-semibold text-sm mb-1">Matching Wizard</h4>
+                        <p className="text-xs text-muted-foreground">Find and match plots by area, GFA, or location radius</p>
+                      </button>
+                    </div>
+                  </div>
                 )}
 
                 {/* Floating Detail Panel */}
