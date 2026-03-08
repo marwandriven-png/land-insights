@@ -38,7 +38,7 @@ interface AssemblyData {
   assemblyOpportunity: { detected: boolean; plotCount: number; totalCombinedSqft: number; potentialScale: string; criteria: string };
   developmentPattern: { dominantType: string; patterns: { type: string; count: number; pct: number }[]; recommendation: string };
   absorptionRate: { studio: string; oneBR: string; twoBR: string; threeBR: string; expectedSellOut: string };
-  comparablePlots: { plotId: string; sizeSqft: number; zoning: string; status: string }[];
+  comparablePlots: { plotId: string; sizeSqft: number; gfaSqft?: number; zoning: string; status: string; sizeDiffPct?: number; gfaDiffPct?: number }[];
   alternativeAreas: { area: string; demandScore: string; absorption: string; reason: string }[];
   aiInsight: string;
 }
