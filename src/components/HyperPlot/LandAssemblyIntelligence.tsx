@@ -115,7 +115,7 @@ export function LandAssemblyIntelligence({ plot, onSelectPlot, onClose }: LandAs
           </div>
           <div>
             <h3 className="font-bold text-sm">Land Assembly Intelligence</h3>
-            <p className="text-xs text-muted-foreground">Plot {plot.id} • {nearbyCount} nearby plots in 5km</p>
+            <p className="text-xs text-muted-foreground">Plot {plot.id} • {nearbyCount} nearby plots in 2km</p>
             {(plot.location || plot.project || plot.entity) && (
               <p className="text-[10px] text-primary font-medium">{plot.location || plot.project || plot.entity}</p>
             )}
