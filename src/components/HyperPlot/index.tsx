@@ -38,6 +38,7 @@ const SQM_TO_SQFT = 10.7639;
 const TABS = [
   { id: 'map', icon: Map, label: 'Map' },
   { id: 'feasibility', icon: Shield, label: 'Decision' },
+  { id: 'settings', icon: Settings, label: 'Settings' },
 ];
 
 export function HyperPlotAI() {
