@@ -190,7 +190,7 @@ export function CinematicPlotOverlay({ map, plot }: CinematicPlotOverlayProps) {
       }, 1800);
 
       return () => clearTimeout(textTimer);
-    }, circleDuration + 200);
+    }, 250);
 
     return () => {
       clearTimeout(boundaryDelay);
