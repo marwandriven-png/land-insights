@@ -140,6 +140,9 @@ export function LandAssemblyIntelligence({ plot, onSelectPlot, onClose }: LandAs
           <div>
             <h3 className="font-bold text-sm">Land Assembly Intelligence</h3>
             <p className="text-xs text-muted-foreground">Plot {plot.id} • {nearbyCount} nearby plots in 1km</p>
+            {(plot.location || plot.project || plot.entity) && (
+              <p className="text-[10px] text-primary font-medium">{plot.location || plot.project || plot.entity}</p>
+            )}
           </div>
         </div>
         <button onClick={onClose} className="p-1.5 rounded-md hover:bg-muted/50 transition-colors">
@@ -224,6 +227,7 @@ export function LandAssemblyIntelligence({ plot, onSelectPlot, onClose }: LandAs
 
           {/* 5. Development Pattern */}
           <Section icon={<TrendingUp className="w-4 h-4" />} title="Matching Development Pattern" badge={data.developmentPattern.dominantType}>
+            <p className="text-[10px] text-primary font-medium mb-1.5">Based on {nearbyCount} real plots in {plot.location || plot.project || plot.entity || 'this area'}</p>
             <div className="space-y-1.5">
               {data.developmentPattern.patterns.map((p, i) => (
                 <div key={i} className="flex items-center justify-between text-xs">
@@ -263,7 +267,8 @@ export function LandAssemblyIntelligence({ plot, onSelectPlot, onClose }: LandAs
 
           {/* 7. Comparable Plots */}
           {data.comparablePlots.length > 0 && (
-            <Section icon={<Search className="w-4 h-4" />} title="Comparable Plots" badge={`${data.comparablePlots.length} found`}>
+            <Section icon={<Search className="w-4 h-4" />} title="Comparable Plots" badge={`${data.comparablePlots.length} in ${plot.location || plot.project || plot.entity || 'area'}`}>
+              <p className="text-[10px] text-primary font-medium mb-1.5">Real GIS-verified plots from DDA</p>
               <div className="space-y-1">
                 {data.comparablePlots.slice(0, 6).map((cp, i) => (
                   <div key={i} className="flex items-center justify-between text-xs p-1.5 rounded-md hover:bg-muted/30 transition-colors">
@@ -271,8 +276,9 @@ export function LandAssemblyIntelligence({ plot, onSelectPlot, onClose }: LandAs
                       <MapPin className="w-3 h-3 text-primary" />
                       <span className="font-medium">Plot {cp.plotId}</span>
                     </div>
-                    <div className="flex items-center gap-2 text-muted-foreground">
+                    <div className="flex items-center gap-3 text-muted-foreground">
                       <span>{cp.sizeSqft.toLocaleString()} sqft</span>
+                      <span className="text-[10px]">{cp.zoning}</span>
                       <Badge variant={cp.status === 'Available' || cp.status === 'Empty' ? 'default' : 'secondary'} className="text-[10px] px-1.5 py-0">{cp.status}</Badge>
                     </div>
                   </div>

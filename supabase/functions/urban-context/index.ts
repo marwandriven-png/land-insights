@@ -60,6 +60,21 @@ All scores 0-10. Distances should include units (e.g. "350m"). Use realistic Dub
       `${i + 1}. Plot ${p.id}: ${p.areaSqft} sqft, Zoning: ${p.zoning}, Status: ${p.status}, Floors: ${p.floors || 'N/A'}, Developer: ${p.developer || 'N/A'}, Location: ${p.location || 'N/A'}, Construction: ${p.constructionStatus || 'N/A'}, LandUse: ${p.landUseDetails || 'N/A'}`
     ).join('\n');
 
+    // Build setback info from real GIS data
+    const setbackInfo = selectedPlot.buildingSetbacks
+      ? `\nBUILDING SETBACKS (from DDA Affection Plan):
+- Side 1: ${selectedPlot.buildingSetbacks.side1 || 'N/A'}m
+- Side 2: ${selectedPlot.buildingSetbacks.side2 || 'N/A'}m
+- Side 3: ${selectedPlot.buildingSetbacks.side3 || 'N/A'}m
+- Side 4: ${selectedPlot.buildingSetbacks.side4 || 'N/A'}m
+
+PODIUM SETBACKS:
+- Side 1: ${selectedPlot.podiumSetbacks?.side1 || 'N/A'}m
+- Side 2: ${selectedPlot.podiumSetbacks?.side2 || 'N/A'}m
+- Side 3: ${selectedPlot.podiumSetbacks?.side3 || 'N/A'}m
+- Side 4: ${selectedPlot.podiumSetbacks?.side4 || 'N/A'}m`
+      : '\nNo building setback data available from DDA.';
+
     const userPrompt = `Analyze the urban environment context for this Dubai plot:
 
 SELECTED PLOT:
@@ -73,11 +88,14 @@ SELECTED PLOT:
 - Developer: ${selectedPlot.developer || 'N/A'}
 - Construction Status: ${selectedPlot.constructionStatus || 'N/A'}
 - Land Use Details: ${selectedPlot.landUseDetails || 'N/A'}
+${setbackInfo}
 
 SURROUNDING PLOTS WITHIN 1KM (${(nearbyPlots || []).length} plots):
 ${nearbyDesc || 'No nearby plots data available.'}
 
-Based on the plot location, zoning patterns, and surrounding development context, generate a comprehensive urban environment analysis. Infer likely nearby infrastructure (substations, water facilities, parks, roads, mosques, schools) based on the area's development maturity and Dubai urban planning standards.`;
+IMPORTANT for Street Facing Analysis: Use the EXACT building setback values from the DDA Affection Plan data above. The setback values represent the mandatory distance (in meters) from each side of the plot boundary to the building line. Larger setbacks on a side typically indicate a main road frontage. A side with 0m podium setback means the podium can extend to the plot boundary on that side. Use these real values to determine road widths, frontage quality, and street hierarchy.
+
+Based on the plot location, zoning patterns, and surrounding development context, generate a comprehensive urban environment analysis.`;
 
     const response = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
       method: "POST",

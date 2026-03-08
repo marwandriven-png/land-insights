@@ -49,6 +49,19 @@ export function UrbanContextAnalysis({ plot, onClose }: UrbanContextAnalysisProp
       }
       setNearbyCount(nearbyPlots.length);
 
+      // Fetch real affection plan data for building setbacks
+      let buildingSetbacks: Record<string, string | null> | null = null;
+      let podiumSetbacks: Record<string, string | null> | null = null;
+      try {
+        const affection = await gisService.fetchAffectionPlan(plot.id);
+        if (affection) {
+          buildingSetbacks = affection.buildingSetbacks;
+          podiumSetbacks = affection.podiumSetbacks;
+        }
+      } catch (e) {
+        console.log('Affection plan fetch skipped:', e);
+      }
+
       const selectedPlot = {
         id: plot.id,
         location: plot.location || plot.project || plot.entity || '',
@@ -60,6 +73,8 @@ export function UrbanContextAnalysis({ plot, onClose }: UrbanContextAnalysisProp
         developer: plot.developer || '',
         constructionStatus: plot.constructionStatus || '',
         landUseDetails: plot.landUseDetails || '',
+        buildingSetbacks: buildingSetbacks || null,
+        podiumSetbacks: podiumSetbacks || null,
       };
 
       const nearbyPlotsData = nearbyPlots.slice(0, 50).map(p => ({
@@ -228,6 +243,29 @@ export function UrbanContextAnalysis({ plot, onClose }: UrbanContextAnalysisProp
               <MetricBox label="Frontage" value={data.streetFacing.frontage} />
               <MetricBox label="Street Hierarchy" value={data.streetFacing.streetHierarchy} />
             </div>
+            {/* Real DDA Setback Data */}
+            {plot.rawAttributes && (
+              <div className="mt-2 p-2 rounded-md bg-muted/20 border border-border/30">
+                <p className="text-[10px] font-bold uppercase text-primary mb-1.5">DDA Building Setbacks (meters)</p>
+                <div className="grid grid-cols-4 gap-1.5 text-xs text-center">
+                  {['BUILDING_SETBACK_SIDE1', 'BUILDING_SETBACK_SIDE2', 'BUILDING_SETBACK_SIDE3', 'BUILDING_SETBACK_SIDE4'].map((key, i) => (
+                    <div key={i} className="p-1.5 rounded bg-muted/30">
+                      <p className="text-[9px] text-muted-foreground">Side {i + 1}</p>
+                      <p className="font-bold">{(plot.rawAttributes as any)?.[key] || 'N/A'}</p>
+                    </div>
+                  ))}
+                </div>
+                <p className="text-[10px] font-bold uppercase text-primary mt-2 mb-1.5">Podium Setbacks (meters)</p>
+                <div className="grid grid-cols-4 gap-1.5 text-xs text-center">
+                  {['PODIUM_SETBACK_SIDE1', 'PODIUM_SETBACK_SIDE2', 'PODIUM_SETBACK_SIDE3', 'PODIUM_SETBACK_SIDE4'].map((key, i) => (
+                    <div key={i} className="p-1.5 rounded bg-muted/30">
+                      <p className="text-[9px] text-muted-foreground">Side {i + 1}</p>
+                      <p className="font-bold">{(plot.rawAttributes as any)?.[key] || 'N/A'}</p>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
             <p className="text-xs text-muted-foreground mt-2">{data.streetFacing.insight}</p>
           </Section>
 
