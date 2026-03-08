@@ -202,6 +202,8 @@ export function AIComparativeAnalysis({ plotA, plotB, onClose }: Props) {
 
   const plotALabel = plotA.id;
   const plotBLabel = plotB.id;
+  const plotAArea = plotA.location || plotA.project || plotA.entity || '';
+  const plotBArea = plotB.location || plotB.project || plotB.entity || '';
 
   const fetchNearbyPlots = async (plot: PlotData) => {
     const lat = plot.y;
@@ -349,10 +351,13 @@ Use Dubai market averages for these zones. Consider current Q1 2026 market condi
           <section>
             <SectionHeader num={++sectionNum} icon={Target} title="Plot Intelligence Score" />
             <div className="grid grid-cols-2 gap-4 mb-4">
-              {[{ label: plotALabel, scores: r.plotScores.plotA }, { label: plotBLabel, scores: r.plotScores.plotB }].map(({ label, scores }) => (
+              {[{ label: plotALabel, area: plotAArea, scores: r.plotScores.plotA }, { label: plotBLabel, area: plotBArea, scores: r.plotScores.plotB }].map(({ label, area, scores }) => (
                 <div key={label} className={`p-4 rounded-xl border ${scores.overall === Math.max(r.plotScores.plotA.overall, r.plotScores.plotB.overall) ? 'border-primary/50 bg-primary/5' : 'border-border/50 bg-card/50'}`}>
                   <div className="flex items-center justify-between mb-3">
-                    <span className="font-bold text-sm">{label}</span>
+                    <div>
+                      <span className="font-bold text-sm">{label}</span>
+                      {area && <div className="text-[10px] text-muted-foreground">{area}</div>}
+                    </div>
                     <span className={`text-2xl font-black font-mono ${scores.overall >= 7 ? 'text-success' : scores.overall >= 5 ? 'text-warning' : 'text-destructive'}`}>
                       {scores.overall.toFixed(1)}
                     </span>
@@ -417,10 +422,10 @@ Use Dubai market averages for these zones. Consider current Q1 2026 market condi
           <section>
             <SectionHeader num={++sectionNum} icon={AlertTriangle} title="Risk Detection System" />
             <div className="grid grid-cols-2 gap-4">
-              {[{ label: plotALabel, risks: r.risks.plotA }, { label: plotBLabel, risks: r.risks.plotB }].map(({ label, risks }) => (
+              {[{ label: plotALabel, area: plotAArea, risks: r.risks.plotA }, { label: plotBLabel, area: plotBArea, risks: r.risks.plotB }].map(({ label, area, risks }) => (
                 <div key={label} className="p-4 rounded-xl border border-border/50 bg-card/50">
                   <div className="font-bold text-sm mb-3 flex items-center gap-2">
-                    {label}
+                    <div><span>{label}</span>{area && <div className="text-[10px] text-muted-foreground font-normal">{area}</div>}</div>
                     {risks.every(r => r.severity === 'low') && <Badge variant="outline" className="text-xs border-success/40 text-success bg-success/10">Low Risk</Badge>}
                     {risks.some(r => r.severity === 'high') && <Badge variant="outline" className="text-xs border-destructive/40 text-destructive bg-destructive/10">⚠ High Risk</Badge>}
                   </div>
@@ -444,10 +449,10 @@ Use Dubai market averages for these zones. Consider current Q1 2026 market condi
           <section>
             <SectionHeader num={++sectionNum} icon={DollarSign} title="Land Owner Opportunity Alert" />
             <div className="grid grid-cols-2 gap-4">
-              {[{ label: plotALabel, val: r.valuationOpportunity.plotA }, { label: plotBLabel, val: r.valuationOpportunity.plotB }].map(({ label, val }) => (
+              {[{ label: plotALabel, area: plotAArea, val: r.valuationOpportunity.plotA }, { label: plotBLabel, area: plotBArea, val: r.valuationOpportunity.plotB }].map(({ label, area, val }) => (
                 <div key={label} className="p-4 rounded-xl border border-border/50 bg-card/50">
                   <div className="font-bold text-sm mb-3 flex items-center justify-between">
-                    {label}
+                    <div><span>{label}</span>{area && <div className="text-[10px] text-muted-foreground font-normal">{area}</div>}</div>
                     <ClassificationBadge classification={val.classification} />
                   </div>
                   <div className="space-y-2 text-sm">
@@ -469,10 +474,10 @@ Use Dubai market averages for these zones. Consider current Q1 2026 market condi
           <section>
             <SectionHeader num={++sectionNum} icon={Layers} title="Land Assembly Detector" />
             <div className="grid grid-cols-2 gap-4">
-              {[{ label: plotALabel, asm: r.landAssembly.plotA }, { label: plotBLabel, asm: r.landAssembly.plotB }].map(({ label, asm }) => (
+              {[{ label: plotALabel, area: plotAArea, asm: r.landAssembly.plotA }, { label: plotBLabel, area: plotBArea, asm: r.landAssembly.plotB }].map(({ label, area, asm }) => (
                 <div key={label} className={`p-4 rounded-xl border ${asm.detected ? 'border-primary/40 bg-primary/5' : 'border-border/50 bg-card/50'}`}>
                   <div className="font-bold text-sm mb-2 flex items-center gap-2">
-                    {label}
+                    <div><span>{label}</span>{area && <div className="text-[10px] text-muted-foreground font-normal">{area}</div>}</div>
                     {asm.detected ? (
                       <Badge variant="outline" className="text-xs border-primary/40 text-primary bg-primary/10">Opportunity Detected</Badge>
                     ) : (
@@ -499,10 +504,10 @@ Use Dubai market averages for these zones. Consider current Q1 2026 market condi
             <section>
               <SectionHeader num={++sectionNum} icon={Combine} title="Land Assembly Intelligence" />
               <div className="grid grid-cols-2 gap-4">
-                {[{ label: plotALabel, intel: r.landAssemblyIntelligence.plotA }, { label: plotBLabel, intel: r.landAssemblyIntelligence.plotB }].map(({ label, intel }) => (
+                {[{ label: plotALabel, area: plotAArea, intel: r.landAssemblyIntelligence.plotA }, { label: plotBLabel, area: plotBArea, intel: r.landAssemblyIntelligence.plotB }].map(({ label, area, intel }) => (
                   <div key={label} className="p-4 rounded-xl border border-border/50 bg-card/50 space-y-3">
                     <div className="font-bold text-sm flex items-center justify-between">
-                      {label}
+                      <div><span>{label}</span>{area && <div className="text-[10px] text-muted-foreground font-normal">{area}</div>}</div>
                       <Badge variant="outline" className="text-[10px]">{intel.dominantDevType}</Badge>
                     </div>
                     <div className="space-y-2 text-xs">
