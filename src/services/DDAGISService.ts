@@ -299,6 +299,7 @@ class DDAGISService {
         isFrozen: false,
         rawAttributes: {
           _isFallbackPlot: true,
+          _isManualLatLng: true,
           _fallbackId: p.id,
           municipality_number: p.municipality_number,
           area_code: p.area_code,

@@ -703,7 +703,7 @@ export function HyperPlotAI() {
                   <div>
                     <h3 className="font-bold text-base">Available Plots</h3>
                     <p className="text-sm text-muted-foreground">
-                      {gisConnected ? 'Live DDA GIS Data' : 'Demo Mode'} • Last 3
+                      {gisConnected ? 'Live DDA GIS Data' : plots.some(p => (p.rawAttributes as Record<string,unknown>)?._isFallbackPlot) ? 'Fallback DB' : 'Demo Mode'} • Last 3
                     </p>
                   </div>
                   <div className="px-2.5 py-1 bg-primary/20 rounded text-sm font-bold text-primary">
