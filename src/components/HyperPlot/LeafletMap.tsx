@@ -214,24 +214,16 @@ export function LeafletMap({ plots, selectedPlot, onPlotClick, highlightedPlots,
     if (isManualLatLng) { lat = selectedPlot.y; lng = selectedPlot.x; }
     else { [lat, lng] = convertToLatLng(selectedPlot.x * 10 + 495000, selectedPlot.y * 10 + 2766000); }
 
-    map.invalidateSize();
-    const startZoom = map.getZoom();
-    const targetZoom = Math.min(startZoom + 2.5, map.getMaxZoom());
-    const startCenter = map.getCenter();
-    const totalFrames = 30;
-    let frame = 0;
-    function easeInOutQuad(t: number) { return t < 0.5 ? 2 * t * t : -1 + (4 - 2 * t) * t; }
-    function animate() {
-      frame++;
-      const t = easeInOutQuad(frame / totalFrames);
-      const cLat = startCenter.lat + (lat - startCenter.lat) * t;
-      const cLng = startCenter.lng + (lng - startCenter.lng) * t;
-      const zoom = startZoom + (targetZoom - startZoom) * t;
-      map.setView([cLat, cLng], zoom, { animate: false });
-      if (frame < totalFrames) requestAnimationFrame(animate);
+    // Validate coordinates
+    if (!lat || !lng || lat < -90 || lat > 90 || lng < -180 || lng > 180) {
+      console.warn('Invalid fallback plot coordinates:', lat, lng);
+      return;
     }
-    requestAnimationFrame(animate);
-  }, [selectedPlot?.id]);
+
+    map.invalidateSize();
+    // Fly directly to the location at a good zoom level
+    map.setView([lat, lng], 17, { animate: true, duration: 1 });
+  }, [selectedPlot]);
 
   const resetView = useCallback(() => {
     if (mapRef.current) {
