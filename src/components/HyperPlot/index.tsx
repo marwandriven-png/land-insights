@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback, useMemo, useRef } from 'react';
-import { Map, Home, Brain, AlertCircle, X, RefreshCw, Wifi, WifiOff, Target, Clock, Settings, Shield, GitCompareArrows, Plus, Minimize2, Maximize2, Database, Combine } from 'lucide-react';
+import { Map, Home, Brain, AlertCircle, X, RefreshCw, Wifi, WifiOff, Target, Clock, Settings, Shield, GitCompareArrows, Plus, Minimize2, Maximize2, Database, Combine, TreePine } from 'lucide-react';
 import { isPlotListed, markPlotListed, getDeletedBlacklist } from '@/services/LandMatchingService';
 import { lookupOwnerFromSheet, importPlotsFromSheet } from '@/services/SheetSyncService';
 import { Badge } from '@/components/ui/badge';
@@ -22,6 +22,7 @@ import { ListingsPage } from './ListingsPage';
 import { AIComparativeAnalysis } from './AIComparativeAnalysis';
 import { QuickAddLandModal } from './QuickAddLandModal';
 import { LandAssemblyIntelligence } from './LandAssemblyIntelligence';
+import { UrbanContextAnalysis } from './UrbanContextAnalysis';
 import { FallbackUploadModal } from './FallbackUploadModal';
 import { FeasibilityParams, DEFAULT_FEASIBILITY_PARAMS } from './FeasibilityCalculator';
 import { Button } from '@/components/ui/button';
@@ -41,6 +42,7 @@ const TABS = [
   { id: 'map', icon: Map, label: 'Map' },
   { id: 'feasibility', icon: Shield, label: 'Decision' },
   { id: 'assembly', icon: Combine, label: 'Assembly' },
+  { id: 'urban', icon: TreePine, label: 'Urban' },
   { id: 'settings', icon: Settings, label: 'Settings' },
 ];
 
@@ -497,6 +499,20 @@ export function HyperPlotAI() {
                       <Combine className="w-12 h-12 text-muted-foreground/30 mx-auto mb-3" />
                       <h3 className="text-lg font-bold mb-1">Select a Plot</h3>
                       <p className="text-sm text-muted-foreground">Choose a plot to view Land Assembly Intelligence</p>
+                    </div>
+                  </div>
+                ) : null}
+                {activeTab === 'urban' && selectedPlot ? (
+                  <UrbanContextAnalysis
+                    plot={selectedPlot}
+                    onClose={() => setActiveTab('map')}
+                  />
+                ) : activeTab === 'urban' ? (
+                  <div className="h-full flex items-center justify-center glass-card glow-border">
+                    <div className="text-center">
+                      <TreePine className="w-12 h-12 text-muted-foreground/30 mx-auto mb-3" />
+                      <h3 className="text-lg font-bold mb-1">Select a Plot</h3>
+                      <p className="text-sm text-muted-foreground">Choose a plot to view Urban Context Analysis</p>
                     </div>
                   </div>
                 ) : null}
