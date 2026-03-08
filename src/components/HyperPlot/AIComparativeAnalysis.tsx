@@ -351,10 +351,13 @@ Use Dubai market averages for these zones. Consider current Q1 2026 market condi
           <section>
             <SectionHeader num={++sectionNum} icon={Target} title="Plot Intelligence Score" />
             <div className="grid grid-cols-2 gap-4 mb-4">
-              {[{ label: plotALabel, scores: r.plotScores.plotA }, { label: plotBLabel, scores: r.plotScores.plotB }].map(({ label, scores }) => (
+              {[{ label: plotALabel, area: plotAArea, scores: r.plotScores.plotA }, { label: plotBLabel, area: plotBArea, scores: r.plotScores.plotB }].map(({ label, area, scores }) => (
                 <div key={label} className={`p-4 rounded-xl border ${scores.overall === Math.max(r.plotScores.plotA.overall, r.plotScores.plotB.overall) ? 'border-primary/50 bg-primary/5' : 'border-border/50 bg-card/50'}`}>
                   <div className="flex items-center justify-between mb-3">
-                    <span className="font-bold text-sm">{label}</span>
+                    <div>
+                      <span className="font-bold text-sm">{label}</span>
+                      {area && <div className="text-[10px] text-muted-foreground">{area}</div>}
+                    </div>
                     <span className={`text-2xl font-black font-mono ${scores.overall >= 7 ? 'text-success' : scores.overall >= 5 ? 'text-warning' : 'text-destructive'}`}>
                       {scores.overall.toFixed(1)}
                     </span>
