@@ -412,6 +412,8 @@ function Section({ icon, title, badge, children }: { icon: React.ReactNode; titl
       {children}
     </div>
   );
+
+  return maximized ? createPortal(content, document.body) : content;
 }
 
 function MetricBox({ label, value }: { label: string; value: string }) {
