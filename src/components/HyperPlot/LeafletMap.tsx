@@ -159,10 +159,21 @@ export function LeafletMap({ plots, selectedPlot, onPlotClick, highlightedPlots,
               return L.latLng(lat, lng);
             });
           }
-          // No glow layer — clean border only
+          // Neon glow layer for selected/highlighted plots
+          if (active) {
+            glowLayer = L.polygon(latLngs, {
+              color: '#00e5ff',
+              weight: isSelected ? 12 : 8,
+              opacity: isSelected ? 0.5 : 0.35,
+              fillColor: '#00e5ff',
+              fillOpacity: isSelected ? 0.12 : 0.06,
+              interactive: false,
+              className: 'plot-glow-layer'
+            });
+          }
           polygon = L.polygon(latLngs, {
             color: plotBorderColor,
-            weight: isSelected ? 2.5 : active ? 2 : 1,
+            weight: isSelected ? 3 : active ? 2 : 1,
             opacity: 1, fillColor: plotFillColor,
             fillOpacity: active ? 0.65 : 0.35
           });
