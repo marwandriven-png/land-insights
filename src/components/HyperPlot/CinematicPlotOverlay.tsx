@@ -118,12 +118,6 @@ export function CinematicPlotOverlay({ map, plot }: CinematicPlotOverlayProps) {
     }
     requestAnimationFrame(animateZoom);
     const boundaryDelay = setTimeout(() => {
-      const circleEl = circle.getElement() as HTMLElement | null;
-      if (circleEl) {
-        circleEl.style.transition = 'opacity 0.6s ease-out';
-        circleEl.style.opacity = '0';
-      }
-
       const glowPoly = L.polygon(latLngs, {
         color: 'transparent',
         weight: 0,
