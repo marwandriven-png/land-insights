@@ -145,7 +145,6 @@ function buildDCContext(plot: PlotData) {
   // Market data
   const salesData = getAreaSalesData(clffCode);
   const rentalData = getAreaRentalData(clffCode);
-  const areaData = getAreaData(clffCode);
   const competitors = areaData?.competitors?.slice(0, 5).map(c => ({
     name: c.name, developer: c.developer, totalUnits: c.totalUnits,
     studioP: c.studioPct || 0, oneBRP: c.oneBRPct || 0, twoBRP: c.twoBRPct || 0, threeBRP: c.threeBRPct || 0,
