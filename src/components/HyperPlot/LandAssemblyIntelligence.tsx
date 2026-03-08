@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
-import { Loader2, MapPin, Building2, Layers, TrendingUp, AlertTriangle, BarChart3, Search, Lightbulb, ArrowRight, X, Combine } from 'lucide-react';
+import { createPortal } from 'react-dom';
+import { Loader2, MapPin, Building2, Layers, TrendingUp, AlertTriangle, BarChart3, Search, Lightbulb, ArrowRight, X, Combine, Maximize2, Minimize2 } from 'lucide-react';
 import { PlotData, gisService } from '@/services/DDAGISService';
 import { supabase } from '@/integrations/supabase/client';
 import { ScrollArea } from '@/components/ui/scroll-area';
