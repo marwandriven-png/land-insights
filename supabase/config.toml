@@ -20,3 +20,6 @@ verify_jwt = false
 
 [functions.plot-comparison]
 verify_jwt = false
+
+[functions.land-assembly]
+verify_jwt = false
