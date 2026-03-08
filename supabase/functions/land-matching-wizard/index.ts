@@ -451,6 +451,18 @@ serve(async (req) => {
     });
   }
 
+  const t0 = Date.now();
+
+  try {
+    const body = await req.json().catch(() => ({}));
+
+    const validationError = validateRequest(body);
+    if (validationError) {
+      return new Response(JSON.stringify({ success: false, error: validationError }), {
+        status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+      });
+    }
+
     const request: SearchRequest = {
       latitude: body.latitude as number,
       longitude: body.longitude as number,
@@ -459,7 +471,7 @@ serve(async (req) => {
 
     console.log(`[LandMatchingWizard] ▶ lat=${request.latitude}, lng=${request.longitude}, r=${request.radius_meters}m`);
 
-    // PARALLEL EXECUTION — skip broken cache, go straight to live APIs
+    // PARALLEL EXECUTION — all three sources at once
     const [gisResult, psResult, fbResult] = await Promise.all([
       withTimeout(queryGIS_DDA(request), CONFIG.TIMEOUTS.GIS_DDA, 'GIS/DDA')
         .catch((err): APIResponse => ({
