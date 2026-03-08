@@ -877,6 +877,7 @@ export function HyperPlotAI() {
         open={showFeasibilitySettings}
         onClose={() => setShowFeasibilitySettings(false)}
         onOpenAddLand={() => setShowManualLandForm(true)}
+        onOpenFallbackDB={() => setShowFallbackUpload(true)}
       />
 
       {/* Manual Land Entry Form */}
