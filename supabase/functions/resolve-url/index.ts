@@ -10,31 +10,55 @@ function dmsToDecimal(deg: number, min: number, sec: number, dir: string): numbe
     return (dir === 'S' || dir === 'W') ? -decimal : decimal;
 }
 
+function isValidCoord(lat: number, lng: number): boolean {
+    return lat >= -90 && lat <= 90 && lng >= -180 && lng <= 180;
+}
+
 function extractCoords(text: string): { lat: number; lng: number } | null {
     // /@25.1234,55.1234
     const atMatch = text.match(/@([-\d.]+),([-\d.]+)/);
-    if (atMatch) return { lat: parseFloat(atMatch[1]), lng: parseFloat(atMatch[2]) };
+    if (atMatch) {
+        const c = { lat: parseFloat(atMatch[1]), lng: parseFloat(atMatch[2]) };
+        if (isValidCoord(c.lat, c.lng)) return c;
+    }
 
     // /place/25.1234,55.1234
     const placeMatch = text.match(/\/place\/([-\d.]+),([-\d.]+)/);
-    if (placeMatch) return { lat: parseFloat(placeMatch[1]), lng: parseFloat(placeMatch[2]) };
+    if (placeMatch) {
+        const c = { lat: parseFloat(placeMatch[1]), lng: parseFloat(placeMatch[2]) };
+        if (isValidCoord(c.lat, c.lng)) return c;
+    }
+
+    // /search/25.1234,+55.1234 or /search/25.1234,55.1234
+    const searchMatch = text.match(/\/search\/([-\d.]+)(?:[,+%2C]+\s*)([-\d.]+)/);
+    if (searchMatch) {
+        const c = { lat: parseFloat(searchMatch[1]), lng: parseFloat(searchMatch[2]) };
+        if (isValidCoord(c.lat, c.lng)) return c;
+    }
 
     // ?q=25.1234,55.1234 or similar
     const qMatch = text.match(/[?&](?:q|ll|center)=([-\d.]+)(?:%2C|,)([-\d.]+)/);
-    if (qMatch) return { lat: parseFloat(qMatch[1]), lng: parseFloat(qMatch[2]) };
+    if (qMatch) {
+        const c = { lat: parseFloat(qMatch[1]), lng: parseFloat(qMatch[2]) };
+        if (isValidCoord(c.lat, c.lng)) return c;
+    }
 
     // !3d25.1234!4d55.1234
     const dataMatch = text.match(/!3d([-\d.]+)!4d([-\d.]+)/);
-    if (dataMatch) return { lat: parseFloat(dataMatch[1]), lng: parseFloat(dataMatch[2]) };
+    if (dataMatch) {
+        const c = { lat: parseFloat(dataMatch[1]), lng: parseFloat(dataMatch[2]) };
+        if (isValidCoord(c.lat, c.lng)) return c;
+    }
 
     // DMS: 25°13'08.2"N 55°16'29.8"E (various quote styles)
     const dmsPattern = /(\d+)°(\d+)['''′](\d+(?:\.\d+)?)["""″]([NS])\s+(\d+)°(\d+)['''′](\d+(?:\.\d+)?)["""″]([EW])/;
     const dmsMatch = text.match(dmsPattern);
     if (dmsMatch) {
-        return {
+        const c = {
             lat: dmsToDecimal(parseInt(dmsMatch[1]), parseInt(dmsMatch[2]), parseFloat(dmsMatch[3]), dmsMatch[4]),
             lng: dmsToDecimal(parseInt(dmsMatch[5]), parseInt(dmsMatch[6]), parseFloat(dmsMatch[7]), dmsMatch[8]),
         };
+        if (isValidCoord(c.lat, c.lng)) return c;
     }
 
     return null;
