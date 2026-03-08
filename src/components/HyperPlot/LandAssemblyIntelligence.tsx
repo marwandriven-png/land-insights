@@ -49,7 +49,7 @@ export function LandAssemblyIntelligence({ plot, onSelectPlot, onClose }: LandAs
     try {
       // Use normalized nearby-plots service
       const { plots: nearbyPlots, totalFound } = await fetchNearbyPlots(plot, {
-        radiusMeters: 1000,
+        radiusMeters: 2000,
         spatialLimit: 200,
         outputLimit: 100,
       });
@@ -83,7 +83,7 @@ export function LandAssemblyIntelligence({ plot, onSelectPlot, onClose }: LandAs
           </div>
           <div>
             <h3 className="font-bold text-lg">Land Assembly Intelligence</h3>
-            <p className="text-sm text-muted-foreground mt-1">Scanning 5km radius & analyzing {nearbyCount > 0 ? `${nearbyCount} nearby plots` : 'surrounding area'}...</p>
+            <p className="text-sm text-muted-foreground mt-1">Scanning 2km radius & analyzing {nearbyCount > 0 ? `${nearbyCount} nearby plots` : 'surrounding area'}...</p>
           </div>
         </div>
       </div>
@@ -115,7 +115,7 @@ export function LandAssemblyIntelligence({ plot, onSelectPlot, onClose }: LandAs
           </div>
           <div>
             <h3 className="font-bold text-sm">Land Assembly Intelligence</h3>
-            <p className="text-xs text-muted-foreground">Plot {plot.id} • {nearbyCount} nearby plots in 5km</p>
+            <p className="text-xs text-muted-foreground">Plot {plot.id} • {nearbyCount} nearby plots in 2km</p>
             {(plot.location || plot.project || plot.entity) && (
               <p className="text-[10px] text-primary font-medium">{plot.location || plot.project || plot.entity}</p>
             )}

@@ -553,14 +553,6 @@ export function HyperPlotAI() {
                         <h4 className="font-semibold text-sm mb-1">Add Manual Plot</h4>
                         <p className="text-xs text-muted-foreground">Manually add a plot with location and planning data</p>
                       </button>
-                      <button
-                        onClick={() => setShowWizard(true)}
-                        className="glass-card p-5 rounded-xl text-left hover:bg-muted/50 transition-all group"
-                      >
-                        <Target className="w-8 h-8 text-primary mb-3 group-hover:scale-110 transition-transform" />
-                        <h4 className="font-semibold text-sm mb-1">Matching Wizard</h4>
-                        <p className="text-xs text-muted-foreground">Find and match plots by area, GFA, or location radius</p>
-                      </button>
                     </div>
                   </div>
                 )}
