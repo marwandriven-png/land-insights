@@ -42,6 +42,7 @@ interface AssemblyData {
   comparablePlots: { plotId: string; sizeSqft: number; gfaSqft?: number; zoning: string; status: string; sizeDiffPct?: number; gfaDiffPct?: number }[];
   alternativeAreas: { area: string; demandScore: string; absorption: string; reason: string }[];
   aiInsight: string;
+  locationDescription?: string;
 }
 
 export function LandAssemblyIntelligence({ plot, onSelectPlot, onClose }: LandAssemblyIntelligenceProps) {
