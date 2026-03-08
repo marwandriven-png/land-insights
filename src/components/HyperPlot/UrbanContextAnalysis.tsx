@@ -50,12 +50,22 @@ export function UrbanContextAnalysis({ plot, onClose }: UrbanContextAnalysisProp
     setLoading(true);
     setError(null);
     try {
-      const lat = plot.y;
-      const lng = plot.x;
+      const rawX = plot.x;
+      const rawY = plot.y;
+      let lat: number, lng: number;
+      
+      // Detect if coordinates are in EPSG:3997 (projected) vs WGS84
+      if (rawX > 1000 && rawY > 1000) {
+        [lat, lng] = toWGS84(rawX, rawY);
+      } else {
+        lat = rawY;
+        lng = rawX;
+      }
+      
       let nearbyPlots: PlotData[] = [];
 
       if (lat && lng && lat !== 0 && lng !== 0) {
-        nearbyPlots = await gisService.searchByLocation(lat, lng, 1000);
+        nearbyPlots = await gisService.searchByLocation(lat, lng, 5000);
         nearbyPlots = nearbyPlots.filter(p => p.id !== plot.id);
       }
       setNearbyCount(nearbyPlots.length);
