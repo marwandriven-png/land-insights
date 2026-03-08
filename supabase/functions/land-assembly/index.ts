@@ -15,7 +15,7 @@ serve(async (req) => {
 
     const systemPrompt = `You are a Dubai real estate land assembly and development intelligence analyst AI.
 
-You are given a selected plot and all nearby plots within 1km radius. Analyze them to produce structured intelligence.
+You are given a selected plot and all nearby plots from the same area/community (within 5km radius + area name search). Analyze them to produce structured intelligence.
 
 Return ONLY valid JSON (no markdown, no code fences) with this exact structure:
 {

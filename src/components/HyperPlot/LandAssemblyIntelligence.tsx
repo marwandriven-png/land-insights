@@ -91,6 +91,7 @@ export function LandAssemblyIntelligence({ plot, onSelectPlot, onClose }: LandAs
       }
 
       setNearbyCount(nearbyPlots.length);
+      // Step 2: Call edge function
       const selectedPlot = {
         id: plot.id,
         location: plot.location || plot.project || plot.entity || '',
@@ -101,9 +102,10 @@ export function LandAssemblyIntelligence({ plot, onSelectPlot, onClose }: LandAs
         floors: plot.floors,
         developer: plot.developer || '',
         constructionStatus: plot.constructionStatus || '',
+        landUseDetails: plot.landUseDetails || '',
       };
 
-      const nearbyPlotsData = nearbyPlots.slice(0, 50).map(p => ({
+      const nearbyPlotsData = nearbyPlots.slice(0, 100).map(p => ({
         id: p.id,
         location: p.location || p.project || p.entity || '',
         areaSqft: Math.round(p.area * SQM_TO_SQFT),
@@ -113,6 +115,7 @@ export function LandAssemblyIntelligence({ plot, onSelectPlot, onClose }: LandAs
         floors: p.floors,
         developer: p.developer || '',
         constructionStatus: p.constructionStatus || '',
+        landUseDetails: p.landUseDetails || '',
       }));
 
       const { data: result, error: fnError } = await supabase.functions.invoke('land-assembly', {
