@@ -202,6 +202,37 @@ export function LeafletMap({ plots, selectedPlot, onPlotClick, highlightedPlots,
     });
   }, [plots, selectedPlot, highlightedPlots, onPlotClick]);
 
+  // Pan/zoom to fallback plots since CinematicPlotOverlay is disabled for them
+  useEffect(() => {
+    const map = mapRef.current;
+    if (!map || !selectedPlot) return;
+    const rawAttrs = selectedPlot.rawAttributes as Record<string, unknown> | undefined;
+    if (!rawAttrs?._isFallbackPlot) return;
+
+    const isManualLatLng = rawAttrs._isManualLatLng === true;
+    let lat: number, lng: number;
+    if (isManualLatLng) { lat = selectedPlot.y; lng = selectedPlot.x; }
+    else { [lat, lng] = convertToLatLng(selectedPlot.x * 10 + 495000, selectedPlot.y * 10 + 2766000); }
+
+    map.invalidateSize();
+    const startZoom = map.getZoom();
+    const targetZoom = Math.min(startZoom + 2.5, map.getMaxZoom());
+    const startCenter = map.getCenter();
+    const totalFrames = 30;
+    let frame = 0;
+    function easeInOutQuad(t: number) { return t < 0.5 ? 2 * t * t : -1 + (4 - 2 * t) * t; }
+    function animate() {
+      frame++;
+      const t = easeInOutQuad(frame / totalFrames);
+      const cLat = startCenter.lat + (lat - startCenter.lat) * t;
+      const cLng = startCenter.lng + (lng - startCenter.lng) * t;
+      const zoom = startZoom + (targetZoom - startZoom) * t;
+      map.setView([cLat, cLng], zoom, { animate: false });
+      if (frame < totalFrames) requestAnimationFrame(animate);
+    }
+    requestAnimationFrame(animate);
+  }, [selectedPlot?.id]);
+
   const resetView = useCallback(() => {
     if (mapRef.current) {
       mapRef.current.setView([25.075, 55.20], 13);
