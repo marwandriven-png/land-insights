@@ -569,6 +569,8 @@ class DDAGISService {
           data_source_master: p.data_source_master,
           confidence_score: p.confidence_score,
           is_fallback: p.is_fallback,
+          _isFallbackPlot: !!p.is_fallback,
+          _isManualLatLng: !!p.is_fallback || !!(p.latitude && p.longitude),
           land_status_source: p.land_status_source,
           distance_from_center_m: p.distance_from_center_m,
           geometry: p.geometry,
