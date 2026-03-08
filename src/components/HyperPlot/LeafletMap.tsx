@@ -46,7 +46,7 @@ export function LeafletMap({ plots, selectedPlot, onPlotClick, highlightedPlots,
       center: [25.075, 55.20],
       zoom: 13,
       minZoom: 8,
-      maxZoom: 20,
+      maxZoom: 19,
       zoomControl: false,
       attributionControl: false,
       maxBounds: UAE_BOUNDS,
@@ -61,7 +61,7 @@ export function LeafletMap({ plots, selectedPlot, onPlotClick, highlightedPlots,
 
     // High-res satellite base layer
     L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}', {
-      maxZoom: 20,
+      maxZoom: 19,
       maxNativeZoom: 19,
       noWrap: true,
       detectRetina: true,
@@ -71,7 +71,7 @@ export function LeafletMap({ plots, selectedPlot, onPlotClick, highlightedPlots,
 
     // Hybrid labels overlay for road names / landmarks
     L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/Reference/World_Transportation/MapServer/tile/{z}/{y}/{x}', {
-      maxZoom: 20,
+      maxZoom: 19,
       maxNativeZoom: 19,
       noWrap: true,
       detectRetina: true,
@@ -159,13 +159,7 @@ export function LeafletMap({ plots, selectedPlot, onPlotClick, highlightedPlots,
               return L.latLng(lat, lng);
             });
           }
-          if (active) {
-            glowLayer = L.polygon(latLngs, {
-              color: '#00e5ff', weight: 8, opacity: 0.4,
-              fillColor: 'transparent', fillOpacity: 0,
-              interactive: false, className: 'plot-glow-layer'
-            });
-          }
+          // No glow layer — clean border only
           polygon = L.polygon(latLngs, {
             color: plotBorderColor,
             weight: isSelected ? 2.5 : active ? 2 : 1,
