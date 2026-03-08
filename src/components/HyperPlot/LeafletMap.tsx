@@ -159,18 +159,7 @@ export function LeafletMap({ plots, selectedPlot, onPlotClick, highlightedPlots,
               return L.latLng(lat, lng);
             });
           }
-          // Neon glow layer for selected/highlighted plots
-          if (active) {
-            glowLayer = L.polygon(latLngs, {
-              color: '#00e5ff',
-              weight: isSelected ? 12 : 8,
-              opacity: isSelected ? 0.5 : 0.35,
-              fillColor: '#00e5ff',
-              fillOpacity: isSelected ? 0.12 : 0.06,
-              interactive: false,
-              className: 'plot-glow-layer'
-            });
-          }
+          // Glow handled by CinematicPlotOverlay circle animation
           polygon = L.polygon(latLngs, {
             color: plotBorderColor,
             weight: isSelected ? 3 : active ? 2 : 1,
