@@ -66,6 +66,7 @@ export function LeafletMap({ plots, selectedPlot, onPlotClick, highlightedPlots,
       noWrap: true,
       detectRetina: true,
       tileSize: 256,
+      errorTileUrl: 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNkYPj/HwADBwIAMCbHYQAAAABJRU5ErkJggg==',
     }).addTo(map);
 
     // Hybrid labels overlay for road names / landmarks
