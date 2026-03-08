@@ -502,6 +502,20 @@ export function HyperPlotAI() {
                     </div>
                   </div>
                 ) : null}
+                {activeTab === 'urban' && selectedPlot ? (
+                  <UrbanContextAnalysis
+                    plot={selectedPlot}
+                    onClose={() => setActiveTab('map')}
+                  />
+                ) : activeTab === 'urban' ? (
+                  <div className="h-full flex items-center justify-center glass-card glow-border">
+                    <div className="text-center">
+                      <TreePine className="w-12 h-12 text-muted-foreground/30 mx-auto mb-3" />
+                      <h3 className="text-lg font-bold mb-1">Select a Plot</h3>
+                      <p className="text-sm text-muted-foreground">Choose a plot to view Urban Context Analysis</p>
+                    </div>
+                  </div>
+                ) : null}
                 {activeTab === 'settings' && (
                   <div className="h-full glass-card glow-border p-6 overflow-y-auto">
                     <div className="flex items-center gap-3 mb-6">
