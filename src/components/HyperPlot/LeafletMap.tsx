@@ -298,9 +298,8 @@ export function LeafletMap({ plots, selectedPlot, onPlotClick, highlightedPlots,
         .plot-glow-layer { filter: drop-shadow(0 0 6px rgba(0, 229, 255, 0.7)) drop-shadow(0 0 14px rgba(0, 229, 255, 0.35)); }
         .plot-glow-circle { filter: drop-shadow(0 0 6px rgba(0, 229, 255, 0.7)) drop-shadow(0 0 12px rgba(0, 229, 255, 0.4)); }
         .fallback-pin-wrapper { background: none !important; border: none !important; }
-        .fallback-pin { filter: drop-shadow(0 0 6px rgba(0, 255, 204, 0.7)) drop-shadow(0 0 14px rgba(0, 255, 204, 0.35)); transition: transform 0.2s; }
-        .fallback-pin:hover { transform: scale(1.15); }
-        .fallback-pin-selected { filter: drop-shadow(0 0 8px rgba(0, 229, 255, 0.9)) drop-shadow(0 0 20px rgba(0, 229, 255, 0.5)); transform: scale(1.2); }
+        .fallback-pin { filter: drop-shadow(0 0 6px rgba(255, 68, 68, 0.8)) drop-shadow(0 0 14px rgba(255, 68, 68, 0.4)); transition: transform 0.2s; }
+        .fallback-pin-selected { filter: drop-shadow(0 0 10px rgba(255, 68, 68, 0.9)) drop-shadow(0 0 22px rgba(255, 68, 68, 0.5)); transform: scale(1.15); }
       `}</style>
     </div>
   );
