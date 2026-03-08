@@ -96,7 +96,7 @@ export function LeafletMap({ plots, selectedPlot, onPlotClick, highlightedPlots,
       return selectedPlot?.id === id || highlightedPlots.includes(id);
     }
 
-    // Helper: generate a fixed 35×35 m rectangle around a lat/lng
+    // Helper: generate a fixed 10×10 m rectangle around a lat/lng
     function areaToRect(lat: number, lng: number, _areaSqm: number): L.LatLng[] {
       const halfW = 17.5; // 35m / 2
       const halfH = 17.5;
