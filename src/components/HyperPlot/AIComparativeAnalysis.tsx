@@ -202,6 +202,8 @@ export function AIComparativeAnalysis({ plotA, plotB, onClose }: Props) {
 
   const plotALabel = plotA.id;
   const plotBLabel = plotB.id;
+  const plotAArea = plotA.location || plotA.project || plotA.entity || '';
+  const plotBArea = plotB.location || plotB.project || plotB.entity || '';
 
   const fetchNearbyPlots = async (plot: PlotData) => {
     const lat = plot.y;
