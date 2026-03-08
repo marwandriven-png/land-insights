@@ -883,6 +883,8 @@ Q1 2026 market conditions.`;
       </ScrollArea>
     </div>
   );
+
+  return maximized ? createPortal(content, document.body) : content;
 }
 
 function ProfitBadge({ label }: { label: string }) {
