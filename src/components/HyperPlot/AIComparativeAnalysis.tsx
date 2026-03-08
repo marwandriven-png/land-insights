@@ -726,7 +726,7 @@ Q1 2026 market conditions.`;
                       <div className="flex justify-between"><span className="text-muted-foreground">Value Increase</span><span className="text-success font-bold">{asm.valueIncrease}</span></div>
                     </div>
                   ) : (
-                    <p className="text-xs text-muted-foreground">No adjacent assembly opportunities detected within 100m radius.</p>
+                    <p className="text-xs text-muted-foreground">No adjacent assembly opportunities detected within 2km radius.</p>
                   )}
                 </div>
               ))}

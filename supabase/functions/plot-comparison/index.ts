@@ -184,7 +184,7 @@ PLOT B:
 
 ${dcTextB}
 
-NEARBY PLOTS WITHIN 1KM OF PLOT B (${(nearbyPlotsB || []).length} plots):
+NEARBY PLOTS WITHIN 2KM OF PLOT B (${(nearbyPlotsB || []).length} plots):
 ${nearbyDescB || 'No nearby data available.'}
 
 MARKET CONTEXT:
