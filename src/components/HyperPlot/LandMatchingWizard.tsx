@@ -655,7 +655,6 @@ export function LandMatchingWizard({
 
                       setIsProcessing(true);
                       setError(null);
-                      setStep('matching');
 
                       try {
                         let lat: number | null = null;
