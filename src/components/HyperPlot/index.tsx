@@ -813,7 +813,41 @@ export function HyperPlotAI() {
                 {/* Plots List */}
                 <ScrollArea className="flex-1 mt-4">
                   <div ref={plotsListRef} className="space-y-2 pr-2">
-                    {filteredPlots.slice(-3).reverse().map(plot => (
+                    {/* When comparing, show comparison plots first as a dedicated section */}
+                    {comparisonPlots.length > 0 && (
+                      <>
+                        <div className="text-xs font-bold text-primary uppercase tracking-wide mb-1">Compared Plots</div>
+                        {comparisonPlots.map(plot => (
+                          <div key={`cmp-${plot.id}`} className="relative group ring-1 ring-primary/40 rounded-xl">
+                            <PlotListItem
+                              plot={plot}
+                              isSelected={selectedPlot?.id === plot.id}
+                              isHighlighted={true}
+                              onClick={() => handlePlotClick(plot, true)}
+                              onEdit={plot.verificationSource === 'Manual' ? handleEditManualLand : undefined}
+                              onDelete={plot.verificationSource === 'Manual' ? handleDeleteManualLand : undefined}
+                              onQuickAdd={isPlotListed(plot.id) ? undefined : () => handleQuickAddFromPlot(plot)}
+                            />
+                            <button
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                setComparisonPlots(prev => prev.filter(p => p.id !== plot.id));
+                              }}
+                              className="absolute top-2 right-2 p-1.5 rounded-md bg-primary text-primary-foreground shadow-md transition-all"
+                              title="Remove from comparison"
+                            >
+                              <GitCompareArrows className="w-4 h-4" />
+                            </button>
+                          </div>
+                        ))}
+                        <div className="border-b border-border/30 my-2" />
+                      </>
+                    )}
+
+                    {/* Regular plot list (exclude already-compared plots) */}
+                    {filteredPlots.slice(-3).reverse()
+                      .filter(plot => !comparisonPlots.find(cp => cp.id === plot.id))
+                      .map(plot => (
                       <div key={plot.id} className="relative group">
                         <PlotListItem
                           plot={plot}
@@ -839,7 +873,7 @@ export function HyperPlotAI() {
                             ? 'bg-primary text-primary-foreground shadow-md'
                             : 'bg-muted/90 text-muted-foreground opacity-100 hover:bg-primary/20 hover:text-primary'
                             }`}
-                          title={comparisonPlots.find(p => p.id === plot.id) ? 'Remove from comparison' : 'Add to comparison'}
+                          title="Add to comparison"
                         >
                           <GitCompareArrows className="w-4 h-4" />
                         </button>
