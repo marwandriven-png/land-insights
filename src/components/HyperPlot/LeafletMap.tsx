@@ -155,7 +155,6 @@ export function LeafletMap({ plots, selectedPlot, onPlotClick, highlightedPlots,
             fillOpacity: active ? 0.65 : isFallbackPlot ? 0.25 : 0.35
           });
         } else {
-          // No rings — generate rectangle from area
           let lat: number, lng: number;
           if (isManualLatLng) {
             lat = plot.y; lng = plot.x;
@@ -163,22 +162,7 @@ export function LeafletMap({ plots, selectedPlot, onPlotClick, highlightedPlots,
             [lat, lng] = convertToLatLng(plot.x * 10 + 495000, plot.y * 10 + 2766000);
           }
           if (isFallbackPlot) {
-            const rectLatLngs = areaToRect(lat, lng, plot.area);
-            if (active) {
-              glowLayer = L.polygon(rectLatLngs, {
-                color: '#00e5ff', weight: 8, opacity: 0.4,
-                fillColor: 'transparent', fillOpacity: 0,
-                interactive: false, className: 'plot-glow-layer'
-              });
-            }
-            polygon = L.polygon(rectLatLngs, {
-              color: plotBorderColor,
-              weight: isSelected ? 3 : 2.5,
-              opacity: 1,
-              fillColor: plotFillColor,
-              fillOpacity: active ? 0.5 : 0.2,
-              className: isFallbackPlot ? 'plot-fallback-rect' : ''
-            });
+            polygon = L.marker([lat, lng], { icon: fallbackPinIcon(isSelected) });
           } else {
             polygon = L.circleMarker([lat, lng], {
               radius: 8, color: plotBorderColor, weight: 2,
