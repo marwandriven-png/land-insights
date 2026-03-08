@@ -169,7 +169,7 @@ PLOT A:
 
 ${dcTextA}
 
-NEARBY PLOTS WITHIN 1KM OF PLOT A (${(nearbyPlotsA || []).length} plots):
+NEARBY PLOTS WITHIN 2KM OF PLOT A (${(nearbyPlotsA || []).length} plots):
 ${nearbyDescA || 'No nearby data available.'}
 
 PLOT B:
