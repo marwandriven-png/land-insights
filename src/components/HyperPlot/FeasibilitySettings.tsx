@@ -322,9 +322,10 @@ interface FeasibilitySettingsProps {
   onClose: () => void;
   onSettingsChange?: (settings: FeasibilitySettingsData) => void;
   onOpenAddLand?: () => void;
+  onOpenFallbackDB?: () => void;
 }
 
-export function FeasibilitySettings({ open, onClose, onSettingsChange, onOpenAddLand }: FeasibilitySettingsProps) {
+export function FeasibilitySettings({ open, onClose, onSettingsChange, onOpenAddLand, onOpenFallbackDB }: FeasibilitySettingsProps) {
   const [settings, setSettings] = useState<FeasibilitySettingsData>(loadFeasibilitySettings);
   const [sheetUrl, setSheetUrl] = useState(() => localStorage.getItem('hyperplot_sheet_url') || '');
   const [activeWizardTab, setActiveWizardTab] = useState('prompt');
