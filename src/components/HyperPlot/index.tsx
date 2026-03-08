@@ -575,7 +575,6 @@ export function HyperPlotAI() {
                     </span>
                   </button>
                   <div className="flex items-center gap-1.5 px-2">
-                    {/* macOS traffic light: Close/Minimize (yellow) */}
                     <button
                       onClick={() => {
                         if (bottomPanelMinimized) {
@@ -585,12 +584,11 @@ export function HyperPlotAI() {
                           setBottomPanelMaximized(false);
                         }
                       }}
-                      className={`w-3 h-3 rounded-full transition-all border ${bottomPanelMinimized
-                        ? 'bg-yellow-400 border-yellow-500 shadow-[0_0_6px_rgba(250,204,21,0.5)]'
-                        : 'bg-yellow-400/70 border-yellow-500/50 hover:bg-yellow-400 hover:border-yellow-500 hover:shadow-[0_0_6px_rgba(250,204,21,0.4)]'
-                        }`}
+                      className="p-1 rounded hover:bg-muted/50 text-muted-foreground hover:text-foreground transition-all"
                       title={bottomPanelMinimized ? 'Restore' : 'Minimize'}
-                    />
+                    >
+                      <Minimize2 className="w-3.5 h-3.5" />
+                    </button>
                     {/* macOS traffic light: Fullscreen (green) */}
                     <button
                       onClick={() => {
