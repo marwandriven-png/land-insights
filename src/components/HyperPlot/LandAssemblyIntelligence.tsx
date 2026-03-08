@@ -391,6 +391,15 @@ export function LandAssemblyIntelligence({ plot, onSelectPlot, onClose }: LandAs
             </Section>
           )}
 
+          {/* Location Description */}
+          {data.locationDescription && (
+            <Section icon={<MapPin className="w-4 h-4" />} title="Location Quality Assessment">
+              <div className="p-3 rounded-lg border border-secondary/30 bg-secondary/5">
+                <p className="text-xs leading-relaxed">{data.locationDescription}</p>
+              </div>
+            </Section>
+          )}
+
           {/* 9. AI Insight */}
           <Section icon={<Lightbulb className="w-4 h-4" />} title="AI Development Insight">
             <div className="p-3 rounded-lg border border-primary/30 bg-primary/5">
