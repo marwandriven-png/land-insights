@@ -5,8 +5,20 @@ import { supabase } from '@/integrations/supabase/client';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
+import proj4 from 'proj4';
+
+proj4.defs('EPSG:3997', '+proj=tmerc +lat_0=0 +lon_0=55.33333333333334 +k=1 +x_0=500000 +y_0=0 +ellps=WGS84 +towgs84=0,0,0,0,0,0,0 +units=m +no_defs');
 
 const SQM_TO_SQFT = 10.7639;
+
+function toWGS84(x: number, y: number): [number, number] {
+  try {
+    const result = proj4('EPSG:3997', 'EPSG:4326', [x, y]);
+    return [result[1], result[0]];
+  } catch {
+    return [0, 0];
+  }
+}
 
 interface LandAssemblyIntelligenceProps {
   plot: PlotData;
@@ -45,19 +57,40 @@ export function LandAssemblyIntelligence({ plot, onSelectPlot, onClose }: LandAs
     setLoading(true);
     setError(null);
     try {
-      // Step 1: Fetch nearby plots within 1km radius
-      const lat = plot.y;
-      const lng = plot.x;
+      // Step 1: Fetch nearby plots - convert EPSG:3997 to WGS84
+      const rawX = plot.x;
+      const rawY = plot.y;
+      let lat: number, lng: number;
+      if (rawX > 1000 && rawY > 1000) {
+        [lat, lng] = toWGS84(rawX, rawY);
+      } else {
+        lat = rawY;
+        lng = rawX;
+      }
       let nearbyPlots: PlotData[] = [];
       
       if (lat && lng && lat !== 0 && lng !== 0) {
-        nearbyPlots = await gisService.searchByLocation(lat, lng, 1000);
+        // Search entire area (5km) to get plots from the same community/master plan
+        nearbyPlots = await gisService.searchByLocation(lat, lng, 5000, 200);
         // Exclude the selected plot
         nearbyPlots = nearbyPlots.filter(p => p.id !== plot.id);
       }
 
-      setNearbyCount(nearbyPlots.length);
+      // Also search by area name to ensure we get plots from the same community
+      const areaName = plot.location || plot.project || plot.entity || '';
+      if (areaName && areaName !== 'Dubai') {
+        try {
+          const areaPlots = await gisService.searchByArea(undefined, undefined, areaName);
+          const existingIds = new Set(nearbyPlots.map(p => p.id));
+          existingIds.add(plot.id);
+          const uniqueAreaPlots = areaPlots.filter(p => !existingIds.has(p.id));
+          nearbyPlots = [...nearbyPlots, ...uniqueAreaPlots];
+        } catch (e) {
+          console.log('Area search supplementary failed:', e);
+        }
+      }
 
+      setNearbyCount(nearbyPlots.length);
       // Step 2: Call edge function
       const selectedPlot = {
         id: plot.id,
@@ -69,9 +102,10 @@ export function LandAssemblyIntelligence({ plot, onSelectPlot, onClose }: LandAs
         floors: plot.floors,
         developer: plot.developer || '',
         constructionStatus: plot.constructionStatus || '',
+        landUseDetails: plot.landUseDetails || '',
       };
 
-      const nearbyPlotsData = nearbyPlots.slice(0, 50).map(p => ({
+      const nearbyPlotsData = nearbyPlots.slice(0, 100).map(p => ({
         id: p.id,
         location: p.location || p.project || p.entity || '',
         areaSqft: Math.round(p.area * SQM_TO_SQFT),
@@ -81,6 +115,7 @@ export function LandAssemblyIntelligence({ plot, onSelectPlot, onClose }: LandAs
         floors: p.floors,
         developer: p.developer || '',
         constructionStatus: p.constructionStatus || '',
+        landUseDetails: p.landUseDetails || '',
       }));
 
       const { data: result, error: fnError } = await supabase.functions.invoke('land-assembly', {
