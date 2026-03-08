@@ -94,13 +94,13 @@ export function LeafletMap({ plots, selectedPlot, onPlotClick, highlightedPlots,
       return selectedPlot?.id === id || highlightedPlots.includes(id);
     }
 
-    // Gold pin icon for selected fallback plot
+    // Blue pin icon for selected fallback plot
     const fallbackPinIcon = () => L.divIcon({
       className: 'fallback-pin-wrapper',
       html: `<div class="fallback-pin fallback-pin-selected">
         <svg width="36" height="50" viewBox="0 0 28 40" fill="none" xmlns="http://www.w3.org/2000/svg">
-          <path d="M14 0C6.268 0 0 6.268 0 14c0 10.5 14 26 14 26s14-15.5 14-26C28 6.268 21.732 0 14 0z" fill="#FFB800" fill-opacity="0.95"/>
-          <circle cx="14" cy="14" r="6" fill="#fff" stroke="#CC9300" stroke-width="1.5"/>
+          <path d="M14 0C6.268 0 0 6.268 0 14c0 10.5 14 26 14 26s14-15.5 14-26C28 6.268 21.732 0 14 0z" fill="#3B82F6" fill-opacity="0.95"/>
+          <circle cx="14" cy="14" r="6" fill="#fff" stroke="#2563EB" stroke-width="1.5"/>
         </svg>
       </div>`,
       iconSize: [36, 50],
@@ -178,7 +178,7 @@ export function LeafletMap({ plots, selectedPlot, onPlotClick, highlightedPlots,
         <div class="p-2 min-w-[180px]">
           <div class="font-bold text-sm">${plot.id}</div>
           <div class="text-xs text-gray-400">${plot.location || plot.project || 'Dubai'}</div>
-          ${isFallbackPlot ? '<div class="text-xs mt-1 px-1.5 py-0.5 rounded" style="background:#FFB80022;color:#FFB800;border:1px solid #FFB80044">📍 Fallback DB</div>' : ''}
+          ${isFallbackPlot ? '<div class="text-xs mt-1 px-1.5 py-0.5 rounded" style="background:#3B82F622;color:#3B82F6;border:1px solid #3B82F644">📍 Fallback DB</div>' : ''}
           <hr class="my-1 border-gray-600" />
           <div class="grid grid-cols-2 gap-1 text-xs">
             <span class="text-gray-400">Area:</span>
@@ -310,8 +310,8 @@ export function LeafletMap({ plots, selectedPlot, onPlotClick, highlightedPlots,
         .plot-glow-layer { filter: drop-shadow(0 0 6px rgba(0, 229, 255, 0.7)) drop-shadow(0 0 14px rgba(0, 229, 255, 0.35)); }
         .plot-glow-circle { filter: drop-shadow(0 0 6px rgba(0, 229, 255, 0.7)) drop-shadow(0 0 12px rgba(0, 229, 255, 0.4)); }
         .fallback-pin-wrapper { background: none !important; border: none !important; }
-        .fallback-pin { filter: drop-shadow(0 0 8px rgba(255, 184, 0, 0.8)) drop-shadow(0 0 18px rgba(255, 184, 0, 0.4)); transition: transform 0.2s ease; }
-        .fallback-pin-selected { filter: drop-shadow(0 0 12px rgba(255, 184, 0, 0.9)) drop-shadow(0 0 28px rgba(255, 184, 0, 0.5)); transform: scale(1.1); animation: fallback-pulse 2s ease-in-out infinite; }
+        .fallback-pin { filter: drop-shadow(0 0 8px rgba(59, 130, 246, 0.8)) drop-shadow(0 0 18px rgba(59, 130, 246, 0.4)); transition: transform 0.2s ease; }
+        .fallback-pin-selected { filter: drop-shadow(0 0 12px rgba(59, 130, 246, 0.9)) drop-shadow(0 0 28px rgba(59, 130, 246, 0.5)); transform: scale(1.1); animation: fallback-pulse 2s ease-in-out infinite; }
         @keyframes fallback-pulse { 0%, 100% { transform: scale(1.1); } 50% { transform: scale(1.2); } }
       `}</style>
     </div>
