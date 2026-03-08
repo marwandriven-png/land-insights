@@ -380,6 +380,10 @@ export function FeasibilitySettings({ open, onClose, onSettingsChange, onOpenAdd
                 <Link2 className="w-3.5 h-3.5" />
                 Google Sheet
               </TabsTrigger>
+              <TabsTrigger value="fallbackdb" className="flex-1 gap-1.5">
+                <Database className="w-3.5 h-3.5" />
+                Fallback DB
+              </TabsTrigger>
             </TabsList>
           </div>
 
