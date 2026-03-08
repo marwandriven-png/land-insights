@@ -96,25 +96,23 @@ export function LeafletMap({ plots, selectedPlot, onPlotClick, highlightedPlots,
       return selectedPlot?.id === id || highlightedPlots.includes(id);
     }
 
-    // Helper: generate a fixed 10×10 m rectangle around a lat/lng
-    function areaToRect(lat: number, lng: number, _areaSqm: number): L.LatLng[] {
-      const halfW = 5; // 10m / 2
-      const halfH = 5;
-      const latPerM = 1 / 111320;
-      const lngPerM = 1 / (111320 * Math.cos(lat * Math.PI / 180));
-      const dLat = halfH * latPerM;
-      const dLng = halfW * lngPerM;
-      return [
-        L.latLng(lat - dLat, lng - dLng),
-        L.latLng(lat - dLat, lng + dLng),
-        L.latLng(lat + dLat, lng + dLng),
-        L.latLng(lat + dLat, lng - dLng),
-      ];
-    }
+    // Neon pin icon for fallback plots
+    const fallbackPinIcon = (selected: boolean) => L.divIcon({
+      className: 'fallback-pin-wrapper',
+      html: `<div class="fallback-pin ${selected ? 'fallback-pin-selected' : ''}">
+        <svg width="28" height="40" viewBox="0 0 28 40" fill="none" xmlns="http://www.w3.org/2000/svg">
+          <path d="M14 0C6.268 0 0 6.268 0 14c0 10.5 14 26 14 26s14-15.5 14-26C28 6.268 21.732 0 14 0z" fill="${selected ? '#00e5ff' : '#00ffcc'}" fill-opacity="${selected ? '0.9' : '0.7'}"/>
+          <circle cx="14" cy="14" r="6" fill="hsl(222 47% 5%)" stroke="${selected ? '#fff' : '#00ffcc'}" stroke-width="1.5"/>
+        </svg>
+      </div>`,
+      iconSize: [28, 40],
+      iconAnchor: [14, 40],
+      popupAnchor: [0, -40]
+    });
 
     plots.forEach(plot => {
       const rawAttrs = plot.rawAttributes;
-      let polygon: L.Polygon | L.CircleMarker;
+      let polygon: L.Polygon | L.CircleMarker | L.Marker;
       let glowLayer: L.Polygon | L.CircleMarker | null = null;
       const active = isSelectedOrHighlighted(plot.id);
       const isSelected = selectedPlot?.id === plot.id;
@@ -157,7 +155,6 @@ export function LeafletMap({ plots, selectedPlot, onPlotClick, highlightedPlots,
             fillOpacity: active ? 0.65 : isFallbackPlot ? 0.25 : 0.35
           });
         } else {
-          // No rings — generate rectangle from area
           let lat: number, lng: number;
           if (isManualLatLng) {
             lat = plot.y; lng = plot.x;
@@ -165,22 +162,7 @@ export function LeafletMap({ plots, selectedPlot, onPlotClick, highlightedPlots,
             [lat, lng] = convertToLatLng(plot.x * 10 + 495000, plot.y * 10 + 2766000);
           }
           if (isFallbackPlot) {
-            const rectLatLngs = areaToRect(lat, lng, plot.area);
-            if (active) {
-              glowLayer = L.polygon(rectLatLngs, {
-                color: '#00e5ff', weight: 8, opacity: 0.4,
-                fillColor: 'transparent', fillOpacity: 0,
-                interactive: false, className: 'plot-glow-layer'
-              });
-            }
-            polygon = L.polygon(rectLatLngs, {
-              color: plotBorderColor,
-              weight: isSelected ? 3 : 2.5,
-              opacity: 1,
-              fillColor: plotFillColor,
-              fillOpacity: active ? 0.5 : 0.2,
-              className: isFallbackPlot ? 'plot-fallback-rect' : ''
-            });
+            polygon = L.marker([lat, lng], { icon: fallbackPinIcon(isSelected) });
           } else {
             polygon = L.circleMarker([lat, lng], {
               radius: 8, color: plotBorderColor, weight: 2,
@@ -198,22 +180,7 @@ export function LeafletMap({ plots, selectedPlot, onPlotClick, highlightedPlots,
           [lat, lng] = convertToLatLng(plot.x * 10 + 495000, plot.y * 10 + 2766000);
         }
         if (isFallbackPlot) {
-          const rectLatLngs = areaToRect(lat, lng, plot.area);
-          if (active) {
-            glowLayer = L.polygon(rectLatLngs, {
-              color: '#00e5ff', weight: 8, opacity: 0.4,
-              fillColor: 'transparent', fillOpacity: 0,
-              interactive: false, className: 'plot-glow-layer'
-            });
-          }
-          polygon = L.polygon(rectLatLngs, {
-            color: plotBorderColor,
-            weight: isSelected ? 3 : 2.5,
-            opacity: 1,
-            fillColor: plotFillColor,
-            fillOpacity: active ? 0.5 : 0.2,
-            className: 'plot-fallback-rect'
-          });
+          polygon = L.marker([lat, lng], { icon: fallbackPinIcon(isSelected) });
         } else {
           polygon = L.circleMarker([lat, lng], {
             radius: 8, color: plotBorderColor, weight: 2,
@@ -330,7 +297,10 @@ export function LeafletMap({ plots, selectedPlot, onPlotClick, highlightedPlots,
         .plot-tooltip::before { border-top-color: hsl(187 94% 43% / 0.3) !important; }
         .plot-glow-layer { filter: drop-shadow(0 0 6px rgba(0, 229, 255, 0.7)) drop-shadow(0 0 14px rgba(0, 229, 255, 0.35)); }
         .plot-glow-circle { filter: drop-shadow(0 0 6px rgba(0, 229, 255, 0.7)) drop-shadow(0 0 12px rgba(0, 229, 255, 0.4)); }
-        .plot-fallback-rect { filter: drop-shadow(0 0 4px rgba(0, 255, 204, 0.6)) drop-shadow(0 0 10px rgba(0, 255, 204, 0.25)); }
+        .fallback-pin-wrapper { background: none !important; border: none !important; }
+        .fallback-pin { filter: drop-shadow(0 0 6px rgba(0, 255, 204, 0.7)) drop-shadow(0 0 14px rgba(0, 255, 204, 0.35)); transition: transform 0.2s; }
+        .fallback-pin:hover { transform: scale(1.15); }
+        .fallback-pin-selected { filter: drop-shadow(0 0 8px rgba(0, 229, 255, 0.9)) drop-shadow(0 0 20px rgba(0, 229, 255, 0.5)); transform: scale(1.2); }
       `}</style>
     </div>
   );
