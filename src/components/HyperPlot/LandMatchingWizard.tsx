@@ -791,6 +791,8 @@ export function LandMatchingWizard({
                         setMatchResults(results);
                         setSelectedMatchIds(new Set(results.map(r => r.matchedPlotId)));
                         setStep('results');
+                        // Push all matched plots to the map so pins appear
+                        onAddPlots?.(apiPlots);
                         onHighlightPlots(results.map(r => r.matchedPlotId));
                       } catch (e: any) {
                         setError(e.message || 'Location search failed');
