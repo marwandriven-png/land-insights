@@ -61,8 +61,8 @@ export function LeafletMap({ plots, selectedPlot, onPlotClick, highlightedPlots,
 
     // High-res satellite base layer
     L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}', {
-      maxZoom: 16,
-      maxNativeZoom: 16,
+      maxZoom: 19,
+      maxNativeZoom: 17,
       noWrap: true,
       detectRetina: true,
       tileSize: 256,
