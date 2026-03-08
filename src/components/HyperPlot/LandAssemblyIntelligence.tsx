@@ -267,25 +267,6 @@ export function LandAssemblyIntelligence({ plot, onSelectPlot, onClose }: LandAs
             )}
           </Section>
 
-          {/* 5. Development Pattern */}
-          <Section icon={<TrendingUp className="w-4 h-4" />} title="Matching Development Pattern" badge={data.developmentPattern.dominantType}>
-            <p className="text-[10px] text-primary font-medium mb-1.5">Based on {nearbyCount} real plots in {plot.location || plot.project || plot.entity || 'this area'}</p>
-            <div className="space-y-1.5">
-              {data.developmentPattern.patterns.map((p, i) => (
-                <div key={i} className="flex items-center justify-between text-xs">
-                  <span>{p.type}</span>
-                  <div className="flex items-center gap-2">
-                    <div className="w-20 h-1.5 rounded-full bg-muted overflow-hidden">
-                      <div className="h-full rounded-full bg-primary" style={{ width: `${p.pct}%` }} />
-                    </div>
-                    <span className="font-semibold w-8 text-right">{p.pct}%</span>
-                  </div>
-                </div>
-              ))}
-            </div>
-            <p className="text-xs text-muted-foreground mt-2">{data.developmentPattern.recommendation}</p>
-          </Section>
-
           {/* 6. Absorption Rate */}
           <Section icon={<TrendingUp className="w-4 h-4" />} title="Absorption Rate Analysis">
             <div className="grid grid-cols-2 gap-2">
