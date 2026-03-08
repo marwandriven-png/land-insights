@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
-import { Loader2, AlertTriangle, X, TreePine, Zap, Eye, Star, CheckCircle2, AlertCircle, TrendingUp, Lightbulb, MapPin } from 'lucide-react';
+import { createPortal } from 'react-dom';
+import { Loader2, AlertTriangle, X, TreePine, Zap, Eye, Star, CheckCircle2, AlertCircle, TrendingUp, Lightbulb, MapPin, Maximize2, Minimize2 } from 'lucide-react';
 import { PlotData, gisService } from '@/services/DDAGISService';
 import { supabase } from '@/integrations/supabase/client';
 import { ScrollArea } from '@/components/ui/scroll-area';
@@ -41,6 +42,7 @@ export function UrbanContextAnalysis({ plot, onClose }: UrbanContextAnalysisProp
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [nearbyCount, setNearbyCount] = useState(0);
+  const [maximized, setMaximized] = useState(false);
 
   useEffect(() => {
     runAnalysis();
@@ -184,8 +186,8 @@ export function UrbanContextAnalysis({ plot, onClose }: UrbanContextAnalysisProp
     return 'text-destructive';
   };
 
-  return (
-    <div className="h-full glass-card glow-border flex flex-col overflow-hidden">
+  const content = (
+    <div className={`${maximized ? 'fixed inset-0 z-50 bg-background' : 'h-full'} glass-card glow-border flex flex-col overflow-hidden`}>
       {/* Header */}
       <div className="flex items-center justify-between p-4 border-b border-border/50 shrink-0">
         <div className="flex items-center gap-3">
@@ -201,6 +203,9 @@ export function UrbanContextAnalysis({ plot, onClose }: UrbanContextAnalysisProp
           <div className={`text-lg font-black ${scoreColor(data.urbanScore.overall)}`}>
             {data.urbanScore.overall}/10
           </div>
+          <button onClick={() => setMaximized(m => !m)} className="p-1.5 rounded-md hover:bg-muted/50 transition-colors" title={maximized ? 'Minimize' : 'Maximize'}>
+            {maximized ? <Minimize2 className="w-4 h-4" /> : <Maximize2 className="w-4 h-4" />}
+          </button>
           <button onClick={onClose} className="p-1.5 rounded-md hover:bg-muted/50 transition-colors">
             <X className="w-4 h-4" />
           </button>
@@ -394,6 +399,8 @@ export function UrbanContextAnalysis({ plot, onClose }: UrbanContextAnalysisProp
       </ScrollArea>
     </div>
   );
+
+  return maximized ? createPortal(content, document.body) : content;
 }
 
 function Section({ icon, title, badge, children }: { icon: React.ReactNode; title: string; badge?: string; children: React.ReactNode }) {

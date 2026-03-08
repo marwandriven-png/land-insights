@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
-import { Loader2, MapPin, Building2, Layers, TrendingUp, AlertTriangle, BarChart3, Search, Lightbulb, ArrowRight, X, Combine } from 'lucide-react';
+import { createPortal } from 'react-dom';
+import { Loader2, MapPin, Building2, Layers, TrendingUp, AlertTriangle, BarChart3, Search, Lightbulb, ArrowRight, X, Combine, Maximize2, Minimize2 } from 'lucide-react';
 import { PlotData, gisService } from '@/services/DDAGISService';
 import { supabase } from '@/integrations/supabase/client';
 import { ScrollArea } from '@/components/ui/scroll-area';
@@ -48,6 +49,7 @@ export function LandAssemblyIntelligence({ plot, onSelectPlot, onClose }: LandAs
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [nearbyCount, setNearbyCount] = useState(0);
+  const [maximized, setMaximized] = useState(false);
 
   useEffect(() => {
     runAnalysis();
@@ -164,8 +166,8 @@ export function LandAssemblyIntelligence({ plot, onSelectPlot, onClose }: LandAs
 
   if (!data) return null;
 
-  return (
-    <div className="h-full glass-card glow-border flex flex-col overflow-hidden">
+  const content = (
+    <div className={`${maximized ? 'fixed inset-0 z-50 bg-background' : 'h-full'} glass-card glow-border flex flex-col overflow-hidden`}>
       {/* Header */}
       <div className="flex items-center justify-between p-4 border-b border-border/50 shrink-0">
         <div className="flex items-center gap-3">
@@ -180,9 +182,14 @@ export function LandAssemblyIntelligence({ plot, onSelectPlot, onClose }: LandAs
             )}
           </div>
         </div>
-        <button onClick={onClose} className="p-1.5 rounded-md hover:bg-muted/50 transition-colors">
-          <X className="w-4 h-4" />
-        </button>
+        <div className="flex items-center gap-1">
+          <button onClick={() => setMaximized(m => !m)} className="p-1.5 rounded-md hover:bg-muted/50 transition-colors" title={maximized ? 'Minimize' : 'Maximize'}>
+            {maximized ? <Minimize2 className="w-4 h-4" /> : <Maximize2 className="w-4 h-4" />}
+          </button>
+          <button onClick={onClose} className="p-1.5 rounded-md hover:bg-muted/50 transition-colors">
+            <X className="w-4 h-4" />
+          </button>
+        </div>
       </div>
 
       <ScrollArea className="flex-1">
@@ -370,6 +377,8 @@ export function LandAssemblyIntelligence({ plot, onSelectPlot, onClose }: LandAs
       </ScrollArea>
     </div>
   );
+
+  return maximized ? createPortal(content, document.body) : content;
 }
 
 function Section({ icon, title, badge, badgeVariant, children }: { icon: React.ReactNode; title: string; badge?: string; badgeVariant?: 'default' | 'secondary'; children: React.ReactNode }) {
