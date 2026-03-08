@@ -300,16 +300,81 @@ function UrbanScoreRadar({ label, data }: { label: string; data: UrbanContextDat
   );
 }
 
+function DimensionLoadingAnimation({ activeDimension }: { activeDimension: number }) {
+  return (
+    <div className="h-full flex flex-col items-center justify-center glass-card glow-border p-8">
+      <div className="w-16 h-16 rounded-2xl flex items-center justify-center mb-6 relative"
+        style={{ background: 'linear-gradient(135deg, hsl(var(--primary)), hsl(var(--secondary)))' }}>
+        <Brain className="w-8 h-8 text-primary-foreground animate-pulse" />
+        <div className="absolute inset-0 rounded-2xl border-2 border-primary/30 animate-ping" />
+      </div>
+      <h2 className="text-xl font-bold mb-1">AI Comparative Engine</h2>
+      <p className="text-xs text-muted-foreground mb-6">Analyzing Decision Confidence data across 9 dimensions</p>
+      <div className="w-full max-w-md space-y-2">
+        {ANALYSIS_DIMENSIONS.map((dim, i) => {
+          const isActive = i === activeDimension;
+          const isDone = i < activeDimension;
+          const isPending = i > activeDimension;
+          return (
+            <div
+              key={dim.label}
+              className={`flex items-center gap-3 px-4 py-2.5 rounded-xl border transition-all duration-500 ${
+                isActive
+                  ? 'border-primary/50 bg-primary/10 scale-[1.02] shadow-lg shadow-primary/10'
+                  : isDone
+                  ? 'border-success/30 bg-success/5'
+                  : 'border-border/30 bg-card/30 opacity-40'
+              }`}
+            >
+              <span className="text-base w-6 text-center">{dim.icon}</span>
+              <span className={`flex-1 text-sm font-medium ${isActive ? 'text-primary' : isDone ? 'text-success' : 'text-muted-foreground'}`}>
+                {dim.label}
+              </span>
+              {isDone && <CheckCircle className="w-4 h-4 text-success" />}
+              {isActive && <Loader2 className="w-4 h-4 text-primary animate-spin" />}
+              {isPending && <div className="w-4 h-4 rounded-full border border-border/50" />}
+            </div>
+          );
+        })}
+      </div>
+      <div className="mt-6 flex items-center gap-2">
+        <div className="w-48 bg-muted/50 rounded-full h-1.5 overflow-hidden">
+          <div
+            className="h-full bg-gradient-to-r from-primary to-secondary rounded-full transition-all duration-700"
+            style={{ width: `${((activeDimension + 1) / ANALYSIS_DIMENSIONS.length) * 100}%` }}
+          />
+        </div>
+        <span className="text-xs text-muted-foreground font-mono">{activeDimension + 1}/{ANALYSIS_DIMENSIONS.length}</span>
+      </div>
+    </div>
+  );
+}
+
 export function AIComparativeAnalysis({ plotA, plotB, onClose }: Props) {
   const [result, setResult] = useState<AIComparisonResult | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [loadingStep, setLoadingStep] = useState('');
+  const [activeDimension, setActiveDimension] = useState(0);
 
   const plotALabel = plotA.id;
   const plotBLabel = plotB.id;
   const plotAArea = plotA.location || plotA.project || plotA.entity || '';
   const plotBArea = plotB.location || plotB.project || plotB.entity || '';
+
+  // Animate dimension steps while loading
+  useEffect(() => {
+    if (!loading) return;
+    setActiveDimension(0);
+    let current = 0;
+    const interval = setInterval(() => {
+      current++;
+      if (current >= ANALYSIS_DIMENSIONS.length) {
+        current = ANALYSIS_DIMENSIONS.length - 1;
+      }
+      setActiveDimension(current);
+    }, 1600);
+    return () => clearInterval(interval);
+  }, [loading]);
 
   const fetchNearbyPlots = async (plot: PlotData) => {
     const lat = plot.y;
@@ -336,17 +401,19 @@ export function AIComparativeAnalysis({ plotA, plotB, onClose }: Props) {
     setLoading(true);
     setError(null);
     try {
-      setLoadingStep('Scanning 1km radius around both plots...');
+      // Build Decision Confidence context for both plots
+      const dcContextA = buildDCContext(plotA);
+      const dcContextB = buildDCContext(plotB);
+
       const [nearbyA, nearbyB] = await Promise.all([
         fetchNearbyPlots(plotA),
         fetchNearbyPlots(plotB),
       ]);
 
-      setLoadingStep('Running AI comparative analysis across 9 dimensions...');
       const marketContext = `
-Plot A location: ${plotA.location || 'Dubai'}. Zoning: ${plotA.zoning}. Area: ${Math.round(plotA.area * SQM_TO_SQFT)} sqft. GFA: ${Math.round(plotA.gfa * SQM_TO_SQFT)} sqft. Nearby: ${nearbyA.length} plots.
-Plot B location: ${plotB.location || 'Dubai'}. Zoning: ${plotB.zoning}. Area: ${Math.round(plotB.area * SQM_TO_SQFT)} sqft. GFA: ${Math.round(plotB.gfa * SQM_TO_SQFT)} sqft. Nearby: ${nearbyB.length} plots.
-Use Dubai market averages for these zones. Consider current Q1 2026 market conditions.`;
+Plot A: ${plotA.location || 'Dubai'}, Zoning: ${plotA.zoning}, Area: ${Math.round(plotA.area * SQM_TO_SQFT)} sqft, GFA: ${Math.round(plotA.gfa * SQM_TO_SQFT)} sqft, Nearby: ${nearbyA.length} plots.
+Plot B: ${plotB.location || 'Dubai'}, Zoning: ${plotB.zoning}, Area: ${Math.round(plotB.area * SQM_TO_SQFT)} sqft, GFA: ${Math.round(plotB.gfa * SQM_TO_SQFT)} sqft, Nearby: ${nearbyB.length} plots.
+Q1 2026 market conditions.`;
 
       const { data, error: fnError } = await supabase.functions.invoke('plot-comparison', {
         body: {
@@ -365,6 +432,8 @@ Use Dubai market averages for these zones. Consider current Q1 2026 market condi
           marketContext,
           nearbyPlotsA: nearbyA,
           nearbyPlotsB: nearbyB,
+          dcContextA,
+          dcContextB,
         },
       });
 
@@ -377,7 +446,6 @@ Use Dubai market averages for these zones. Consider current Q1 2026 market condi
       toast({ title: 'Analysis Failed', description: msg, variant: 'destructive' });
     } finally {
       setLoading(false);
-      setLoadingStep('');
     }
   };
 
@@ -390,11 +458,14 @@ Use Dubai market averages for these zones. Consider current Q1 2026 market condi
         </div>
         <h2 className="text-xl font-bold mb-2">AI Comparative Analysis</h2>
         <p className="text-sm text-muted-foreground text-center mb-3 max-w-md">
-          Generate an advanced investment comparison between <span className="font-bold text-foreground">{plotALabel}</span> and <span className="font-bold text-foreground">{plotBLabel}</span>
+          Generate a full Decision Confidence–powered comparison between <span className="font-bold text-foreground">{plotALabel}</span> and <span className="font-bold text-foreground">{plotBLabel}</span>
+        </p>
+        <p className="text-xs text-muted-foreground text-center mb-4 max-w-sm">
+          Includes feasibility, transactions, benchmarks, sensitivity analysis & spatial context
         </p>
         <div className="flex flex-wrap gap-1.5 justify-center mb-6">
-          {['Intelligence Score', 'Demand Heatmap', 'Risk Detection', 'Valuation', 'Assembly', 'Assembly Intel', 'Urban Context', 'Exit Strategy', 'AI Verdict'].map(s => (
-            <Badge key={s} variant="outline" className="text-[10px]">{s}</Badge>
+          {ANALYSIS_DIMENSIONS.map(d => (
+            <Badge key={d.label} variant="outline" className="text-[10px]">{d.icon} {d.label}</Badge>
           ))}
         </div>
         <Button onClick={runAnalysis} size="lg" className="gap-2">
@@ -407,13 +478,7 @@ Use Dubai market averages for these zones. Consider current Q1 2026 market condi
   }
 
   if (loading) {
-    return (
-      <div className="h-full flex flex-col items-center justify-center glass-card glow-border">
-        <Loader2 className="w-12 h-12 text-primary animate-spin mb-4" />
-        <h3 className="text-lg font-bold mb-1">Analyzing Plots...</h3>
-        <p className="text-sm text-muted-foreground">{loadingStep || 'Running AI comparative analysis'}</p>
-      </div>
-    );
+    return <DimensionLoadingAnimation activeDimension={activeDimension} />;
   }
 
   if (!result) return null;
