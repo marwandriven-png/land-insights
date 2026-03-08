@@ -114,7 +114,14 @@ function buildDCContext(plot: PlotData) {
   const areaCode = plot.location || plot.project || '';
   const clff = matchCLFFArea(areaCode);
   const clffCode = clff?.area?.code || '';
-  const overrides = clffCode ? getCLFFOverridesWithMasterData(clffCode) : {};
+  const areaData = getAreaData(clffCode);
+  const salesByUnit = areaData?.salesByUnit || {};
+  const rentalByUnit = areaData?.rentalByUnit || {};
+  const masterSales: any = {};
+  const masterRentals: any = {};
+  for (const [k, v] of Object.entries(salesByUnit)) { masterSales[k] = { avgPSF: v?.avgPSF, avgSizeSqft: v?.avgSizeSqft }; }
+  for (const [k, v] of Object.entries(rentalByUnit)) { masterRentals[k] = { avgPSFPerYear: v?.avgPSFPerYear }; }
+  const overrides = clffCode ? getCLFFOverridesWithMasterData(clffCode, masterSales, masterRentals) : {};
 
   // Run feasibility for all 3 strategies
   const feasResults: Record<string, any> = {};
