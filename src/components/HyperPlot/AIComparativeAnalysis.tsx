@@ -1,0 +1,483 @@
+import { useState } from 'react';
+import { Brain, TrendingUp, Shield, AlertTriangle, DollarSign, Layers, Target, Loader2, BarChart3, CheckCircle, XCircle, Minus } from 'lucide-react';
+import { PlotData } from '@/services/DDAGISService';
+import { supabase } from '@/integrations/supabase/client';
+import { Badge } from '@/components/ui/badge';
+import { Button } from '@/components/ui/button';
+import { ScrollArea } from '@/components/ui/scroll-area';
+import { toast } from '@/hooks/use-toast';
+
+const SQM_TO_SQFT = 10.7639;
+
+interface AIComparisonResult {
+  plotScores: {
+    plotA: ScoreBreakdown;
+    plotB: ScoreBreakdown;
+  };
+  demandHeatmap: {
+    distribution: { studio: number; oneBR: number; twoBR: number; threeBR: number };
+    plotABenefit: string;
+    plotBBenefit: string;
+    sellOutTimeline: { plotA: string; plotB: string };
+  };
+  risks: {
+    plotA: RiskItem[];
+    plotB: RiskItem[];
+  };
+  valuationOpportunity: {
+    plotA: ValuationData;
+    plotB: ValuationData;
+  };
+  landAssembly: {
+    plotA: AssemblyData;
+    plotB: AssemblyData;
+  };
+  exitStrategies: {
+    sellLand: { plotA: string; plotB: string };
+    developProject: { plotA: string; plotB: string };
+    jointVenture: { plotA: string; plotB: string };
+    bestStrategyA: string;
+    bestStrategyB: string;
+  };
+  verdict: {
+    winner: 'plotA' | 'plotB';
+    reasoning: string[];
+    recommendedAction: string;
+    confidenceLevel: 'High' | 'Medium' | 'Low';
+  };
+}
+
+interface ScoreBreakdown {
+  overall: number;
+  demandStrength: number;
+  supplyRisk: number;
+  priceTrend: number;
+  developmentPotential: number;
+  exitLiquidity: number;
+}
+
+interface RiskItem {
+  risk: string;
+  severity: 'low' | 'medium' | 'high';
+  detail: string;
+}
+
+interface ValuationData {
+  marketPSF: number;
+  plotPSF: number;
+  undervaluation: number;
+  classification: string;
+}
+
+interface AssemblyData {
+  detected: boolean;
+  adjacentPlots: number;
+  totalPotentialSqft: number;
+  potentialUse: string;
+  valueIncrease: string;
+}
+
+interface Props {
+  plotA: PlotData;
+  plotB: PlotData;
+  onClose: () => void;
+}
+
+function ScoreBar({ score, max = 10 }: { score: number; max?: number }) {
+  const pct = (score / max) * 100;
+  const color = score >= 7 ? 'bg-success' : score >= 5 ? 'bg-warning' : 'bg-destructive';
+  return (
+    <div className="flex items-center gap-2 flex-1">
+      <div className="flex-1 bg-muted/50 rounded-full h-2">
+        <div className={`h-2 rounded-full ${color} transition-all duration-700`} style={{ width: `${pct}%` }} />
+      </div>
+      <span className="font-mono text-xs font-bold w-8 text-right">{score.toFixed(1)}</span>
+    </div>
+  );
+}
+
+function SeverityBadge({ severity }: { severity: string }) {
+  const styles: Record<string, string> = {
+    low: 'border-success/40 text-success bg-success/10',
+    medium: 'border-warning/40 text-warning bg-warning/10',
+    high: 'border-destructive/40 text-destructive bg-destructive/10',
+  };
+  return <Badge variant="outline" className={`text-xs ${styles[severity] || ''}`}>{severity}</Badge>;
+}
+
+function ClassificationBadge({ classification }: { classification: string }) {
+  const styles: Record<string, string> = {
+    'Strong Opportunity': 'border-success/40 text-success bg-success/10',
+    'Moderate Opportunity': 'border-primary/40 text-primary bg-primary/10',
+    'Fair Value': 'border-muted-foreground/40 text-muted-foreground bg-muted/30',
+    'Overpriced': 'border-destructive/40 text-destructive bg-destructive/10',
+  };
+  return <Badge variant="outline" className={`text-xs ${styles[classification] || ''}`}>{classification}</Badge>;
+}
+
+function SectionHeader({ num, icon: Icon, title }: { num: number; icon: React.ElementType; title: string }) {
+  return (
+    <div className="flex items-center gap-2.5 mb-4 pb-3 border-b border-border/50">
+      <span className="w-7 h-7 flex items-center justify-center rounded-md bg-gradient-to-br from-primary to-cyan-500 text-primary-foreground font-extrabold text-xs shrink-0">{num}</span>
+      <Icon className="w-4 h-4 text-primary" />
+      <h3 className="text-sm font-bold text-muted-foreground uppercase tracking-widest">{title}</h3>
+    </div>
+  );
+}
+
+export function AIComparativeAnalysis({ plotA, plotB, onClose }: Props) {
+  const [result, setResult] = useState<AIComparisonResult | null>(null);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  const plotALabel = plotA.id;
+  const plotBLabel = plotB.id;
+
+  const runAnalysis = async () => {
+    setLoading(true);
+    setError(null);
+    try {
+      const marketContext = `
+Plot A location: ${plotA.location || 'Dubai'}. Zoning: ${plotA.zoning}. Area: ${Math.round(plotA.area * SQM_TO_SQFT)} sqft. GFA: ${Math.round(plotA.gfa * SQM_TO_SQFT)} sqft.
+Plot B location: ${plotB.location || 'Dubai'}. Zoning: ${plotB.zoning}. Area: ${Math.round(plotB.area * SQM_TO_SQFT)} sqft. GFA: ${Math.round(plotB.gfa * SQM_TO_SQFT)} sqft.
+Use Dubai market averages for these zones. Consider current Q1 2026 market conditions.`;
+
+      const { data, error: fnError } = await supabase.functions.invoke('plot-comparison', {
+        body: {
+          plotA: {
+            id: plotA.id,
+            location: plotA.location,
+            areaSqft: Math.round(plotA.area * SQM_TO_SQFT),
+            gfaSqft: Math.round(plotA.gfa * SQM_TO_SQFT),
+            zoning: plotA.zoning,
+            status: plotA.status,
+            floors: plotA.floors,
+            developer: plotA.developer,
+          },
+          plotB: {
+            id: plotB.id,
+            location: plotB.location,
+            areaSqft: Math.round(plotB.area * SQM_TO_SQFT),
+            gfaSqft: Math.round(plotB.gfa * SQM_TO_SQFT),
+            zoning: plotB.zoning,
+            status: plotB.status,
+            floors: plotB.floors,
+            developer: plotB.developer,
+          },
+          marketContext,
+        },
+      });
+
+      if (fnError) throw new Error(fnError.message || 'Analysis failed');
+      if (data?.error) throw new Error(data.error);
+      setResult(data as AIComparisonResult);
+    } catch (e) {
+      const msg = e instanceof Error ? e.message : 'Analysis failed';
+      setError(msg);
+      toast({ title: 'Analysis Failed', description: msg, variant: 'destructive' });
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  if (!result && !loading) {
+    return (
+      <div className="h-full flex flex-col items-center justify-center glass-card glow-border p-8">
+        <div className="w-16 h-16 rounded-2xl flex items-center justify-center mb-6"
+          style={{ background: 'linear-gradient(135deg, hsl(var(--primary)), hsl(var(--secondary)))' }}>
+          <Brain className="w-8 h-8 text-primary-foreground" />
+        </div>
+        <h2 className="text-xl font-bold mb-2">AI Comparative Analysis</h2>
+        <p className="text-sm text-muted-foreground text-center mb-6 max-w-md">
+          Generate an advanced investment comparison between <span className="font-bold text-foreground">{plotALabel}</span> and <span className="font-bold text-foreground">{plotBLabel}</span> using GIS data, market benchmarks, and feasibility outputs.
+        </p>
+        <Button onClick={runAnalysis} size="lg" className="gap-2">
+          <Brain className="w-4 h-4" />
+          Run AI Analysis
+        </Button>
+        {error && <p className="text-sm text-destructive mt-4">{error}</p>}
+      </div>
+    );
+  }
+
+  if (loading) {
+    return (
+      <div className="h-full flex flex-col items-center justify-center glass-card glow-border">
+        <Loader2 className="w-12 h-12 text-primary animate-spin mb-4" />
+        <h3 className="text-lg font-bold mb-1">Analyzing Plots...</h3>
+        <p className="text-sm text-muted-foreground">Running AI comparative analysis across 7 dimensions</p>
+      </div>
+    );
+  }
+
+  if (!result) return null;
+
+  const r = result;
+  const winnerLabel = r.verdict.winner === 'plotA' ? plotALabel : plotBLabel;
+  const scoreFactors: { key: keyof Omit<ScoreBreakdown, 'overall'>; label: string }[] = [
+    { key: 'demandStrength', label: 'Demand Strength' },
+    { key: 'supplyRisk', label: 'Supply Risk' },
+    { key: 'priceTrend', label: 'Price Trend' },
+    { key: 'developmentPotential', label: 'Development Potential' },
+    { key: 'exitLiquidity', label: 'Exit Liquidity' },
+  ];
+
+  return (
+    <div className="h-full glass-card glow-border flex flex-col overflow-hidden">
+      {/* Header */}
+      <div className="p-4 border-b border-border/50 flex items-center justify-between shrink-0">
+        <div className="flex items-center gap-3">
+          <div className="w-9 h-9 rounded-xl flex items-center justify-center"
+            style={{ background: 'linear-gradient(135deg, hsl(var(--primary)), hsl(var(--secondary)))' }}>
+            <Brain className="w-5 h-5 text-primary-foreground" />
+          </div>
+          <div>
+            <h2 className="font-bold text-base">AI Comparative Analysis</h2>
+            <p className="text-xs text-muted-foreground">{plotALabel} vs {plotBLabel}</p>
+          </div>
+        </div>
+        <div className="flex items-center gap-2">
+          <Button variant="outline" size="sm" onClick={runAnalysis} disabled={loading}>
+            Re-analyze
+          </Button>
+          <Button variant="ghost" size="sm" onClick={onClose}>Close</Button>
+        </div>
+      </div>
+
+      <ScrollArea className="flex-1">
+        <div className="p-5 space-y-8">
+
+          {/* 1. Plot Intelligence Score */}
+          <section>
+            <SectionHeader num={1} icon={Target} title="Plot Intelligence Score" />
+            <div className="grid grid-cols-2 gap-4 mb-4">
+              {[{ label: plotALabel, scores: r.plotScores.plotA }, { label: plotBLabel, scores: r.plotScores.plotB }].map(({ label, scores }) => (
+                <div key={label} className={`p-4 rounded-xl border ${scores.overall === Math.max(r.plotScores.plotA.overall, r.plotScores.plotB.overall) ? 'border-primary/50 bg-primary/5' : 'border-border/50 bg-card/50'}`}>
+                  <div className="flex items-center justify-between mb-3">
+                    <span className="font-bold text-sm">{label}</span>
+                    <span className={`text-2xl font-black font-mono ${scores.overall >= 7 ? 'text-success' : scores.overall >= 5 ? 'text-warning' : 'text-destructive'}`}>
+                      {scores.overall.toFixed(1)}
+                    </span>
+                  </div>
+                  <div className="space-y-2">
+                    {scoreFactors.map(f => (
+                      <div key={f.key} className="flex items-center gap-2">
+                        <span className="text-xs text-muted-foreground w-32 shrink-0">{f.label}</span>
+                        <ScoreBar score={scores[f.key]} />
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              ))}
+            </div>
+            <div className="text-center">
+              <Badge className="bg-primary/20 text-primary border-primary/30 text-xs">
+                {winnerLabel} leads with {Math.max(r.plotScores.plotA.overall, r.plotScores.plotB.overall).toFixed(1)} / 10
+              </Badge>
+            </div>
+          </section>
+
+          {/* 2. Demand Heatmap */}
+          <section>
+            <SectionHeader num={2} icon={BarChart3} title="Demand Heatmap" />
+            <div className="grid grid-cols-4 gap-3 mb-4">
+              {[
+                { label: 'Studio', pct: r.demandHeatmap.distribution.studio },
+                { label: '1 BR', pct: r.demandHeatmap.distribution.oneBR },
+                { label: '2 BR', pct: r.demandHeatmap.distribution.twoBR },
+                { label: '3 BR', pct: r.demandHeatmap.distribution.threeBR },
+              ].map(({ label, pct }) => (
+                <div key={label} className="text-center p-3 rounded-xl border border-border/50 bg-card/50">
+                  <div className="text-xs text-muted-foreground mb-1">{label}</div>
+                  <div className={`text-xl font-black font-mono ${pct >= 30 ? 'text-primary' : pct >= 15 ? 'text-foreground' : 'text-muted-foreground'}`}>{pct}%</div>
+                  <div className="mt-1.5 bg-muted/50 rounded-full h-1.5">
+                    <div className="h-1.5 rounded-full bg-primary transition-all" style={{ width: `${pct}%` }} />
+                  </div>
+                </div>
+              ))}
+            </div>
+            <div className="grid grid-cols-2 gap-3">
+              <div className="p-3 rounded-lg border border-border/30 bg-card/30">
+                <div className="text-xs font-bold text-muted-foreground mb-1">{plotALabel} Benefit</div>
+                <p className="text-xs text-foreground">{r.demandHeatmap.plotABenefit}</p>
+              </div>
+              <div className="p-3 rounded-lg border border-border/30 bg-card/30">
+                <div className="text-xs font-bold text-muted-foreground mb-1">{plotBLabel} Benefit</div>
+                <p className="text-xs text-foreground">{r.demandHeatmap.plotBBenefit}</p>
+              </div>
+            </div>
+            <div className="mt-3 p-3 rounded-lg border border-primary/20 bg-primary/5">
+              <div className="text-xs font-bold text-primary mb-1">Expected Sell-Out Timeline</div>
+              <div className="flex gap-6 text-sm">
+                <span><span className="font-bold">{plotALabel}:</span> {r.demandHeatmap.sellOutTimeline.plotA}</span>
+                <span><span className="font-bold">{plotBLabel}:</span> {r.demandHeatmap.sellOutTimeline.plotB}</span>
+              </div>
+            </div>
+          </section>
+
+          {/* 3. Risk Detection */}
+          <section>
+            <SectionHeader num={3} icon={AlertTriangle} title="Risk Detection System" />
+            <div className="grid grid-cols-2 gap-4">
+              {[{ label: plotALabel, risks: r.risks.plotA }, { label: plotBLabel, risks: r.risks.plotB }].map(({ label, risks }) => (
+                <div key={label} className="p-4 rounded-xl border border-border/50 bg-card/50">
+                  <div className="font-bold text-sm mb-3 flex items-center gap-2">
+                    {label}
+                    {risks.every(r => r.severity === 'low') && <Badge variant="outline" className="text-xs border-success/40 text-success bg-success/10">Low Risk</Badge>}
+                    {risks.some(r => r.severity === 'high') && <Badge variant="outline" className="text-xs border-destructive/40 text-destructive bg-destructive/10">⚠ High Risk</Badge>}
+                  </div>
+                  <div className="space-y-2">
+                    {risks.map((risk, i) => (
+                      <div key={i} className="p-2 rounded-lg bg-muted/30">
+                        <div className="flex items-center justify-between mb-1">
+                          <span className="text-xs font-semibold">{risk.risk}</span>
+                          <SeverityBadge severity={risk.severity} />
+                        </div>
+                        <p className="text-xs text-muted-foreground">{risk.detail}</p>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              ))}
+            </div>
+          </section>
+
+          {/* 4. Land Owner Opportunity Alert */}
+          <section>
+            <SectionHeader num={4} icon={DollarSign} title="Land Owner Opportunity Alert" />
+            <div className="grid grid-cols-2 gap-4">
+              {[{ label: plotALabel, val: r.valuationOpportunity.plotA }, { label: plotBLabel, val: r.valuationOpportunity.plotB }].map(({ label, val }) => (
+                <div key={label} className="p-4 rounded-xl border border-border/50 bg-card/50">
+                  <div className="font-bold text-sm mb-3 flex items-center justify-between">
+                    {label}
+                    <ClassificationBadge classification={val.classification} />
+                  </div>
+                  <div className="space-y-2 text-sm">
+                    <div className="flex justify-between"><span className="text-muted-foreground">Market PSF</span><span className="font-mono font-bold">{val.marketPSF} AED</span></div>
+                    <div className="flex justify-between"><span className="text-muted-foreground">Plot PSF</span><span className="font-mono font-bold">{val.plotPSF} AED</span></div>
+                    <div className="flex justify-between border-t border-border/30 pt-2">
+                      <span className="text-muted-foreground">Undervaluation</span>
+                      <span className={`font-mono font-bold ${val.undervaluation > 10 ? 'text-success' : val.undervaluation > 0 ? 'text-primary' : 'text-destructive'}`}>
+                        {val.undervaluation > 0 ? '+' : ''}{val.undervaluation}%
+                      </span>
+                    </div>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </section>
+
+          {/* 5. Land Assembly Detector */}
+          <section>
+            <SectionHeader num={5} icon={Layers} title="Land Assembly Detector" />
+            <div className="grid grid-cols-2 gap-4">
+              {[{ label: plotALabel, asm: r.landAssembly.plotA }, { label: plotBLabel, asm: r.landAssembly.plotB }].map(({ label, asm }) => (
+                <div key={label} className={`p-4 rounded-xl border ${asm.detected ? 'border-primary/40 bg-primary/5' : 'border-border/50 bg-card/50'}`}>
+                  <div className="font-bold text-sm mb-2 flex items-center gap-2">
+                    {label}
+                    {asm.detected ? (
+                      <Badge variant="outline" className="text-xs border-primary/40 text-primary bg-primary/10">Opportunity Detected</Badge>
+                    ) : (
+                      <Badge variant="outline" className="text-xs">No Assembly</Badge>
+                    )}
+                  </div>
+                  {asm.detected ? (
+                    <div className="space-y-1 text-sm">
+                      <div className="flex justify-between"><span className="text-muted-foreground">Adjacent Plots</span><span className="font-bold">{asm.adjacentPlots}</span></div>
+                      <div className="flex justify-between"><span className="text-muted-foreground">Total Potential</span><span className="font-mono font-bold">{asm.totalPotentialSqft.toLocaleString()} sqft</span></div>
+                      <div className="flex justify-between"><span className="text-muted-foreground">Potential Use</span><span className="text-foreground">{asm.potentialUse}</span></div>
+                      <div className="flex justify-between"><span className="text-muted-foreground">Value Increase</span><span className="text-success font-bold">{asm.valueIncrease}</span></div>
+                    </div>
+                  ) : (
+                    <p className="text-xs text-muted-foreground">No adjacent assembly opportunities detected within 100m radius.</p>
+                  )}
+                </div>
+              ))}
+            </div>
+          </section>
+
+          {/* 6. Exit Strategy Planner */}
+          <section>
+            <SectionHeader num={6} icon={TrendingUp} title="Exit Strategy Planner" />
+            <div className="rounded-xl border border-border/50 overflow-hidden">
+              <table className="w-full text-sm">
+                <thead>
+                  <tr className="border-b border-border/50 bg-muted/30">
+                    <th className="text-left p-3 font-semibold text-muted-foreground text-xs uppercase">Strategy</th>
+                    <th className="text-center p-3 font-semibold text-muted-foreground text-xs uppercase">{plotALabel}</th>
+                    <th className="text-center p-3 font-semibold text-muted-foreground text-xs uppercase">{plotBLabel}</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {[
+                    { label: 'Sell Land', a: r.exitStrategies.sellLand.plotA, b: r.exitStrategies.sellLand.plotB },
+                    { label: 'Develop Project', a: r.exitStrategies.developProject.plotA, b: r.exitStrategies.developProject.plotB },
+                    { label: 'Joint Venture', a: r.exitStrategies.jointVenture.plotA, b: r.exitStrategies.jointVenture.plotB },
+                  ].map(({ label, a, b }) => (
+                    <tr key={label} className="border-b border-border/30">
+                      <td className="p-3 font-medium">{label}</td>
+                      <td className="p-3 text-center"><ProfitBadge label={a} /></td>
+                      <td className="p-3 text-center"><ProfitBadge label={b} /></td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+            <div className="grid grid-cols-2 gap-3 mt-3">
+              <div className="p-3 rounded-lg border border-primary/20 bg-primary/5">
+                <div className="text-xs text-muted-foreground mb-0.5">Best for {plotALabel}</div>
+                <div className="font-bold text-sm text-primary">{r.exitStrategies.bestStrategyA}</div>
+              </div>
+              <div className="p-3 rounded-lg border border-primary/20 bg-primary/5">
+                <div className="text-xs text-muted-foreground mb-0.5">Best for {plotBLabel}</div>
+                <div className="font-bold text-sm text-primary">{r.exitStrategies.bestStrategyB}</div>
+              </div>
+            </div>
+          </section>
+
+          {/* 7. AI Verdict */}
+          <section>
+            <SectionHeader num={7} icon={Shield} title="AI Comparative Verdict" />
+            <div className="p-5 rounded-xl border-2 border-primary/40 bg-gradient-to-br from-primary/10 to-transparent">
+              <div className="flex items-center gap-3 mb-4">
+                <div className="w-10 h-10 rounded-xl flex items-center justify-center bg-primary/20">
+                  <CheckCircle className="w-5 h-5 text-primary" />
+                </div>
+                <div>
+                  <div className="font-bold text-lg">{winnerLabel} — Recommended</div>
+                  <Badge variant="outline" className={`text-xs ${r.verdict.confidenceLevel === 'High' ? 'border-success/40 text-success' : r.verdict.confidenceLevel === 'Medium' ? 'border-warning/40 text-warning' : 'border-muted-foreground/40 text-muted-foreground'}`}>
+                    Confidence: {r.verdict.confidenceLevel}
+                  </Badge>
+                </div>
+              </div>
+              <div className="space-y-2 mb-4">
+                {r.verdict.reasoning.map((reason, i) => (
+                  <div key={i} className="flex items-start gap-2 text-sm">
+                    <CheckCircle className="w-3.5 h-3.5 text-success mt-0.5 shrink-0" />
+                    <span>{reason}</span>
+                  </div>
+                ))}
+              </div>
+              <div className="p-3 rounded-lg bg-primary/10 border border-primary/20">
+                <div className="text-xs font-bold text-primary mb-0.5">Recommended Action</div>
+                <p className="text-sm font-medium">{r.verdict.recommendedAction}</p>
+              </div>
+            </div>
+          </section>
+        </div>
+      </ScrollArea>
+    </div>
+  );
+}
+
+function ProfitBadge({ label }: { label: string }) {
+  const lower = label.toLowerCase();
+  const isHigh = lower.includes('high');
+  const isMedium = lower.includes('medium') || lower.includes('moderate');
+  const isLow = lower.includes('low');
+  return (
+    <span className={`text-xs font-semibold px-2 py-0.5 rounded-full ${isHigh ? 'bg-success/15 text-success' : isMedium ? 'bg-warning/15 text-warning' : isLow ? 'bg-muted text-muted-foreground' : ''}`}>
+      {label}
+    </span>
+  );
+}
