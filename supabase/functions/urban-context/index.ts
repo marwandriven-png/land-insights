@@ -123,7 +123,7 @@ SELECTED PLOT:
 - Coordinates: Lat ${selectedPlot.lat || 'N/A'}, Lng ${selectedPlot.lng || 'N/A'}
 ${setbackInfo}
 
-SURROUNDING PLOTS WITHIN 1KM (${allNearby.length} plots):
+SURROUNDING PLOTS WITHIN 5KM (${allNearby.length} plots):
 ${nearbyDesc || 'No nearby plots data available.'}
 ${facilitiesDesc}
 
