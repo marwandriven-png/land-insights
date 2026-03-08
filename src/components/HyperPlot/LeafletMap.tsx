@@ -46,18 +46,36 @@ export function LeafletMap({ plots, selectedPlot, onPlotClick, highlightedPlots,
       center: [25.075, 55.20],
       zoom: 13,
       minZoom: 8,
-      maxZoom: 19,
+      maxZoom: 20,
       zoomControl: false,
       attributionControl: false,
       maxBounds: UAE_BOUNDS,
       maxBoundsViscosity: 1.0,
       bounceAtZoomLimits: true,
-      worldCopyJump: false
+      worldCopyJump: false,
+      zoomSnap: 0.5,
+      zoomDelta: 0.5,
+      wheelPxPerZoomLevel: 90,
+      preferCanvas: true,
     });
 
+    // High-res satellite base layer
     L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}', {
-      maxZoom: 19,
-      noWrap: true
+      maxZoom: 20,
+      maxNativeZoom: 19,
+      noWrap: true,
+      detectRetina: true,
+      tileSize: 256,
+    }).addTo(map);
+
+    // Hybrid labels overlay for road names / landmarks
+    L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/Reference/World_Transportation/MapServer/tile/{z}/{y}/{x}', {
+      maxZoom: 20,
+      maxNativeZoom: 19,
+      noWrap: true,
+      detectRetina: true,
+      opacity: 0.7,
+      pane: 'overlayPane',
     }).addTo(map);
 
     L.control.zoom({ position: 'topleft' }).addTo(map);
