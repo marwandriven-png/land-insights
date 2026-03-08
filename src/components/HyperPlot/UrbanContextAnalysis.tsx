@@ -399,6 +399,8 @@ export function UrbanContextAnalysis({ plot, onClose }: UrbanContextAnalysisProp
       </ScrollArea>
     </div>
   );
+
+  return maximized ? createPortal(content, document.body) : content;
 }
 
 function Section({ icon, title, badge, children }: { icon: React.ReactNode; title: string; badge?: string; children: React.ReactNode }) {
@@ -412,8 +414,6 @@ function Section({ icon, title, badge, children }: { icon: React.ReactNode; titl
       {children}
     </div>
   );
-
-  return maximized ? createPortal(content, document.body) : content;
 }
 
 function MetricBox({ label, value }: { label: string; value: string }) {
