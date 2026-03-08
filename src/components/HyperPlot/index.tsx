@@ -229,12 +229,16 @@ export function HyperPlotAI() {
   }, []);
 
   const handlePlotClick = useCallback((plot: PlotData, goToMap = false) => {
-    setSelectedPlot(plot);
-    setShowDetailPanel(true);
-    saveLastSeen(plot);
-    if (goToMap) {
-      setActiveTab('map');
-    }
+    // Force re-trigger by clearing first (handles re-selecting same plot from recent)
+    setSelectedPlot(null);
+    requestAnimationFrame(() => {
+      setSelectedPlot(plot);
+      setShowDetailPanel(true);
+      saveLastSeen(plot);
+      if (goToMap) {
+        setActiveTab('map');
+      }
+    });
   }, [saveLastSeen]);
 
   const handlePlotFound = useCallback((plot: PlotData) => {
