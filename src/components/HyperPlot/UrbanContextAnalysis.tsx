@@ -65,7 +65,7 @@ export function UrbanContextAnalysis({ plot, onClose }: UrbanContextAnalysisProp
       let nearbyPlots: PlotData[] = [];
 
       if (lat && lng && lat !== 0 && lng !== 0) {
-        nearbyPlots = await gisService.searchByLocation(lat, lng, 5000);
+        nearbyPlots = await gisService.searchByLocation(lat, lng, 5000, 200);
         nearbyPlots = nearbyPlots.filter(p => p.id !== plot.id);
       }
       setNearbyCount(nearbyPlots.length);
