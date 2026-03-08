@@ -830,7 +830,9 @@ export function HyperPlotAI() {
                             setComparisonPlots(prev => {
                               if (prev.find(p => p.id === plot.id)) return prev.filter(p => p.id !== plot.id);
                               if (prev.length >= 3) return prev;
-                              return [...prev, plot];
+                              const next = [...prev, plot];
+                              if (next.length >= 2) setActiveTab('feasibility');
+                              return next;
                             });
                           }}
                           className={`absolute top-2 right-2 p-1.5 rounded-md transition-all ${comparisonPlots.find(p => p.id === plot.id)
