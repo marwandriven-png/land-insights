@@ -42,6 +42,7 @@ export function UrbanContextAnalysis({ plot, onClose }: UrbanContextAnalysisProp
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [nearbyCount, setNearbyCount] = useState(0);
+  const [maximized, setMaximized] = useState(false);
 
   useEffect(() => {
     runAnalysis();

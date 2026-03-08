@@ -377,6 +377,8 @@ export function LandAssemblyIntelligence({ plot, onSelectPlot, onClose }: LandAs
       </ScrollArea>
     </div>
   );
+
+  return maximized ? createPortal(content, document.body) : content;
 }
 
 function Section({ icon, title, badge, badgeVariant, children }: { icon: React.ReactNode; title: string; badge?: string; badgeVariant?: 'default' | 'secondary'; children: React.ReactNode }) {
