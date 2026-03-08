@@ -246,10 +246,14 @@ export function HyperPlotAI() {
       if (prev.find(p => p.id === plot.id)) return prev;
       return [...prev, plot];
     });
-    setSelectedPlot(plot);
-    setShowDetailPanel(true);
-    setActiveTab('map');
-    saveLastSeen(plot);
+    // Force re-trigger for same plot
+    setSelectedPlot(null);
+    requestAnimationFrame(() => {
+      setSelectedPlot(plot);
+      setShowDetailPanel(true);
+      setActiveTab('map');
+      saveLastSeen(plot);
+    });
   }, [saveLastSeen]);
 
   const handleCloseDetailPanel = useCallback(() => {
