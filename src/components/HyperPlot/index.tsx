@@ -462,7 +462,13 @@ export function HyperPlotAI() {
                     />
                   </div>
                 )}
-                {activeTab === 'feasibility' && selectedPlot ? (
+                {activeTab === 'feasibility' && comparisonPlots.length >= 2 ? (
+                  <AIComparativeAnalysis
+                    plotA={comparisonPlots[0]}
+                    plotB={comparisonPlots[1]}
+                    onClose={() => setComparisonPlots([])}
+                  />
+                ) : activeTab === 'feasibility' && selectedPlot ? (
                   <DecisionConfidence plot={selectedPlot} comparisonPlots={comparisonPlots} isFullscreen={false} onToggleFullscreen={() => setDecisionFullscreen(true)} onExitComparison={() => setComparisonPlots([])} sharedFeasibilityParams={sharedFeasibilityParams} onFeasibilityParamsChange={setSharedFeasibilityParams} />
                 ) : activeTab === 'feasibility' ? (
                   <div className="h-full flex items-center justify-center glass-card glow-border">
