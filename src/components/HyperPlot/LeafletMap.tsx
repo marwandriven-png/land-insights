@@ -94,18 +94,18 @@ export function LeafletMap({ plots, selectedPlot, onPlotClick, highlightedPlots,
       return selectedPlot?.id === id || highlightedPlots.includes(id);
     }
 
-    // Red pin icon for selected fallback plot
+    // Magenta pin icon for selected fallback plot
     const fallbackPinIcon = () => L.divIcon({
       className: 'fallback-pin-wrapper',
       html: `<div class="fallback-pin fallback-pin-selected">
-        <svg width="32" height="44" viewBox="0 0 28 40" fill="none" xmlns="http://www.w3.org/2000/svg">
-          <path d="M14 0C6.268 0 0 6.268 0 14c0 10.5 14 26 14 26s14-15.5 14-26C28 6.268 21.732 0 14 0z" fill="#ff4444" fill-opacity="0.95"/>
-          <circle cx="14" cy="14" r="6" fill="#fff" stroke="#cc0000" stroke-width="1.5"/>
+        <svg width="36" height="50" viewBox="0 0 28 40" fill="none" xmlns="http://www.w3.org/2000/svg">
+          <path d="M14 0C6.268 0 0 6.268 0 14c0 10.5 14 26 14 26s14-15.5 14-26C28 6.268 21.732 0 14 0z" fill="#FF2D78" fill-opacity="0.95"/>
+          <circle cx="14" cy="14" r="6" fill="#fff" stroke="#cc1560" stroke-width="1.5"/>
         </svg>
       </div>`,
-      iconSize: [32, 44],
-      iconAnchor: [16, 44],
-      popupAnchor: [0, -44]
+      iconSize: [36, 50],
+      iconAnchor: [18, 50],
+      popupAnchor: [0, -50]
     });
 
     plots.forEach(plot => {
@@ -178,7 +178,7 @@ export function LeafletMap({ plots, selectedPlot, onPlotClick, highlightedPlots,
         <div class="p-2 min-w-[180px]">
           <div class="font-bold text-sm">${plot.id}</div>
           <div class="text-xs text-gray-400">${plot.location || plot.project || 'Dubai'}</div>
-          ${isFallbackPlot ? '<div class="text-xs mt-1 px-1.5 py-0.5 rounded" style="background:#ff444422;color:#ff4444;border:1px solid #ff444444">📍 Fallback DB</div>' : ''}
+          ${isFallbackPlot ? '<div class="text-xs mt-1 px-1.5 py-0.5 rounded" style="background:#FF2D7822;color:#FF2D78;border:1px solid #FF2D7844">📍 Fallback DB</div>' : ''}
           <hr class="my-1 border-gray-600" />
           <div class="grid grid-cols-2 gap-1 text-xs">
             <span class="text-gray-400">Area:</span>
@@ -310,8 +310,9 @@ export function LeafletMap({ plots, selectedPlot, onPlotClick, highlightedPlots,
         .plot-glow-layer { filter: drop-shadow(0 0 6px rgba(0, 229, 255, 0.7)) drop-shadow(0 0 14px rgba(0, 229, 255, 0.35)); }
         .plot-glow-circle { filter: drop-shadow(0 0 6px rgba(0, 229, 255, 0.7)) drop-shadow(0 0 12px rgba(0, 229, 255, 0.4)); }
         .fallback-pin-wrapper { background: none !important; border: none !important; }
-        .fallback-pin { filter: drop-shadow(0 0 6px rgba(255, 68, 68, 0.8)) drop-shadow(0 0 14px rgba(255, 68, 68, 0.4)); }
-        .fallback-pin-selected { filter: drop-shadow(0 0 10px rgba(255, 68, 68, 0.9)) drop-shadow(0 0 22px rgba(255, 68, 68, 0.5)); transform: scale(1.15); }
+        .fallback-pin { filter: drop-shadow(0 0 8px rgba(255, 45, 120, 0.8)) drop-shadow(0 0 18px rgba(255, 45, 120, 0.4)); transition: transform 0.2s ease; }
+        .fallback-pin-selected { filter: drop-shadow(0 0 12px rgba(255, 45, 120, 0.9)) drop-shadow(0 0 28px rgba(255, 45, 120, 0.5)); transform: scale(1.1); animation: fallback-pulse 2s ease-in-out infinite; }
+        @keyframes fallback-pulse { 0%, 100% { transform: scale(1.1); } 50% { transform: scale(1.2); } }
       `}</style>
     </div>
   );
