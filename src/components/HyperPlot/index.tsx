@@ -106,14 +106,11 @@ export function HyperPlotAI() {
       const isConnected = await gisService.testConnection();
       setGisConnected(isConnected);
 
-      if (!isConnected) {
-        throw new Error('Unable to connect to DDA GIS services');
-      }
-
       const progressInterval = setInterval(() => {
         setLoadProgress(prev => Math.min(prev + 10, 90));
       }, 200);
 
+      // fetchPlots handles GIS failure internally — falls back to fallback DB
       const gisPlots = await gisService.fetchPlots(500);
 
       clearInterval(progressInterval);
@@ -121,8 +118,12 @@ export function HyperPlotAI() {
 
       if (gisPlots && gisPlots.length > 0) {
         setPlots(mergeManualLands(gisPlots));
+        // If GIS test failed but fallback plots loaded, show partial status
+        if (!isConnected) {
+          setGisError('GIS unavailable — showing fallback database plots');
+        }
       } else {
-        throw new Error('No plot data received from GIS service');
+        throw new Error('No plot data received');
       }
 
       setTimeout(() => setLoadProgress(0), 500);
