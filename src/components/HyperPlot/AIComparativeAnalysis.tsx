@@ -422,10 +422,10 @@ Use Dubai market averages for these zones. Consider current Q1 2026 market condi
           <section>
             <SectionHeader num={++sectionNum} icon={AlertTriangle} title="Risk Detection System" />
             <div className="grid grid-cols-2 gap-4">
-              {[{ label: plotALabel, risks: r.risks.plotA }, { label: plotBLabel, risks: r.risks.plotB }].map(({ label, risks }) => (
+              {[{ label: plotALabel, area: plotAArea, risks: r.risks.plotA }, { label: plotBLabel, area: plotBArea, risks: r.risks.plotB }].map(({ label, area, risks }) => (
                 <div key={label} className="p-4 rounded-xl border border-border/50 bg-card/50">
                   <div className="font-bold text-sm mb-3 flex items-center gap-2">
-                    {label}
+                    <div><span>{label}</span>{area && <div className="text-[10px] text-muted-foreground font-normal">{area}</div>}</div>
                     {risks.every(r => r.severity === 'low') && <Badge variant="outline" className="text-xs border-success/40 text-success bg-success/10">Low Risk</Badge>}
                     {risks.some(r => r.severity === 'high') && <Badge variant="outline" className="text-xs border-destructive/40 text-destructive bg-destructive/10">⚠ High Risk</Badge>}
                   </div>
