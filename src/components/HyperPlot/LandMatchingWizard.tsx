@@ -86,6 +86,7 @@ interface LandMatchingWizardProps {
   plots: PlotData[];
   onHighlightPlots: (plotIds: string[]) => void;
   onSelectPlot: (plot: PlotData) => void;
+  onAddPlots?: (plots: PlotData[]) => void;
 }
 
 type WizardStep = 'upload' | 'parsing' | 'matching' | 'results';
@@ -96,7 +97,8 @@ export function LandMatchingWizard({
   onClose,
   plots,
   onHighlightPlots,
-  onSelectPlot
+  onSelectPlot,
+  onAddPlots
 }: LandMatchingWizardProps) {
   const [step, setStep] = useState<WizardStep>('upload');
   const [inputMode, setInputMode] = useState<InputMode>('form');
