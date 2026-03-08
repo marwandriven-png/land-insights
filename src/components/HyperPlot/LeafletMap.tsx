@@ -202,26 +202,27 @@ export function LeafletMap({ plots, selectedPlot, onPlotClick, highlightedPlots,
     });
   }, [plots, selectedPlot, highlightedPlots, onPlotClick]);
 
-  // Pan/zoom to fallback plots since CinematicPlotOverlay is disabled for them
+  // Pan/zoom to selected plot (fallback plots bypass CinematicPlotOverlay)
   useEffect(() => {
     const map = mapRef.current;
     if (!map || !selectedPlot) return;
     const rawAttrs = selectedPlot.rawAttributes as Record<string, unknown> | undefined;
-    if (!rawAttrs?._isFallbackPlot) return;
+    const isFallback = !!rawAttrs?._isFallbackPlot;
+    const isManualLatLng = !!rawAttrs?._isManualLatLng;
 
-    const isManualLatLng = rawAttrs._isManualLatLng === true;
+    // For non-fallback plots with geometry, CinematicPlotOverlay handles navigation
+    if (!isFallback && rawAttrs?.geometry) return;
+
     let lat: number, lng: number;
     if (isManualLatLng) { lat = selectedPlot.y; lng = selectedPlot.x; }
     else { [lat, lng] = convertToLatLng(selectedPlot.x * 10 + 495000, selectedPlot.y * 10 + 2766000); }
 
-    // Validate coordinates
     if (!lat || !lng || lat < -90 || lat > 90 || lng < -180 || lng > 180) {
-      console.warn('Invalid fallback plot coordinates:', lat, lng);
+      console.warn('Invalid plot coordinates:', lat, lng);
       return;
     }
 
     map.invalidateSize();
-    // Fly directly to the location at a good zoom level
     map.setView([lat, lng], 17, { animate: true, duration: 1 });
   }, [selectedPlot]);
 

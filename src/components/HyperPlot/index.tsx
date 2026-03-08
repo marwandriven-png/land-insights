@@ -229,12 +229,16 @@ export function HyperPlotAI() {
   }, []);
 
   const handlePlotClick = useCallback((plot: PlotData, goToMap = false) => {
-    setSelectedPlot(plot);
-    setShowDetailPanel(true);
-    saveLastSeen(plot);
-    if (goToMap) {
-      setActiveTab('map');
-    }
+    // Force re-trigger by clearing first (handles re-selecting same plot from recent)
+    setSelectedPlot(null);
+    requestAnimationFrame(() => {
+      setSelectedPlot(plot);
+      setShowDetailPanel(true);
+      saveLastSeen(plot);
+      if (goToMap) {
+        setActiveTab('map');
+      }
+    });
   }, [saveLastSeen]);
 
   const handlePlotFound = useCallback((plot: PlotData) => {
@@ -242,10 +246,14 @@ export function HyperPlotAI() {
       if (prev.find(p => p.id === plot.id)) return prev;
       return [...prev, plot];
     });
-    setSelectedPlot(plot);
-    setShowDetailPanel(true);
-    setActiveTab('map');
-    saveLastSeen(plot);
+    // Force re-trigger for same plot
+    setSelectedPlot(null);
+    requestAnimationFrame(() => {
+      setSelectedPlot(plot);
+      setShowDetailPanel(true);
+      setActiveTab('map');
+      saveLastSeen(plot);
+    });
   }, [saveLastSeen]);
 
   const handleCloseDetailPanel = useCallback(() => {
@@ -610,8 +618,35 @@ export function HyperPlotAI() {
                                       if (matchedPlot) {
                                         handlePlotClick(matchedPlot, true);
                                       } else {
-                                        const fetched = await gisService.fetchPlotById(entry.plotId);
-                                        if (fetched) handlePlotFound(fetched);
+                                        // Try GIS first
+                                        try {
+                                          const fetched = await gisService.fetchPlotById(entry.plotId);
+                                          if (fetched) { handlePlotFound(fetched); return; }
+                                        } catch { /* continue to fallback reconstruction */ }
+                                        // Reconstruct from saved entry (fallback/manual plots not in GIS)
+                                        const reconstructed: PlotData = {
+                                          id: entry.plotId,
+                                          x: entry.coordinates.x,
+                                          y: entry.coordinates.y,
+                                          area: entry.area,
+                                          gfa: entry.gfa,
+                                          zoning: entry.zoning,
+                                          status: entry.status,
+                                          location: entry.location,
+                                          project: entry.plotName,
+                                          floors: '',
+                                          developer: '',
+                                          color: '',
+                                          constructionCost: 0,
+                                          salePrice: 0,
+                                          isFrozen: false,
+                                          verificationSource: 'DLD' as const,
+                                          rawAttributes: {
+                                            _isFallbackPlot: true,
+                                            _isManualLatLng: true,
+                                          }
+                                        };
+                                        handlePlotFound(reconstructed);
                                       }
                                     }}
                                   >
