@@ -70,6 +70,38 @@ export function UrbanContextAnalysis({ plot, onClose }: UrbanContextAnalysisProp
         nearbyPlots = await gisService.searchByLocation(lat, lng, 5000, 200);
         nearbyPlots = nearbyPlots.filter(p => p.id !== plot.id);
       }
+
+      // Also search by area name to ensure we get parks, commercial, facilities from the same community
+      const areaName = plot.location || plot.project || plot.entity || '';
+      if (areaName && areaName !== 'Dubai') {
+        try {
+          const areaPlots = await gisService.searchByArea(undefined, undefined, areaName);
+          const existingIds = new Set(nearbyPlots.map(p => p.id));
+          existingIds.add(plot.id);
+          const uniqueAreaPlots = areaPlots.filter(p => !existingIds.has(p.id));
+          nearbyPlots = [...nearbyPlots, ...uniqueAreaPlots];
+        } catch (e) {
+          console.log('Area search supplementary failed:', e);
+        }
+      }
+
+      // Smart sort: prioritize same-area plots and facilities/parks/commercial
+      const selectedArea = areaName.toUpperCase();
+      nearbyPlots.sort((a, b) => {
+        const aArea = (a.location || a.project || a.entity || '').toUpperCase();
+        const bArea = (b.location || b.project || b.entity || '').toUpperCase();
+        const aLU = (a.landUseDetails || '').toUpperCase();
+        const bLU = (b.landUseDetails || '').toUpperCase();
+        const isImportant = (lu: string) => lu.includes('COMMERCIAL') || lu.includes('SHOPPING') || lu.includes('RETAIL') || lu.includes('PARK') || lu.includes('GARDEN') || lu.includes('FACILITIES') || lu.includes('MASJID') || lu.includes('MOSQUE') || lu.includes('SCHOOL') || lu.includes('HOSPITAL') || lu.includes('COMMUNITY') || lu.includes('OPEN SPACE');
+        const aSameArea = aArea === selectedArea ? 1 : 0;
+        const bSameArea = bArea === selectedArea ? 1 : 0;
+        const aImportant = isImportant(aLU) ? 1 : 0;
+        const bImportant = isImportant(bLU) ? 1 : 0;
+        const aScore = aSameArea * 2 + aImportant;
+        const bScore = bSameArea * 2 + bImportant;
+        return bScore - aScore;
+      });
+
       setNearbyCount(nearbyPlots.length);
 
       // Fetch real affection plan data for building setbacks
