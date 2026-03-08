@@ -1,6 +1,6 @@
 import { useState } from 'react';
-import { Brain, TrendingUp, Shield, AlertTriangle, DollarSign, Layers, Target, Loader2, BarChart3, CheckCircle, XCircle, Minus } from 'lucide-react';
-import { PlotData } from '@/services/DDAGISService';
+import { Brain, TrendingUp, Shield, AlertTriangle, DollarSign, Layers, Target, Loader2, BarChart3, CheckCircle, XCircle, Minus, Combine, TreePine, MapPin, ArrowRight, Lightbulb } from 'lucide-react';
+import { PlotData, gisService } from '@/services/DDAGISService';
 import { supabase } from '@/integrations/supabase/client';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -32,6 +32,14 @@ interface AIComparisonResult {
     plotA: AssemblyData;
     plotB: AssemblyData;
   };
+  landAssemblyIntelligence?: {
+    plotA: LandAssemblyIntel;
+    plotB: LandAssemblyIntel;
+  };
+  urbanContext?: {
+    plotA: UrbanContextData;
+    plotB: UrbanContextData;
+  };
   exitStrategies: {
     sellLand: { plotA: string; plotB: string };
     developProject: { plotA: string; plotB: string };
@@ -56,25 +64,26 @@ interface ScoreBreakdown {
   exitLiquidity: number;
 }
 
-interface RiskItem {
-  risk: string;
-  severity: 'low' | 'medium' | 'high';
-  detail: string;
+interface RiskItem { risk: string; severity: 'low' | 'medium' | 'high'; detail: string; }
+interface ValuationData { marketPSF: number; plotPSF: number; undervaluation: number; classification: string; }
+interface AssemblyData { detected: boolean; adjacentPlots: number; totalPotentialSqft: number; potentialUse: string; valueIncrease: string; }
+
+interface LandAssemblyIntel {
+  sizeClusterInsight: string;
+  matchingScaleCount: number;
+  dominantDevType: string;
+  gfaAssessment: string;
+  assemblyPotentialScale: string;
+  absorptionRate: { studio: string; oneBR: string; twoBR: string; threeBR: string; expectedSellOut: string };
+  alternativeAreas: { area: string; demandScore: string; reason: string }[];
 }
 
-interface ValuationData {
-  marketPSF: number;
-  plotPSF: number;
-  undervaluation: number;
-  classification: string;
-}
-
-interface AssemblyData {
-  detected: boolean;
-  adjacentPlots: number;
-  totalPotentialSqft: number;
-  potentialUse: string;
-  valueIncrease: string;
+interface UrbanContextData {
+  urbanScore: { overall: number; greenSpace: number; roadAccess: number; infrastructureImpact: number; amenities: number; walkability: number };
+  streetFacing: { plotType: string; roadWidth: string; insight: string };
+  viewOrientation: { facing: string; premiumEstimate: string };
+  positiveSignals: string[];
+  negativeSignals: string[];
 }
 
 interface Props {
@@ -125,46 +134,129 @@ function SectionHeader({ num, icon: Icon, title }: { num: number; icon: React.El
   );
 }
 
+function UrbanScoreRadar({ label, data }: { label: string; data: UrbanContextData }) {
+  const categories = [
+    { key: 'greenSpace', label: 'Green' },
+    { key: 'roadAccess', label: 'Roads' },
+    { key: 'infrastructureImpact', label: 'Infra' },
+    { key: 'amenities', label: 'Amenities' },
+    { key: 'walkability', label: 'Walk' },
+  ] as const;
+
+  return (
+    <div className="p-4 rounded-xl border border-border/50 bg-card/50">
+      <div className="flex items-center justify-between mb-3">
+        <span className="font-bold text-sm">{label}</span>
+        <span className={`text-2xl font-black font-mono ${data.urbanScore.overall >= 7 ? 'text-success' : data.urbanScore.overall >= 5 ? 'text-warning' : 'text-destructive'}`}>
+          {data.urbanScore.overall.toFixed(1)}
+        </span>
+      </div>
+      <div className="space-y-2 mb-3">
+        {categories.map(c => (
+          <div key={c.key} className="flex items-center gap-2">
+            <span className="text-xs text-muted-foreground w-16 shrink-0">{c.label}</span>
+            <ScoreBar score={data.urbanScore[c.key]} />
+          </div>
+        ))}
+      </div>
+      <div className="space-y-2 text-xs">
+        <div className="p-2 rounded-md bg-muted/30">
+          <span className="text-muted-foreground">Street: </span>
+          <span className="font-medium">{data.streetFacing.plotType} • {data.streetFacing.roadWidth}</span>
+        </div>
+        <div className="p-2 rounded-md bg-muted/30">
+          <span className="text-muted-foreground">View: </span>
+          <span className="font-medium">{data.viewOrientation.facing}</span>
+          <span className="text-primary ml-1">({data.viewOrientation.premiumEstimate})</span>
+        </div>
+      </div>
+      {data.positiveSignals.length > 0 && (
+        <div className="mt-2 space-y-1">
+          {data.positiveSignals.slice(0, 3).map((s, i) => (
+            <div key={i} className="flex items-start gap-1.5 text-xs">
+              <CheckCircle className="w-3 h-3 text-success mt-0.5 shrink-0" />
+              <span>{s}</span>
+            </div>
+          ))}
+        </div>
+      )}
+      {data.negativeSignals.length > 0 && (
+        <div className="mt-1.5 space-y-1">
+          {data.negativeSignals.slice(0, 2).map((s, i) => (
+            <div key={i} className="flex items-start gap-1.5 text-xs">
+              <XCircle className="w-3 h-3 text-destructive mt-0.5 shrink-0" />
+              <span>{s}</span>
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
 export function AIComparativeAnalysis({ plotA, plotB, onClose }: Props) {
   const [result, setResult] = useState<AIComparisonResult | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [loadingStep, setLoadingStep] = useState('');
 
   const plotALabel = plotA.id;
   const plotBLabel = plotB.id;
+
+  const fetchNearbyPlots = async (plot: PlotData) => {
+    const lat = plot.y;
+    const lng = plot.x;
+    if (!lat || !lng || lat === 0 || lng === 0) return [];
+    try {
+      const nearby = await gisService.searchByLocation(lat, lng, 1000);
+      return nearby.filter(p => p.id !== plot.id).slice(0, 30).map(p => ({
+        id: p.id,
+        location: p.location || p.project || p.entity || '',
+        areaSqft: Math.round(p.area * SQM_TO_SQFT),
+        gfaSqft: Math.round(p.gfa * SQM_TO_SQFT),
+        zoning: p.zoning,
+        status: p.status,
+        floors: p.floors,
+        developer: p.developer || '',
+      }));
+    } catch {
+      return [];
+    }
+  };
 
   const runAnalysis = async () => {
     setLoading(true);
     setError(null);
     try {
+      setLoadingStep('Scanning 1km radius around both plots...');
+      const [nearbyA, nearbyB] = await Promise.all([
+        fetchNearbyPlots(plotA),
+        fetchNearbyPlots(plotB),
+      ]);
+
+      setLoadingStep('Running AI comparative analysis across 9 dimensions...');
       const marketContext = `
-Plot A location: ${plotA.location || 'Dubai'}. Zoning: ${plotA.zoning}. Area: ${Math.round(plotA.area * SQM_TO_SQFT)} sqft. GFA: ${Math.round(plotA.gfa * SQM_TO_SQFT)} sqft.
-Plot B location: ${plotB.location || 'Dubai'}. Zoning: ${plotB.zoning}. Area: ${Math.round(plotB.area * SQM_TO_SQFT)} sqft. GFA: ${Math.round(plotB.gfa * SQM_TO_SQFT)} sqft.
+Plot A location: ${plotA.location || 'Dubai'}. Zoning: ${plotA.zoning}. Area: ${Math.round(plotA.area * SQM_TO_SQFT)} sqft. GFA: ${Math.round(plotA.gfa * SQM_TO_SQFT)} sqft. Nearby: ${nearbyA.length} plots.
+Plot B location: ${plotB.location || 'Dubai'}. Zoning: ${plotB.zoning}. Area: ${Math.round(plotB.area * SQM_TO_SQFT)} sqft. GFA: ${Math.round(plotB.gfa * SQM_TO_SQFT)} sqft. Nearby: ${nearbyB.length} plots.
 Use Dubai market averages for these zones. Consider current Q1 2026 market conditions.`;
 
       const { data, error: fnError } = await supabase.functions.invoke('plot-comparison', {
         body: {
           plotA: {
-            id: plotA.id,
-            location: plotA.location,
+            id: plotA.id, location: plotA.location,
             areaSqft: Math.round(plotA.area * SQM_TO_SQFT),
             gfaSqft: Math.round(plotA.gfa * SQM_TO_SQFT),
-            zoning: plotA.zoning,
-            status: plotA.status,
-            floors: plotA.floors,
-            developer: plotA.developer,
+            zoning: plotA.zoning, status: plotA.status, floors: plotA.floors, developer: plotA.developer,
           },
           plotB: {
-            id: plotB.id,
-            location: plotB.location,
+            id: plotB.id, location: plotB.location,
             areaSqft: Math.round(plotB.area * SQM_TO_SQFT),
             gfaSqft: Math.round(plotB.gfa * SQM_TO_SQFT),
-            zoning: plotB.zoning,
-            status: plotB.status,
-            floors: plotB.floors,
-            developer: plotB.developer,
+            zoning: plotB.zoning, status: plotB.status, floors: plotB.floors, developer: plotB.developer,
           },
           marketContext,
+          nearbyPlotsA: nearbyA,
+          nearbyPlotsB: nearbyB,
         },
       });
 
@@ -177,6 +269,7 @@ Use Dubai market averages for these zones. Consider current Q1 2026 market condi
       toast({ title: 'Analysis Failed', description: msg, variant: 'destructive' });
     } finally {
       setLoading(false);
+      setLoadingStep('');
     }
   };
 
@@ -188,12 +281,17 @@ Use Dubai market averages for these zones. Consider current Q1 2026 market condi
           <Brain className="w-8 h-8 text-primary-foreground" />
         </div>
         <h2 className="text-xl font-bold mb-2">AI Comparative Analysis</h2>
-        <p className="text-sm text-muted-foreground text-center mb-6 max-w-md">
-          Generate an advanced investment comparison between <span className="font-bold text-foreground">{plotALabel}</span> and <span className="font-bold text-foreground">{plotBLabel}</span> using GIS data, market benchmarks, and feasibility outputs.
+        <p className="text-sm text-muted-foreground text-center mb-3 max-w-md">
+          Generate an advanced investment comparison between <span className="font-bold text-foreground">{plotALabel}</span> and <span className="font-bold text-foreground">{plotBLabel}</span>
         </p>
+        <div className="flex flex-wrap gap-1.5 justify-center mb-6">
+          {['Intelligence Score', 'Demand Heatmap', 'Risk Detection', 'Valuation', 'Assembly', 'Assembly Intel', 'Urban Context', 'Exit Strategy', 'AI Verdict'].map(s => (
+            <Badge key={s} variant="outline" className="text-[10px]">{s}</Badge>
+          ))}
+        </div>
         <Button onClick={runAnalysis} size="lg" className="gap-2">
           <Brain className="w-4 h-4" />
-          Run AI Analysis
+          Run 9-Dimension Analysis
         </Button>
         {error && <p className="text-sm text-destructive mt-4">{error}</p>}
       </div>
@@ -205,7 +303,7 @@ Use Dubai market averages for these zones. Consider current Q1 2026 market condi
       <div className="h-full flex flex-col items-center justify-center glass-card glow-border">
         <Loader2 className="w-12 h-12 text-primary animate-spin mb-4" />
         <h3 className="text-lg font-bold mb-1">Analyzing Plots...</h3>
-        <p className="text-sm text-muted-foreground">Running AI comparative analysis across 7 dimensions</p>
+        <p className="text-sm text-muted-foreground">{loadingStep || 'Running AI comparative analysis'}</p>
       </div>
     );
   }
@@ -222,6 +320,8 @@ Use Dubai market averages for these zones. Consider current Q1 2026 market condi
     { key: 'exitLiquidity', label: 'Exit Liquidity' },
   ];
 
+  let sectionNum = 0;
+
   return (
     <div className="h-full glass-card glow-border flex flex-col overflow-hidden">
       {/* Header */}
@@ -233,13 +333,11 @@ Use Dubai market averages for these zones. Consider current Q1 2026 market condi
           </div>
           <div>
             <h2 className="font-bold text-base">AI Comparative Analysis</h2>
-            <p className="text-xs text-muted-foreground">{plotALabel} vs {plotBLabel}</p>
+            <p className="text-xs text-muted-foreground">{plotALabel} vs {plotBLabel} • 9 dimensions</p>
           </div>
         </div>
         <div className="flex items-center gap-2">
-          <Button variant="outline" size="sm" onClick={runAnalysis} disabled={loading}>
-            Re-analyze
-          </Button>
+          <Button variant="outline" size="sm" onClick={runAnalysis} disabled={loading}>Re-analyze</Button>
           <Button variant="ghost" size="sm" onClick={onClose}>Close</Button>
         </div>
       </div>
@@ -249,7 +347,7 @@ Use Dubai market averages for these zones. Consider current Q1 2026 market condi
 
           {/* 1. Plot Intelligence Score */}
           <section>
-            <SectionHeader num={1} icon={Target} title="Plot Intelligence Score" />
+            <SectionHeader num={++sectionNum} icon={Target} title="Plot Intelligence Score" />
             <div className="grid grid-cols-2 gap-4 mb-4">
               {[{ label: plotALabel, scores: r.plotScores.plotA }, { label: plotBLabel, scores: r.plotScores.plotB }].map(({ label, scores }) => (
                 <div key={label} className={`p-4 rounded-xl border ${scores.overall === Math.max(r.plotScores.plotA.overall, r.plotScores.plotB.overall) ? 'border-primary/50 bg-primary/5' : 'border-border/50 bg-card/50'}`}>
@@ -279,7 +377,7 @@ Use Dubai market averages for these zones. Consider current Q1 2026 market condi
 
           {/* 2. Demand Heatmap */}
           <section>
-            <SectionHeader num={2} icon={BarChart3} title="Demand Heatmap" />
+            <SectionHeader num={++sectionNum} icon={BarChart3} title="Demand Heatmap" />
             <div className="grid grid-cols-4 gap-3 mb-4">
               {[
                 { label: 'Studio', pct: r.demandHeatmap.distribution.studio },
@@ -317,7 +415,7 @@ Use Dubai market averages for these zones. Consider current Q1 2026 market condi
 
           {/* 3. Risk Detection */}
           <section>
-            <SectionHeader num={3} icon={AlertTriangle} title="Risk Detection System" />
+            <SectionHeader num={++sectionNum} icon={AlertTriangle} title="Risk Detection System" />
             <div className="grid grid-cols-2 gap-4">
               {[{ label: plotALabel, risks: r.risks.plotA }, { label: plotBLabel, risks: r.risks.plotB }].map(({ label, risks }) => (
                 <div key={label} className="p-4 rounded-xl border border-border/50 bg-card/50">
@@ -342,9 +440,9 @@ Use Dubai market averages for these zones. Consider current Q1 2026 market condi
             </div>
           </section>
 
-          {/* 4. Land Owner Opportunity Alert */}
+          {/* 4. Land Owner Opportunity */}
           <section>
-            <SectionHeader num={4} icon={DollarSign} title="Land Owner Opportunity Alert" />
+            <SectionHeader num={++sectionNum} icon={DollarSign} title="Land Owner Opportunity Alert" />
             <div className="grid grid-cols-2 gap-4">
               {[{ label: plotALabel, val: r.valuationOpportunity.plotA }, { label: plotBLabel, val: r.valuationOpportunity.plotB }].map(({ label, val }) => (
                 <div key={label} className="p-4 rounded-xl border border-border/50 bg-card/50">
@@ -369,7 +467,7 @@ Use Dubai market averages for these zones. Consider current Q1 2026 market condi
 
           {/* 5. Land Assembly Detector */}
           <section>
-            <SectionHeader num={5} icon={Layers} title="Land Assembly Detector" />
+            <SectionHeader num={++sectionNum} icon={Layers} title="Land Assembly Detector" />
             <div className="grid grid-cols-2 gap-4">
               {[{ label: plotALabel, asm: r.landAssembly.plotA }, { label: plotBLabel, asm: r.landAssembly.plotB }].map(({ label, asm }) => (
                 <div key={label} className={`p-4 rounded-xl border ${asm.detected ? 'border-primary/40 bg-primary/5' : 'border-border/50 bg-card/50'}`}>
@@ -396,9 +494,87 @@ Use Dubai market averages for these zones. Consider current Q1 2026 market condi
             </div>
           </section>
 
-          {/* 6. Exit Strategy Planner */}
+          {/* 6. Land Assembly Intelligence */}
+          {r.landAssemblyIntelligence && (
+            <section>
+              <SectionHeader num={++sectionNum} icon={Combine} title="Land Assembly Intelligence" />
+              <div className="grid grid-cols-2 gap-4">
+                {[{ label: plotALabel, intel: r.landAssemblyIntelligence.plotA }, { label: plotBLabel, intel: r.landAssemblyIntelligence.plotB }].map(({ label, intel }) => (
+                  <div key={label} className="p-4 rounded-xl border border-border/50 bg-card/50 space-y-3">
+                    <div className="font-bold text-sm flex items-center justify-between">
+                      {label}
+                      <Badge variant="outline" className="text-[10px]">{intel.dominantDevType}</Badge>
+                    </div>
+                    <div className="space-y-2 text-xs">
+                      <div className="p-2 rounded-md bg-muted/30">
+                        <span className="text-muted-foreground">Size Cluster: </span>
+                        <span>{intel.sizeClusterInsight}</span>
+                      </div>
+                      <div className="p-2 rounded-md bg-muted/30">
+                        <span className="text-muted-foreground">GFA: </span>
+                        <span>{intel.gfaAssessment}</span>
+                      </div>
+                      <div className="p-2 rounded-md bg-primary/10 border border-primary/20">
+                        <span className="text-muted-foreground">Assembly Scale: </span>
+                        <span className="font-bold text-primary">{intel.assemblyPotentialScale}</span>
+                      </div>
+                      <div className="grid grid-cols-2 gap-1.5">
+                        {[
+                          { label: 'Studio', value: intel.absorptionRate.studio },
+                          { label: '1BR', value: intel.absorptionRate.oneBR },
+                          { label: '2BR', value: intel.absorptionRate.twoBR },
+                          { label: '3BR', value: intel.absorptionRate.threeBR },
+                        ].map(item => (
+                          <div key={item.label} className="p-1.5 rounded bg-muted/20 text-center">
+                            <div className="text-[10px] text-muted-foreground">{item.label}</div>
+                            <div className="font-bold text-xs">{item.value}</div>
+                          </div>
+                        ))}
+                      </div>
+                      <div className="p-2 rounded-md bg-muted/30">
+                        <span className="text-muted-foreground">Sell-Out: </span>
+                        <span className="font-bold">{intel.absorptionRate.expectedSellOut}</span>
+                      </div>
+                    </div>
+                    {intel.alternativeAreas.length > 0 && (
+                      <div className="border-t border-border/30 pt-2">
+                        <div className="text-[10px] font-bold text-muted-foreground uppercase mb-1.5">Alternative Areas</div>
+                        {intel.alternativeAreas.slice(0, 3).map((a, i) => (
+                          <div key={i} className="flex items-center justify-between text-xs py-0.5">
+                            <span className="flex items-center gap-1"><MapPin className="w-3 h-3 text-primary" />{a.area}</span>
+                            <Badge variant={a.demandScore === 'High' ? 'default' : 'secondary'} className="text-[10px] px-1.5 py-0">{a.demandScore}</Badge>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                ))}
+              </div>
+            </section>
+          )}
+
+          {/* 7. Urban Context Analysis */}
+          {r.urbanContext && (
+            <section>
+              <SectionHeader num={++sectionNum} icon={TreePine} title="Urban Context Analysis" />
+              <div className="grid grid-cols-2 gap-4">
+                <UrbanScoreRadar label={plotALabel} data={r.urbanContext.plotA} />
+                <UrbanScoreRadar label={plotBLabel} data={r.urbanContext.plotB} />
+              </div>
+              <div className="mt-3 p-3 rounded-lg border border-primary/20 bg-primary/5">
+                <div className="text-xs font-bold text-primary mb-1">Urban Quality Comparison</div>
+                <div className="flex gap-6 text-sm">
+                  <span><span className="font-bold">{plotALabel}:</span> {r.urbanContext.plotA.urbanScore.overall.toFixed(1)}/10</span>
+                  <span><span className="font-bold">{plotBLabel}:</span> {r.urbanContext.plotB.urbanScore.overall.toFixed(1)}/10</span>
+                </div>
+                <p className="text-xs text-muted-foreground mt-1">{r.urbanContext.plotA.streetFacing.insight}</p>
+              </div>
+            </section>
+          )}
+
+          {/* 8. Exit Strategy Planner */}
           <section>
-            <SectionHeader num={6} icon={TrendingUp} title="Exit Strategy Planner" />
+            <SectionHeader num={++sectionNum} icon={TrendingUp} title="Exit Strategy Planner" />
             <div className="rounded-xl border border-border/50 overflow-hidden">
               <table className="w-full text-sm">
                 <thead>
@@ -435,9 +611,9 @@ Use Dubai market averages for these zones. Consider current Q1 2026 market condi
             </div>
           </section>
 
-          {/* 7. AI Verdict */}
+          {/* 9. AI Verdict */}
           <section>
-            <SectionHeader num={7} icon={Shield} title="AI Comparative Verdict" />
+            <SectionHeader num={++sectionNum} icon={Shield} title="AI Comparative Verdict" />
             <div className="p-5 rounded-xl border-2 border-primary/40 bg-gradient-to-br from-primary/10 to-transparent">
               <div className="flex items-center gap-3 mb-4">
                 <div className="w-10 h-10 rounded-xl flex items-center justify-center bg-primary/20">

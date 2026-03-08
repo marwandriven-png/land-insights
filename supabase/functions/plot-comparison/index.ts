@@ -9,11 +9,19 @@ serve(async (req) => {
   if (req.method === "OPTIONS") return new Response(null, { headers: corsHeaders });
 
   try {
-    const { plotA, plotB, marketContext } = await req.json();
+    const { plotA, plotB, marketContext, nearbyPlotsA, nearbyPlotsB } = await req.json();
     const LOVABLE_API_KEY = Deno.env.get("LOVABLE_API_KEY");
     if (!LOVABLE_API_KEY) throw new Error("LOVABLE_API_KEY is not configured");
 
-    const systemPrompt = `You are a Dubai real estate land investment analyst AI. You analyze two plots for comparative investment analysis.
+    const nearbyDescA = (nearbyPlotsA || []).slice(0, 30).map((p: any, i: number) =>
+      `${i+1}. Plot ${p.id}: ${p.areaSqft}sqft, GFA ${p.gfaSqft}sqft, Zoning: ${p.zoning}, Status: ${p.status}, Floors: ${p.floors || 'N/A'}, Dev: ${p.developer || 'N/A'}`
+    ).join('\n');
+
+    const nearbyDescB = (nearbyPlotsB || []).slice(0, 30).map((p: any, i: number) =>
+      `${i+1}. Plot ${p.id}: ${p.areaSqft}sqft, GFA ${p.gfaSqft}sqft, Zoning: ${p.zoning}, Status: ${p.status}, Floors: ${p.floors || 'N/A'}, Dev: ${p.developer || 'N/A'}`
+    ).join('\n');
+
+    const systemPrompt = `You are a Dubai real estate land investment analyst AI. You analyze two plots for comprehensive comparative investment analysis including land assembly intelligence and urban context.
 
 Return ONLY valid JSON (no markdown, no code fences) with this exact structure:
 {
@@ -39,6 +47,42 @@ Return ONLY valid JSON (no markdown, no code fences) with this exact structure:
     "plotA": { "detected": boolean, "adjacentPlots": number, "totalPotentialSqft": number, "potentialUse": string, "valueIncrease": string },
     "plotB": { "detected": boolean, "adjacentPlots": number, "totalPotentialSqft": number, "potentialUse": string, "valueIncrease": string }
   },
+  "landAssemblyIntelligence": {
+    "plotA": {
+      "sizeClusterInsight": string,
+      "matchingScaleCount": number,
+      "dominantDevType": string,
+      "gfaAssessment": string,
+      "assemblyPotentialScale": string,
+      "absorptionRate": { "studio": string, "oneBR": string, "twoBR": string, "threeBR": string, "expectedSellOut": string },
+      "alternativeAreas": [{ "area": string, "demandScore": "High"|"Medium"|"Low", "reason": string }]
+    },
+    "plotB": {
+      "sizeClusterInsight": string,
+      "matchingScaleCount": number,
+      "dominantDevType": string,
+      "gfaAssessment": string,
+      "assemblyPotentialScale": string,
+      "absorptionRate": { "studio": string, "oneBR": string, "twoBR": string, "threeBR": string, "expectedSellOut": string },
+      "alternativeAreas": [{ "area": string, "demandScore": "High"|"Medium"|"Low", "reason": string }]
+    }
+  },
+  "urbanContext": {
+    "plotA": {
+      "urbanScore": { "overall": number, "greenSpace": number, "roadAccess": number, "infrastructureImpact": number, "amenities": number, "walkability": number },
+      "streetFacing": { "plotType": string, "roadWidth": string, "insight": string },
+      "viewOrientation": { "facing": string, "premiumEstimate": string },
+      "positiveSignals": [string],
+      "negativeSignals": [string]
+    },
+    "plotB": {
+      "urbanScore": { "overall": number, "greenSpace": number, "roadAccess": number, "infrastructureImpact": number, "amenities": number, "walkability": number },
+      "streetFacing": { "plotType": string, "roadWidth": string, "insight": string },
+      "viewOrientation": { "facing": string, "premiumEstimate": string },
+      "positiveSignals": [string],
+      "negativeSignals": [string]
+    }
+  },
   "exitStrategies": {
     "sellLand": { "plotA": string, "plotB": string },
     "developProject": { "plotA": string, "plotB": string },
@@ -54,9 +98,9 @@ Return ONLY valid JSON (no markdown, no code fences) with this exact structure:
   }
 }
 
-All scores 0-10. Percentages as numbers (e.g. 48 not "48%"). Use the market data provided to make realistic assessments for Dubai real estate.`;
+All scores 0-10. Percentages as numbers (e.g. 48 not "48%"). Use the market data and nearby plot data provided to make realistic assessments for Dubai real estate.`;
 
-    const userPrompt = `Analyze these two Dubai land plots:
+    const userPrompt = `Analyze these two Dubai land plots with their surrounding context:
 
 PLOT A:
 - ID: ${plotA.id}
@@ -68,6 +112,9 @@ PLOT A:
 - Floors: ${plotA.floors || 'N/A'}
 - Developer: ${plotA.developer || 'N/A'}
 
+NEARBY PLOTS WITHIN 1KM OF PLOT A (${(nearbyPlotsA || []).length} plots):
+${nearbyDescA || 'No nearby data available.'}
+
 PLOT B:
 - ID: ${plotB.id}
 - Location: ${plotB.location || 'N/A'}
@@ -78,10 +125,13 @@ PLOT B:
 - Floors: ${plotB.floors || 'N/A'}
 - Developer: ${plotB.developer || 'N/A'}
 
+NEARBY PLOTS WITHIN 1KM OF PLOT B (${(nearbyPlotsB || []).length} plots):
+${nearbyDescB || 'No nearby data available.'}
+
 MARKET CONTEXT:
 ${marketContext || 'Use general Dubai market knowledge for the areas mentioned.'}
 
-Provide a comprehensive investment comparison.`;
+Provide a comprehensive investment comparison including land assembly intelligence and urban context analysis.`;
 
     const response = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
       method: "POST",
