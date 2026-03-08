@@ -793,6 +793,13 @@ export function HyperPlotAI() {
         onClose={() => setShowWizard(false)}
         plots={plots}
         onHighlightPlots={setHighlightedPlots}
+        onAddPlots={(newPlots) => {
+          setPlots(prev => {
+            const existingIds = new Set(prev.map(p => p.id));
+            const toAdd = newPlots.filter(p => !existingIds.has(p.id));
+            return toAdd.length > 0 ? [...prev, ...toAdd] : prev;
+          });
+        }}
         onSelectPlot={(plot) => {
           setPlots(prev => {
             if (prev.find(p => p.id === plot.id)) return prev;
