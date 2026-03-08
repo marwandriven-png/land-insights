@@ -481,6 +481,25 @@ export function HyperPlotAI() {
                     </div>
                   </div>
                 ) : null}
+                {activeTab === 'assembly' && selectedPlot ? (
+                  <LandAssemblyIntelligence
+                    plot={selectedPlot}
+                    onSelectPlot={(p) => {
+                      setPlots(prev => prev.find(pp => pp.id === p.id) ? prev : [...prev, p]);
+                      setSelectedPlot(p);
+                      setShowDetailPanel(true);
+                    }}
+                    onClose={() => setActiveTab('map')}
+                  />
+                ) : activeTab === 'assembly' ? (
+                  <div className="h-full flex items-center justify-center glass-card glow-border">
+                    <div className="text-center">
+                      <Combine className="w-12 h-12 text-muted-foreground/30 mx-auto mb-3" />
+                      <h3 className="text-lg font-bold mb-1">Select a Plot</h3>
+                      <p className="text-sm text-muted-foreground">Choose a plot to view Land Assembly Intelligence</p>
+                    </div>
+                  </div>
+                ) : null}
                 {activeTab === 'settings' && (
                   <div className="h-full glass-card glow-border p-6 overflow-y-auto">
                     <div className="flex items-center gap-3 mb-6">
