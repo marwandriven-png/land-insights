@@ -96,6 +96,23 @@ export function LeafletMap({ plots, selectedPlot, onPlotClick, highlightedPlots,
       return selectedPlot?.id === id || highlightedPlots.includes(id);
     }
 
+    // Helper: generate a rectangle polygon around a lat/lng based on plot area in m²
+    function areaToRect(lat: number, lng: number, areaSqm: number): L.LatLng[] {
+      const side = Math.sqrt(areaSqm > 0 ? areaSqm : 500); // meters
+      const halfW = side / 2;
+      const halfH = side / 2;
+      const latPerM = 1 / 111320;
+      const lngPerM = 1 / (111320 * Math.cos(lat * Math.PI / 180));
+      const dLat = halfH * latPerM;
+      const dLng = halfW * lngPerM;
+      return [
+        L.latLng(lat - dLat, lng - dLng),
+        L.latLng(lat - dLat, lng + dLng),
+        L.latLng(lat + dLat, lng + dLng),
+        L.latLng(lat + dLat, lng - dLng),
+      ];
+    }
+
     plots.forEach(plot => {
       const rawAttrs = plot.rawAttributes;
       let polygon: L.Polygon | L.CircleMarker;
@@ -113,10 +130,8 @@ export function LeafletMap({ plots, selectedPlot, onPlotClick, highlightedPlots,
           let latLngs: L.LatLng[];
 
           if (isManualLatLng) {
-            // Manual land: rings store [lng, lat] pairs — convert to L.LatLng
             latLngs = geom.rings[0].map(coord => L.latLng(coord[1], coord[0]));
           } else {
-            // DDA land: rings store EPSG:3997 coords
             latLngs = geom.rings[0].map(coord => {
               const [lat, lng] = convertToLatLng(coord[0], coord[1]);
               return L.latLng(lat, lng);
@@ -143,38 +158,70 @@ export function LeafletMap({ plots, selectedPlot, onPlotClick, highlightedPlots,
             fillOpacity: active ? 0.65 : isFallbackPlot ? 0.25 : 0.35
           });
         } else {
-          // Fallback to point
+          // No rings — generate rectangle from area
           let lat: number, lng: number;
           if (isManualLatLng) {
             lat = plot.y; lng = plot.x;
           } else {
             [lat, lng] = convertToLatLng(plot.x * 10 + 495000, plot.y * 10 + 2766000);
           }
-          polygon = L.circleMarker([lat, lng], {
-            radius: isFallbackPlot ? 10 : 8,
-            color: plotBorderColor,
-            weight: isFallbackPlot ? 3 : 2,
-            fillColor: plotFillColor,
-            fillOpacity: isFallbackPlot ? 0.3 : 0.6,
-            className: active ? 'plot-glow-circle' : isFallbackPlot ? 'plot-fallback-circle' : ''
-          });
+          if (isFallbackPlot) {
+            const rectLatLngs = areaToRect(lat, lng, plot.area);
+            if (active) {
+              glowLayer = L.polygon(rectLatLngs, {
+                color: '#00e5ff', weight: 8, opacity: 0.4,
+                fillColor: 'transparent', fillOpacity: 0,
+                interactive: false, className: 'plot-glow-layer'
+              });
+            }
+            polygon = L.polygon(rectLatLngs, {
+              color: plotBorderColor,
+              weight: isSelected ? 3 : 2.5,
+              opacity: 1,
+              fillColor: plotFillColor,
+              fillOpacity: active ? 0.5 : 0.2,
+              className: isFallbackPlot ? 'plot-fallback-rect' : ''
+            });
+          } else {
+            polygon = L.circleMarker([lat, lng], {
+              radius: 8, color: plotBorderColor, weight: 2,
+              fillColor: plotFillColor, fillOpacity: 0.6,
+              className: active ? 'plot-glow-circle' : ''
+            });
+          }
         }
       } else {
-        // No geometry — render as point
+        // No geometry at all — generate rectangle for fallback, circle for others
         let lat: number, lng: number;
         if (isManualLatLng) {
           lat = plot.y; lng = plot.x;
         } else {
           [lat, lng] = convertToLatLng(plot.x * 10 + 495000, plot.y * 10 + 2766000);
         }
-        polygon = L.circleMarker([lat, lng], {
-          radius: isFallbackPlot ? 10 : 8,
-          color: plotBorderColor,
-          weight: isFallbackPlot ? 3 : 2,
-          fillColor: plotFillColor,
-          fillOpacity: isFallbackPlot ? 0.3 : 0.6,
-          className: active ? 'plot-glow-circle' : isFallbackPlot ? 'plot-fallback-circle' : ''
-        });
+        if (isFallbackPlot) {
+          const rectLatLngs = areaToRect(lat, lng, plot.area);
+          if (active) {
+            glowLayer = L.polygon(rectLatLngs, {
+              color: '#00e5ff', weight: 8, opacity: 0.4,
+              fillColor: 'transparent', fillOpacity: 0,
+              interactive: false, className: 'plot-glow-layer'
+            });
+          }
+          polygon = L.polygon(rectLatLngs, {
+            color: plotBorderColor,
+            weight: isSelected ? 3 : 2.5,
+            opacity: 1,
+            fillColor: plotFillColor,
+            fillOpacity: active ? 0.5 : 0.2,
+            className: 'plot-fallback-rect'
+          });
+        } else {
+          polygon = L.circleMarker([lat, lng], {
+            radius: 8, color: plotBorderColor, weight: 2,
+            fillColor: plotFillColor, fillOpacity: 0.6,
+            className: active ? 'plot-glow-circle' : ''
+          });
+        }
       }
 
       polygon.bindTooltip(`
