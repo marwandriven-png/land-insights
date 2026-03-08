@@ -71,8 +71,8 @@ export function LeafletMap({ plots, selectedPlot, onPlotClick, highlightedPlots,
 
     // Hybrid labels overlay for road names / landmarks
     L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/Reference/World_Transportation/MapServer/tile/{z}/{y}/{x}', {
-      maxZoom: 16,
-      maxNativeZoom: 16,
+      maxZoom: 19,
+      maxNativeZoom: 17,
       noWrap: true,
       detectRetina: true,
       opacity: 0.7,
