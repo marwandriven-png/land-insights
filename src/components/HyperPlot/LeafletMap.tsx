@@ -66,13 +66,11 @@ export function LeafletMap({ plots, selectedPlot, onPlotClick, highlightedPlots,
     setMapInstance(map);
     setIsLoading(false);
 
-    // Invalidate size after render to fix gray gap at bottom
     setTimeout(() => map.invalidateSize(), 100);
     setTimeout(() => map.invalidateSize(), 500);
 
     if (onMapReady) onMapReady(map);
 
-    // ResizeObserver to handle container size changes
     const ro = new ResizeObserver(() => map.invalidateSize());
     ro.observe(mapContainerRef.current);
 
@@ -96,10 +94,10 @@ export function LeafletMap({ plots, selectedPlot, onPlotClick, highlightedPlots,
       return selectedPlot?.id === id || highlightedPlots.includes(id);
     }
 
-    // Pin icon for selected fallback plot only
-    const fallbackPinIcon = (selected: boolean) => L.divIcon({
+    // Red pin icon for selected fallback plot
+    const fallbackPinIcon = () => L.divIcon({
       className: 'fallback-pin-wrapper',
-      html: `<div class="fallback-pin ${selected ? 'fallback-pin-selected' : ''}">
+      html: `<div class="fallback-pin fallback-pin-selected">
         <svg width="32" height="44" viewBox="0 0 28 40" fill="none" xmlns="http://www.w3.org/2000/svg">
           <path d="M14 0C6.268 0 0 6.268 0 14c0 10.5 14 26 14 26s14-15.5 14-26C28 6.268 21.732 0 14 0z" fill="#ff4444" fill-opacity="0.95"/>
           <circle cx="14" cy="14" r="6" fill="#fff" stroke="#cc0000" stroke-width="1.5"/>
@@ -118,14 +116,22 @@ export function LeafletMap({ plots, selectedPlot, onPlotClick, highlightedPlots,
       const isSelected = selectedPlot?.id === plot.id;
       const isManualLatLng = rawAttrs && (rawAttrs as Record<string, unknown>)._isManualLatLng === true;
       const isFallbackPlot = rawAttrs && (rawAttrs as Record<string, unknown>)._isFallbackPlot === true;
-      const FALLBACK_NEON = '#00ffcc';
-      const plotBorderColor = isSelected ? '#ffffff' : active ? '#00e5ff' : isFallbackPlot ? FALLBACK_NEON : DDA_BLUE;
-      const plotFillColor = isFallbackPlot ? FALLBACK_NEON : DDA_BLUE;
-      if (rawAttrs && (rawAttrs as Record<string, unknown>).geometry) {
-        const geom = (rawAttrs as Record<string, unknown>).geometry as { rings?: number[][][]; x?: number; y?: number };
+      const plotBorderColor = isSelected ? '#ffffff' : active ? '#00e5ff' : DDA_BLUE;
+      const plotFillColor = DDA_BLUE;
+
+      // Only show fallback plots when selected (searched by land number)
+      if (isFallbackPlot && !isSelected) return;
+
+      if (isFallbackPlot && isSelected) {
+        // Red pin marker for selected fallback
+        let lat: number, lng: number;
+        if (isManualLatLng) { lat = plot.y; lng = plot.x; }
+        else { [lat, lng] = convertToLatLng(plot.x * 10 + 495000, plot.y * 10 + 2766000); }
+        polygon = L.marker([lat, lng], { icon: fallbackPinIcon() });
+      } else if (rawAttrs && (rawAttrs as Record<string, unknown>).geometry) {
+        const geom = (rawAttrs as Record<string, unknown>).geometry as { rings?: number[][][] };
         if (geom.rings && geom.rings.length > 0) {
           let latLngs: L.LatLng[];
-
           if (isManualLatLng) {
             latLngs = geom.rings[0].map(coord => L.latLng(coord[1], coord[0]));
           } else {
@@ -134,67 +140,45 @@ export function LeafletMap({ plots, selectedPlot, onPlotClick, highlightedPlots,
               return L.latLng(lat, lng);
             });
           }
-
           if (active) {
             glowLayer = L.polygon(latLngs, {
-              color: '#00e5ff',
-              weight: 8,
-              opacity: 0.4,
-              fillColor: 'transparent',
-              fillOpacity: 0,
-              interactive: false,
-              className: 'plot-glow-layer'
+              color: '#00e5ff', weight: 8, opacity: 0.4,
+              fillColor: 'transparent', fillOpacity: 0,
+              interactive: false, className: 'plot-glow-layer'
             });
           }
-
           polygon = L.polygon(latLngs, {
             color: plotBorderColor,
-            weight: isSelected ? 2.5 : active ? 2 : isFallbackPlot ? 2.5 : 1,
-            opacity: 1,
-            fillColor: plotFillColor,
-            fillOpacity: active ? 0.65 : isFallbackPlot ? 0.25 : 0.35
+            weight: isSelected ? 2.5 : active ? 2 : 1,
+            opacity: 1, fillColor: plotFillColor,
+            fillOpacity: active ? 0.65 : 0.35
           });
         } else {
           let lat: number, lng: number;
-          if (isManualLatLng) {
-            lat = plot.y; lng = plot.x;
-          } else {
-            [lat, lng] = convertToLatLng(plot.x * 10 + 495000, plot.y * 10 + 2766000);
-          }
-          if (isFallbackPlot) {
-            polygon = L.marker([lat, lng], { icon: fallbackPinIcon(isSelected) });
-          } else {
-            polygon = L.circleMarker([lat, lng], {
-              radius: 8, color: plotBorderColor, weight: 2,
-              fillColor: plotFillColor, fillOpacity: 0.6,
-              className: active ? 'plot-glow-circle' : ''
-            });
-          }
-        }
-      } else {
-        // No geometry at all — generate rectangle for fallback, circle for others
-        let lat: number, lng: number;
-        if (isManualLatLng) {
-          lat = plot.y; lng = plot.x;
-        } else {
-          [lat, lng] = convertToLatLng(plot.x * 10 + 495000, plot.y * 10 + 2766000);
-        }
-        if (isFallbackPlot) {
-          polygon = L.marker([lat, lng], { icon: fallbackPinIcon(isSelected) });
-        } else {
+          if (isManualLatLng) { lat = plot.y; lng = plot.x; }
+          else { [lat, lng] = convertToLatLng(plot.x * 10 + 495000, plot.y * 10 + 2766000); }
           polygon = L.circleMarker([lat, lng], {
             radius: 8, color: plotBorderColor, weight: 2,
             fillColor: plotFillColor, fillOpacity: 0.6,
             className: active ? 'plot-glow-circle' : ''
           });
         }
+      } else {
+        let lat: number, lng: number;
+        if (isManualLatLng) { lat = plot.y; lng = plot.x; }
+        else { [lat, lng] = convertToLatLng(plot.x * 10 + 495000, plot.y * 10 + 2766000); }
+        polygon = L.circleMarker([lat, lng], {
+          radius: 8, color: plotBorderColor, weight: 2,
+          fillColor: plotFillColor, fillOpacity: 0.6,
+          className: active ? 'plot-glow-circle' : ''
+        });
       }
 
       polygon.bindTooltip(`
         <div class="p-2 min-w-[180px]">
           <div class="font-bold text-sm">${plot.id}</div>
           <div class="text-xs text-gray-400">${plot.location || plot.project || 'Dubai'}</div>
-          ${isFallbackPlot ? '<div class="text-xs mt-1 px-1.5 py-0.5 rounded" style="background:#00ffcc22;color:#00ffcc;border:1px solid #00ffcc44">📍 Fallback DB</div>' : ''}
+          ${isFallbackPlot ? '<div class="text-xs mt-1 px-1.5 py-0.5 rounded" style="background:#ff444422;color:#ff4444;border:1px solid #ff444444">📍 Fallback DB</div>' : ''}
           <hr class="my-1 border-gray-600" />
           <div class="grid grid-cols-2 gap-1 text-xs">
             <span class="text-gray-400">Area:</span>
@@ -216,7 +200,6 @@ export function LeafletMap({ plots, selectedPlot, onPlotClick, highlightedPlots,
       polygon.addTo(map);
       plotLayersRef.current.set(plot.id, polygon);
     });
-    // Zoom is handled by CinematicPlotOverlay with smooth easeInOutQuad animation
   }, [plots, selectedPlot, highlightedPlots, onPlotClick]);
 
   const resetView = useCallback(() => {
@@ -235,17 +218,14 @@ export function LeafletMap({ plots, selectedPlot, onPlotClick, highlightedPlots,
 
       <div ref={mapContainerRef} className="w-full h-full" style={{ minHeight: '400px' }} />
 
-      {/* Home Control */}
       <div className="absolute top-20 left-2 z-[1000] flex flex-col gap-1">
         <button onClick={resetView} className="dda-map-btn" title="Reset View">
           <Home className="w-4 h-4" />
         </button>
       </div>
 
-      {/* Measurement Tool */}
       <MapMeasureTool map={mapInstance} />
 
-      {/* Scale Bar */}
       <div className="absolute bottom-3 left-3 z-[1000]">
         <div className="flex items-end gap-1.5 text-[10px] font-mono text-white/80">
           <div className="flex flex-col items-start">
@@ -255,10 +235,8 @@ export function LeafletMap({ plots, selectedPlot, onPlotClick, highlightedPlots,
         </div>
       </div>
 
-      {/* Cinematic Plot Overlay */}
       <CinematicPlotOverlay map={mapInstance} plot={selectedPlot} />
 
-      {/* Styles */}
       <style>{`
         .dda-map-btn {
           width: 32px; height: 32px;
@@ -298,7 +276,7 @@ export function LeafletMap({ plots, selectedPlot, onPlotClick, highlightedPlots,
         .plot-glow-layer { filter: drop-shadow(0 0 6px rgba(0, 229, 255, 0.7)) drop-shadow(0 0 14px rgba(0, 229, 255, 0.35)); }
         .plot-glow-circle { filter: drop-shadow(0 0 6px rgba(0, 229, 255, 0.7)) drop-shadow(0 0 12px rgba(0, 229, 255, 0.4)); }
         .fallback-pin-wrapper { background: none !important; border: none !important; }
-        .fallback-pin { filter: drop-shadow(0 0 6px rgba(255, 68, 68, 0.8)) drop-shadow(0 0 14px rgba(255, 68, 68, 0.4)); transition: transform 0.2s; }
+        .fallback-pin { filter: drop-shadow(0 0 6px rgba(255, 68, 68, 0.8)) drop-shadow(0 0 14px rgba(255, 68, 68, 0.4)); }
         .fallback-pin-selected { filter: drop-shadow(0 0 10px rgba(255, 68, 68, 0.9)) drop-shadow(0 0 22px rgba(255, 68, 68, 0.5)); transform: scale(1.15); }
       `}</style>
     </div>
