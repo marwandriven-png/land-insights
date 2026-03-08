@@ -131,7 +131,7 @@ export function CinematicPlotOverlay({ map, plot }: CinematicPlotOverlayProps) {
 
       const boundaryPoly = L.polygon(latLngs, {
         color: '#00e5ff',
-        weight: 6,
+        weight: 3,
         opacity: 1,
         fillColor: '#00e5ff',
         fillOpacity: 0,
