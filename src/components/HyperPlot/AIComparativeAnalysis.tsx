@@ -113,7 +113,8 @@ function buildDCContext(plot: PlotData) {
   // Resolve area
   const areaCode = plot.location || plot.project || '';
   const clff = matchCLFFArea(areaCode);
-  const overrides = clff ? getCLFFOverridesWithMasterData(clff.code) : {};
+  const clffCode = clff?.area?.code || '';
+  const overrides = clffCode ? getCLFFOverridesWithMasterData(clffCode) : {};
 
   // Run feasibility for all 3 strategies
   const feasResults: Record<string, any> = {};
@@ -135,30 +136,39 @@ function buildDCContext(plot: PlotData) {
   }
 
   // Market data
-  const normalizedCode = clff?.code || '';
-  const salesData = getAreaSalesData(normalizedCode);
-  const rentalData = getAreaRentalData(normalizedCode);
-  const areaData = getAreaData(normalizedCode);
+  const salesData = getAreaSalesData(clffCode);
+  const rentalData = getAreaRentalData(clffCode);
+  const areaData = getAreaData(clffCode);
   const competitors = areaData?.competitors?.slice(0, 5).map(c => ({
     name: c.name, developer: c.developer, totalUnits: c.totalUnits,
     studioP: c.studioPct || 0, oneBRP: c.oneBRPct || 0, twoBRP: c.twoBRPct || 0, threeBRP: c.threeBRPct || 0,
     priceFrom: c.priceFrom, completion: c.completion,
   })) || [];
-  const insights = areaData ? generateAreaInsights(normalizedCode) : [];
+  const insights = areaData ? generateAreaInsights(clffCode) : [];
 
   return {
-    areaName: clff?.name || areaCode,
-    marketTier: clff?.marketTier || 'Unknown',
+    areaName: clff?.area?.name || areaCode,
+    marketTier: clff?.area?.marketTier || 'Unknown',
     feasibility: feasResults,
     transactions: salesData ? {
       total: salesData.count.total,
       byType: { studio: salesData.count.studio, br1: salesData.count.br1, br2: salesData.count.br2, br3: salesData.count.br3 },
-      avgPsf: { studio: salesData.avgPSF.studio, br1: salesData.avgPSF.br1, br2: salesData.avgPSF.br2, br3: salesData.avgPSF.br3 },
+      avgPsf: salesData.avgPsf,
       sharePct: salesData.sharePct,
     } : null,
     rental: rentalData ? {
-      avgRentPsf: { studio: rentalData.avgPSF.studio, br1: rentalData.avgPSF.br1, br2: rentalData.avgPSF.br2, br3: rentalData.avgPSF.br3 },
-      yields: { studio: rentalData.yield.studio, br1: rentalData.yield.br1, br2: rentalData.yield.br2, br3: rentalData.yield.br3 },
+      avgRentPsf: {
+        studio: rentalData.studio?.avgPSFPerYear || 0,
+        br1: rentalData.br1?.avgPSFPerYear || 0,
+        br2: rentalData.br2?.avgPSFPerYear || 0,
+        br3: rentalData.br3?.avgPSFPerYear || 0,
+      },
+      yields: {
+        studio: rentalData.studio?.grossYield || 0,
+        br1: rentalData.br1?.grossYield || 0,
+        br2: rentalData.br2?.grossYield || 0,
+        br3: rentalData.br3?.grossYield || 0,
+      },
     } : null,
     competitors,
     insights,
