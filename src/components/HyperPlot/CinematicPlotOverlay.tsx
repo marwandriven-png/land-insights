@@ -117,35 +117,6 @@ export function CinematicPlotOverlay({ map, plot }: CinematicPlotOverlayProps) {
       }
     }
     requestAnimationFrame(animateZoom);
-    const cornerDist = center.distanceTo(latLngs[0]);
-    const initialRadius = cornerDist * 1.2;
-
-    const circle = L.circle(center, {
-      radius: 0,
-      color: '#00e5ff',
-      weight: 2.5,
-      opacity: 1,
-      fillColor: '#00e5ff',
-      fillOpacity: 0.08,
-      interactive: false,
-      className: 'cinematic-circle-expand'
-    });
-    circle.addTo(map);
-    layersRef.current.push(circle);
-
-    let startTime = performance.now();
-    const circleDuration = 800;
-    function animateCircle(now: number) {
-      const elapsed = now - startTime;
-      const progress = Math.min(elapsed / circleDuration, 1);
-      const eased = 1 - Math.pow(1 - progress, 3);
-      circle.setRadius(initialRadius * eased);
-      if (progress < 1) {
-        requestAnimationFrame(animateCircle);
-      }
-    }
-    requestAnimationFrame(animateCircle);
-
     const boundaryDelay = setTimeout(() => {
       const circleEl = circle.getElement() as HTMLElement | null;
       if (circleEl) {
