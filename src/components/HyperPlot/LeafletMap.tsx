@@ -94,18 +94,18 @@ export function LeafletMap({ plots, selectedPlot, onPlotClick, highlightedPlots,
       return selectedPlot?.id === id || highlightedPlots.includes(id);
     }
 
-    // Blue pin icon for selected fallback plot
+    // Red pin icon for selected fallback plot
     const fallbackPinIcon = () => L.divIcon({
       className: 'fallback-pin-wrapper',
-      html: `<div class="fallback-pin fallback-pin-selected">
-        <svg width="36" height="50" viewBox="0 0 28 40" fill="none" xmlns="http://www.w3.org/2000/svg">
-          <path d="M14 0C6.268 0 0 6.268 0 14c0 10.5 14 26 14 26s14-15.5 14-26C28 6.268 21.732 0 14 0z" fill="#3B82F6" fill-opacity="0.95"/>
-          <circle cx="14" cy="14" r="6" fill="#fff" stroke="#2563EB" stroke-width="1.5"/>
+      html: `<div class="fallback-pin">
+        <svg width="24" height="34" viewBox="0 0 28 40" fill="none" xmlns="http://www.w3.org/2000/svg">
+          <path d="M14 0C6.268 0 0 6.268 0 14c0 10.5 14 26 14 26s14-15.5 14-26C28 6.268 21.732 0 14 0z" fill="#EF4444"/>
+          <circle cx="14" cy="14" r="6" fill="#fff" stroke="#DC2626" stroke-width="1.5"/>
         </svg>
       </div>`,
-      iconSize: [36, 50],
-      iconAnchor: [18, 50],
-      popupAnchor: [0, -50]
+      iconSize: [24, 34],
+      iconAnchor: [12, 34],
+      popupAnchor: [0, -34]
     });
 
     plots.forEach(plot => {
