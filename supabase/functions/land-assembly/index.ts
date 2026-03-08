@@ -53,7 +53,11 @@ Return ONLY valid JSON (no markdown, no code fences) with this exact structure:
     "oneBR": string,
     "twoBR": string,
     "threeBR": string,
-    "expectedSellOut": string
+    "expectedSellOut": string,
+    "commercialProximity": [
+      { "plotId": string, "landUse": string, "distance": string, "absorptionImpact": string }
+    ],
+    "demandDriverInsight": string
   },
   "comparablePlots": [
     { "plotId": string, "sizeSqft": number, "gfaSqft": number, "zoning": string, "status": string, "sizeDiffPct": number, "gfaDiffPct": number }
