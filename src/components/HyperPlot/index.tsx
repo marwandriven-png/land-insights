@@ -632,6 +632,10 @@ export function HyperPlotAI() {
                                           project: entry.plotName,
                                           floors: '',
                                           developer: '',
+                                          color: '',
+                                          constructionCost: 0,
+                                          salePrice: 0,
+                                          isFrozen: false,
                                           verificationSource: 'DLD' as const,
                                           rawAttributes: {
                                             _isFallbackPlot: true,
