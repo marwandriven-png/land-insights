@@ -566,7 +566,7 @@ class DDAGISService {
         constructionStatus: p.construction_status,
         siteStatus: p.site_status,
         rawAttributes: {
-570:           data_source_master: p.data_source_master,
+          data_source_master: p.data_source_master,
           confidence_score: p.confidence_score,
           is_fallback: p.is_fallback,
           _isFallbackPlot: !!p.is_fallback,
