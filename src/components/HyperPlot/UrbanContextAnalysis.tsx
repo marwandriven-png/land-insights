@@ -141,7 +141,7 @@ export function UrbanContextAnalysis({ plot, onClose }: UrbanContextAnalysisProp
           </div>
           <div>
             <h3 className="font-bold text-lg">Urban Context Analysis</h3>
-            <p className="text-sm text-muted-foreground mt-1">Scanning environment within 1km radius...</p>
+            <p className="text-sm text-muted-foreground mt-1">Scanning environment within 5km radius...</p>
           </div>
         </div>
       </div>
