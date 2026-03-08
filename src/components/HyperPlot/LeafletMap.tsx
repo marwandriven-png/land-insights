@@ -297,7 +297,10 @@ export function LeafletMap({ plots, selectedPlot, onPlotClick, highlightedPlots,
         .plot-tooltip::before { border-top-color: hsl(187 94% 43% / 0.3) !important; }
         .plot-glow-layer { filter: drop-shadow(0 0 6px rgba(0, 229, 255, 0.7)) drop-shadow(0 0 14px rgba(0, 229, 255, 0.35)); }
         .plot-glow-circle { filter: drop-shadow(0 0 6px rgba(0, 229, 255, 0.7)) drop-shadow(0 0 12px rgba(0, 229, 255, 0.4)); }
-        .plot-fallback-rect { filter: drop-shadow(0 0 4px rgba(0, 255, 204, 0.6)) drop-shadow(0 0 10px rgba(0, 255, 204, 0.25)); }
+        .fallback-pin-wrapper { background: none !important; border: none !important; }
+        .fallback-pin { filter: drop-shadow(0 0 6px rgba(0, 255, 204, 0.7)) drop-shadow(0 0 14px rgba(0, 255, 204, 0.35)); transition: transform 0.2s; }
+        .fallback-pin:hover { transform: scale(1.15); }
+        .fallback-pin-selected { filter: drop-shadow(0 0 8px rgba(0, 229, 255, 0.9)) drop-shadow(0 0 20px rgba(0, 229, 255, 0.5)); transform: scale(1.2); }
       `}</style>
     </div>
   );
