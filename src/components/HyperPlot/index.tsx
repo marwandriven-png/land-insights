@@ -329,12 +329,19 @@ export function HyperPlotAI() {
               {/* Connection Status */}
               <div className={`flex items-center gap-2 px-4 py-2 rounded-full text-sm font-medium ${gisConnected
                 ? 'bg-success/20 text-success border border-success/30'
-                : 'bg-warning/20 text-warning border border-warning/30'
+                : plots.length > 0 && plots.some(p => (p.rawAttributes as Record<string,unknown>)?._isFallbackPlot)
+                  ? 'bg-primary/20 text-primary border border-primary/30'
+                  : 'bg-warning/20 text-warning border border-warning/30'
                 }`}>
                 {gisConnected ? (
                   <>
                     <Wifi className="w-3.5 h-3.5" />
                     Live Data
+                  </>
+                ) : plots.length > 0 && plots.some(p => (p.rawAttributes as Record<string,unknown>)?._isFallbackPlot) ? (
+                  <>
+                    <Database className="w-3.5 h-3.5" />
+                    Fallback DB
                   </>
                 ) : (
                   <>
