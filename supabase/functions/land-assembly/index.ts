@@ -68,8 +68,8 @@ All percentages as numbers (e.g. 48 not "48%"). Use real Dubai market knowledge.
 
 CRITICAL INSTRUCTIONS:
 - For "comparablePlots": You MUST find plots from the NEARBY PLOTS data that are COMPARABLE to the selected plot based on BOTH plot size (area sqft within ±30%) AND GFA (sqft within ±30%). Include their real plot IDs, sizes, GFA, zoning, and status. Add "sizeDiffPct" and "gfaDiffPct" showing how much they differ from the selected plot. Rank by closest combined match. Do NOT invent fake plot IDs.
-- For "developmentPattern": ONLY analyze plots with Residential or Mixed Use zoning/land use from the nearby plots data. Group them by GFA range and plot size range to identify the dominant development scale and type. Count real occurrences. Ignore commercial-only, industrial, or infrastructure plots.
-- For "completedBenchmarks": Only include benchmarks from nearby plots that have construction status "Completed" or similar.
+- For "developmentPattern": ONLY analyze plots with Residential or Mixed Use zoning/land use from the nearby plots data. Classify building types based on the FLOORS data — if floors indicate multi-story (G+3 or higher), classify as "Residential Building/Tower", NOT "Residential Villa". Villas are ONLY G+1 or G+2 with very small unit counts. Group by GFA range and plot size range to identify the dominant development scale and type. Count real occurrences. Ignore commercial-only, industrial, or infrastructure plots.
+- For "completedBenchmarks": ONLY include plots from the SAME AREA/COMMUNITY as the selected plot that have construction status "Completed" or similar. Filter to plots with GFA within ±50% of the selected plot's GFA. Include their real data (plot size, GFA, floors, developer, building type). Classify building type correctly based on floors data — multi-story = Building/Tower, not Villa. Do NOT invent benchmarks.
 - Always reference the area name (entity/project/location) in your insights.`;
 
     const areaName = selectedPlot.location || selectedPlot.developer || 'Unknown Area';
