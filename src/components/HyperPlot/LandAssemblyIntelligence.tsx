@@ -49,7 +49,7 @@ export function LandAssemblyIntelligence({ plot, onSelectPlot, onClose }: LandAs
     try {
       // Use normalized nearby-plots service
       const { plots: nearbyPlots, totalFound } = await fetchNearbyPlots(plot, {
-        radiusMeters: 5000,
+        radiusMeters: 1000,
         spatialLimit: 200,
         outputLimit: 100,
       });
