@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { Brain, TrendingUp, Shield, AlertTriangle, DollarSign, Layers, Target, Loader2, BarChart3, CheckCircle, XCircle, Minus, Combine, TreePine, MapPin, ArrowRight, Lightbulb } from 'lucide-react';
 import { PlotData, gisService } from '@/services/DDAGISService';
 import { supabase } from '@/integrations/supabase/client';
@@ -6,6 +6,9 @@ import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { toast } from '@/hooks/use-toast';
+import { calcDSCFeasibility, MIX_TEMPLATES, fmt, fmtM, pct, type DSCPlotInput } from '@/lib/dscFeasibility';
+import { getAreaData, getCompetitorsAsComparables, getAreaSalesData, getAreaRentalData, generateAreaInsights } from '@/data/crossAreaMasterData';
+import { matchCLFFArea, getCLFFOverridesWithMasterData } from '@/lib/clffAreaDefaults';
 
 const SQM_TO_SQFT = 10.7639;
 
@@ -91,6 +94,109 @@ interface Props {
   plotB: PlotData;
   onClose: () => void;
 }
+
+// Build DC context for a single plot
+function buildDCContext(plot: PlotData) {
+  const areaSqft = plot.area * SQM_TO_SQFT;
+  const gfaSqft = plot.gfa * SQM_TO_SQFT;
+  const ratio = areaSqft > 0 ? gfaSqft / areaSqft : 4.5;
+  const dscInput: DSCPlotInput = {
+    id: plot.id,
+    name: plot.project || plot.location || plot.id,
+    area: areaSqft,
+    ratio,
+    height: plot.maxHeight ? `${plot.maxHeight}m` : plot.floors,
+    zone: plot.zoning,
+    constraints: 'Standard guidelines',
+  };
+
+  // Resolve area
+  const areaCode = plot.location || plot.project || '';
+  const clff = matchCLFFArea(areaCode);
+  const clffCode = clff?.area?.code || '';
+  const areaData = getAreaData(clffCode);
+  const salesByUnit = areaData?.salesByUnit || {};
+  const rentalByUnit = areaData?.rentalByUnit || {};
+  const masterSales: any = {};
+  const masterRentals: any = {};
+  for (const [k, v] of Object.entries(salesByUnit)) { masterSales[k] = { avgPSF: v?.avgPSF, avgSizeSqft: v?.avgSizeSqft }; }
+  for (const [k, v] of Object.entries(rentalByUnit)) { masterRentals[k] = { avgPSFPerYear: v?.avgPSFPerYear }; }
+  const overrides = clffCode ? getCLFFOverridesWithMasterData(clffCode, masterSales, masterRentals) : {};
+
+  // Run feasibility for all 3 strategies
+  const feasResults: Record<string, any> = {};
+  for (const mixKey of ['investor', 'balanced', 'family'] as const) {
+    const r = calcDSCFeasibility(dscInput, mixKey, overrides);
+    feasResults[mixKey] = {
+      grossSales: Math.round(r.grossSales),
+      totalCost: Math.round(r.totalCost),
+      grossProfit: Math.round(r.grossProfit),
+      grossMargin: (r.grossMargin * 100).toFixed(1) + '%',
+      roi: (r.roi * 100).toFixed(1) + '%',
+      breakEvenPsf: Math.round(r.breakEvenPsf),
+      avgPsf: Math.round(r.avgPsf),
+      grossYield: (r.grossYield * 100).toFixed(1) + '%',
+      totalUnits: r.units.total,
+      unitBreakdown: { studio: r.units.studio, br1: r.units.br1, br2: r.units.br2, br3: r.units.br3 },
+      sensitivity: r.sens.map(s => ({ delta: (s.delta * 100).toFixed(0) + '%', profit: Math.round(s.profit), margin: (s.margin * 100).toFixed(1) + '%', roi: (s.roi * 100).toFixed(1) + '%' })),
+    };
+  }
+
+  // Market data
+  const salesData = getAreaSalesData(clffCode);
+  const rentalData = getAreaRentalData(clffCode);
+  const competitors = areaData?.competitors?.slice(0, 5).map(c => ({
+    name: c.name, developer: c.developer, totalUnits: c.totalUnits,
+    studioP: c.studioPct || 0, oneBRP: c.oneBRPct || 0, twoBRP: c.twoBRPct || 0, threeBRP: c.threeBRPct || 0,
+    priceFrom: c.priceFrom, completion: c.completion,
+  })) || [];
+  const insights = areaData ? generateAreaInsights(clffCode) : [];
+
+  return {
+    areaName: clff?.area?.name || areaCode,
+    marketTier: clff?.area?.marketTier || 'Unknown',
+    feasibility: feasResults,
+    transactions: salesData ? {
+      total: salesData.count.total,
+      byType: { studio: salesData.count.studio, br1: salesData.count.br1, br2: salesData.count.br2, br3: salesData.count.br3 },
+      avgPsf: salesData.avgPsf,
+      sharePct: salesData.sharePct,
+    } : null,
+    rental: rentalData ? {
+      avgRentPsf: {
+        studio: rentalData.studio?.avgPSFPerYear || 0,
+        br1: rentalData.br1?.avgPSFPerYear || 0,
+        br2: rentalData.br2?.avgPSFPerYear || 0,
+        br3: rentalData.br3?.avgPSFPerYear || 0,
+      },
+      yields: {
+        studio: rentalData.studio?.grossYield || 0,
+        br1: rentalData.br1?.grossYield || 0,
+        br2: rentalData.br2?.grossYield || 0,
+        br3: rentalData.br3?.grossYield || 0,
+      },
+    } : null,
+    competitors,
+    insights,
+    framework: areaData?.developmentFramework ? {
+      constructionPSF: areaData.developmentFramework.constructionPSF,
+      yieldRange: areaData.developmentFramework.grossYieldRange,
+      serviceCharge: areaData.developmentFramework.serviceChargeRange,
+    } : null,
+  };
+}
+
+const ANALYSIS_DIMENSIONS = [
+  { label: 'Plot Intelligence Score', icon: '🎯', duration: 2000 },
+  { label: 'Demand Heatmap', icon: '📊', duration: 1800 },
+  { label: 'Risk Detection System', icon: '⚠️', duration: 1500 },
+  { label: 'Valuation Opportunity', icon: '💰', duration: 1600 },
+  { label: 'Land Assembly Detector', icon: '🧩', duration: 1400 },
+  { label: 'Land Assembly Intelligence', icon: '🔗', duration: 1800 },
+  { label: 'Urban Context Analysis', icon: '🌳', duration: 1500 },
+  { label: 'Exit Strategy Planner', icon: '📈', duration: 1200 },
+  { label: 'AI Comparative Verdict', icon: '🛡️', duration: 2000 },
+];
 
 function ScoreBar({ score, max = 10 }: { score: number; max?: number }) {
   const pct = (score / max) * 100;
@@ -194,16 +300,81 @@ function UrbanScoreRadar({ label, data }: { label: string; data: UrbanContextDat
   );
 }
 
+function DimensionLoadingAnimation({ activeDimension }: { activeDimension: number }) {
+  return (
+    <div className="h-full flex flex-col items-center justify-center glass-card glow-border p-8">
+      <div className="w-16 h-16 rounded-2xl flex items-center justify-center mb-6 relative"
+        style={{ background: 'linear-gradient(135deg, hsl(var(--primary)), hsl(var(--secondary)))' }}>
+        <Brain className="w-8 h-8 text-primary-foreground animate-pulse" />
+        <div className="absolute inset-0 rounded-2xl border-2 border-primary/30 animate-ping" />
+      </div>
+      <h2 className="text-xl font-bold mb-1">AI Comparative Engine</h2>
+      <p className="text-xs text-muted-foreground mb-6">Analyzing Decision Confidence data across 9 dimensions</p>
+      <div className="w-full max-w-md space-y-2">
+        {ANALYSIS_DIMENSIONS.map((dim, i) => {
+          const isActive = i === activeDimension;
+          const isDone = i < activeDimension;
+          const isPending = i > activeDimension;
+          return (
+            <div
+              key={dim.label}
+              className={`flex items-center gap-3 px-4 py-2.5 rounded-xl border transition-all duration-500 ${
+                isActive
+                  ? 'border-primary/50 bg-primary/10 scale-[1.02] shadow-lg shadow-primary/10'
+                  : isDone
+                  ? 'border-success/30 bg-success/5'
+                  : 'border-border/30 bg-card/30 opacity-40'
+              }`}
+            >
+              <span className="text-base w-6 text-center">{dim.icon}</span>
+              <span className={`flex-1 text-sm font-medium ${isActive ? 'text-primary' : isDone ? 'text-success' : 'text-muted-foreground'}`}>
+                {dim.label}
+              </span>
+              {isDone && <CheckCircle className="w-4 h-4 text-success" />}
+              {isActive && <Loader2 className="w-4 h-4 text-primary animate-spin" />}
+              {isPending && <div className="w-4 h-4 rounded-full border border-border/50" />}
+            </div>
+          );
+        })}
+      </div>
+      <div className="mt-6 flex items-center gap-2">
+        <div className="w-48 bg-muted/50 rounded-full h-1.5 overflow-hidden">
+          <div
+            className="h-full bg-gradient-to-r from-primary to-secondary rounded-full transition-all duration-700"
+            style={{ width: `${((activeDimension + 1) / ANALYSIS_DIMENSIONS.length) * 100}%` }}
+          />
+        </div>
+        <span className="text-xs text-muted-foreground font-mono">{activeDimension + 1}/{ANALYSIS_DIMENSIONS.length}</span>
+      </div>
+    </div>
+  );
+}
+
 export function AIComparativeAnalysis({ plotA, plotB, onClose }: Props) {
   const [result, setResult] = useState<AIComparisonResult | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [loadingStep, setLoadingStep] = useState('');
+  const [activeDimension, setActiveDimension] = useState(0);
 
   const plotALabel = plotA.id;
   const plotBLabel = plotB.id;
   const plotAArea = plotA.location || plotA.project || plotA.entity || '';
   const plotBArea = plotB.location || plotB.project || plotB.entity || '';
+
+  // Animate dimension steps while loading
+  useEffect(() => {
+    if (!loading) return;
+    setActiveDimension(0);
+    let current = 0;
+    const interval = setInterval(() => {
+      current++;
+      if (current >= ANALYSIS_DIMENSIONS.length) {
+        current = ANALYSIS_DIMENSIONS.length - 1;
+      }
+      setActiveDimension(current);
+    }, 1600);
+    return () => clearInterval(interval);
+  }, [loading]);
 
   const fetchNearbyPlots = async (plot: PlotData) => {
     const lat = plot.y;
@@ -230,17 +401,19 @@ export function AIComparativeAnalysis({ plotA, plotB, onClose }: Props) {
     setLoading(true);
     setError(null);
     try {
-      setLoadingStep('Scanning 1km radius around both plots...');
+      // Build Decision Confidence context for both plots
+      const dcContextA = buildDCContext(plotA);
+      const dcContextB = buildDCContext(plotB);
+
       const [nearbyA, nearbyB] = await Promise.all([
         fetchNearbyPlots(plotA),
         fetchNearbyPlots(plotB),
       ]);
 
-      setLoadingStep('Running AI comparative analysis across 9 dimensions...');
       const marketContext = `
-Plot A location: ${plotA.location || 'Dubai'}. Zoning: ${plotA.zoning}. Area: ${Math.round(plotA.area * SQM_TO_SQFT)} sqft. GFA: ${Math.round(plotA.gfa * SQM_TO_SQFT)} sqft. Nearby: ${nearbyA.length} plots.
-Plot B location: ${plotB.location || 'Dubai'}. Zoning: ${plotB.zoning}. Area: ${Math.round(plotB.area * SQM_TO_SQFT)} sqft. GFA: ${Math.round(plotB.gfa * SQM_TO_SQFT)} sqft. Nearby: ${nearbyB.length} plots.
-Use Dubai market averages for these zones. Consider current Q1 2026 market conditions.`;
+Plot A: ${plotA.location || 'Dubai'}, Zoning: ${plotA.zoning}, Area: ${Math.round(plotA.area * SQM_TO_SQFT)} sqft, GFA: ${Math.round(plotA.gfa * SQM_TO_SQFT)} sqft, Nearby: ${nearbyA.length} plots.
+Plot B: ${plotB.location || 'Dubai'}, Zoning: ${plotB.zoning}, Area: ${Math.round(plotB.area * SQM_TO_SQFT)} sqft, GFA: ${Math.round(plotB.gfa * SQM_TO_SQFT)} sqft, Nearby: ${nearbyB.length} plots.
+Q1 2026 market conditions.`;
 
       const { data, error: fnError } = await supabase.functions.invoke('plot-comparison', {
         body: {
@@ -259,6 +432,8 @@ Use Dubai market averages for these zones. Consider current Q1 2026 market condi
           marketContext,
           nearbyPlotsA: nearbyA,
           nearbyPlotsB: nearbyB,
+          dcContextA,
+          dcContextB,
         },
       });
 
@@ -271,7 +446,6 @@ Use Dubai market averages for these zones. Consider current Q1 2026 market condi
       toast({ title: 'Analysis Failed', description: msg, variant: 'destructive' });
     } finally {
       setLoading(false);
-      setLoadingStep('');
     }
   };
 
@@ -284,11 +458,14 @@ Use Dubai market averages for these zones. Consider current Q1 2026 market condi
         </div>
         <h2 className="text-xl font-bold mb-2">AI Comparative Analysis</h2>
         <p className="text-sm text-muted-foreground text-center mb-3 max-w-md">
-          Generate an advanced investment comparison between <span className="font-bold text-foreground">{plotALabel}</span> and <span className="font-bold text-foreground">{plotBLabel}</span>
+          Generate a full Decision Confidence–powered comparison between <span className="font-bold text-foreground">{plotALabel}</span> and <span className="font-bold text-foreground">{plotBLabel}</span>
+        </p>
+        <p className="text-xs text-muted-foreground text-center mb-4 max-w-sm">
+          Includes feasibility, transactions, benchmarks, sensitivity analysis & spatial context
         </p>
         <div className="flex flex-wrap gap-1.5 justify-center mb-6">
-          {['Intelligence Score', 'Demand Heatmap', 'Risk Detection', 'Valuation', 'Assembly', 'Assembly Intel', 'Urban Context', 'Exit Strategy', 'AI Verdict'].map(s => (
-            <Badge key={s} variant="outline" className="text-[10px]">{s}</Badge>
+          {ANALYSIS_DIMENSIONS.map(d => (
+            <Badge key={d.label} variant="outline" className="text-[10px]">{d.icon} {d.label}</Badge>
           ))}
         </div>
         <Button onClick={runAnalysis} size="lg" className="gap-2">
@@ -301,13 +478,7 @@ Use Dubai market averages for these zones. Consider current Q1 2026 market condi
   }
 
   if (loading) {
-    return (
-      <div className="h-full flex flex-col items-center justify-center glass-card glow-border">
-        <Loader2 className="w-12 h-12 text-primary animate-spin mb-4" />
-        <h3 className="text-lg font-bold mb-1">Analyzing Plots...</h3>
-        <p className="text-sm text-muted-foreground">{loadingStep || 'Running AI comparative analysis'}</p>
-      </div>
-    );
+    return <DimensionLoadingAnimation activeDimension={activeDimension} />;
   }
 
   if (!result) return null;
