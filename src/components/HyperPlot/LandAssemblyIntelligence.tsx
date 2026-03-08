@@ -57,20 +57,40 @@ export function LandAssemblyIntelligence({ plot, onSelectPlot, onClose }: LandAs
     setLoading(true);
     setError(null);
     try {
-      // Step 1: Fetch nearby plots within 1km radius
-      const lat = plot.y;
-      const lng = plot.x;
+      // Step 1: Fetch nearby plots - convert EPSG:3997 to WGS84
+      const rawX = plot.x;
+      const rawY = plot.y;
+      let lat: number, lng: number;
+      if (rawX > 1000 && rawY > 1000) {
+        [lat, lng] = toWGS84(rawX, rawY);
+      } else {
+        lat = rawY;
+        lng = rawX;
+      }
       let nearbyPlots: PlotData[] = [];
       
       if (lat && lng && lat !== 0 && lng !== 0) {
-        nearbyPlots = await gisService.searchByLocation(lat, lng, 1000);
+        // Search entire area (5km) to get plots from the same community/master plan
+        nearbyPlots = await gisService.searchByLocation(lat, lng, 5000, 200);
         // Exclude the selected plot
         nearbyPlots = nearbyPlots.filter(p => p.id !== plot.id);
       }
 
-      setNearbyCount(nearbyPlots.length);
+      // Also search by area name to ensure we get plots from the same community
+      const areaName = plot.location || plot.project || plot.entity || '';
+      if (areaName && areaName !== 'Dubai') {
+        try {
+          const areaPlots = await gisService.searchByArea(undefined, undefined, areaName);
+          const existingIds = new Set(nearbyPlots.map(p => p.id));
+          existingIds.add(plot.id);
+          const uniqueAreaPlots = areaPlots.filter(p => !existingIds.has(p.id));
+          nearbyPlots = [...nearbyPlots, ...uniqueAreaPlots];
+        } catch (e) {
+          console.log('Area search supplementary failed:', e);
+        }
+      }
 
-      // Step 2: Call edge function
+      setNearbyCount(nearbyPlots.length);
       const selectedPlot = {
         id: plot.id,
         location: plot.location || plot.project || plot.entity || '',
