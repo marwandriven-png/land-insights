@@ -273,7 +273,32 @@ serve(async (req) => {
       });
     }
 
-    return new Response(JSON.stringify({ error: 'Invalid action. Use: lookup, spatial, stats, or POST for bulk import' }), {
+    // ── RESET: delete all fallback plots (requires reset key) ──
+    if (action === 'reset' && req.method === 'POST') {
+      const body = await req.json();
+      const resetKey = body.reset_key as string;
+      const expectedKey = Deno.env.get('FALLBACK_DB_RESET_KEY');
+
+      if (!expectedKey || resetKey !== expectedKey) {
+        return new Response(JSON.stringify({ error: 'Invalid or missing reset key' }), {
+          status: 403, headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+        });
+      }
+
+      const { error, count } = await supabase
+        .from('fallback_plots')
+        .delete()
+        .neq('id', '00000000-0000-0000-0000-000000000000'); // delete all rows
+
+      if (error) throw error;
+
+      console.log(`[FallbackPlots] RESET: deleted ${count ?? 'all'} rows`);
+      return new Response(JSON.stringify({ success: true, deleted: count ?? 'all' }), {
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+      });
+    }
+
+    return new Response(JSON.stringify({ error: 'Invalid action. Use: lookup, spatial, stats, list, update, reset, or POST for bulk import' }), {
       status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' },
     });
 

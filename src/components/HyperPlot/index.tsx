@@ -106,14 +106,11 @@ export function HyperPlotAI() {
       const isConnected = await gisService.testConnection();
       setGisConnected(isConnected);
 
-      if (!isConnected) {
-        throw new Error('Unable to connect to DDA GIS services');
-      }
-
       const progressInterval = setInterval(() => {
         setLoadProgress(prev => Math.min(prev + 10, 90));
       }, 200);
 
+      // fetchPlots handles GIS failure internally — falls back to fallback DB
       const gisPlots = await gisService.fetchPlots(500);
 
       clearInterval(progressInterval);
@@ -121,8 +118,12 @@ export function HyperPlotAI() {
 
       if (gisPlots && gisPlots.length > 0) {
         setPlots(mergeManualLands(gisPlots));
+        // If GIS test failed but fallback plots loaded, show partial status
+        if (!isConnected) {
+          setGisError('GIS unavailable — showing fallback database plots');
+        }
       } else {
-        throw new Error('No plot data received from GIS service');
+        throw new Error('No plot data received');
       }
 
       setTimeout(() => setLoadProgress(0), 500);
@@ -328,12 +329,19 @@ export function HyperPlotAI() {
               {/* Connection Status */}
               <div className={`flex items-center gap-2 px-4 py-2 rounded-full text-sm font-medium ${gisConnected
                 ? 'bg-success/20 text-success border border-success/30'
-                : 'bg-warning/20 text-warning border border-warning/30'
+                : plots.length > 0 && plots.some(p => (p.rawAttributes as Record<string,unknown>)?._isFallbackPlot)
+                  ? 'bg-primary/20 text-primary border border-primary/30'
+                  : 'bg-warning/20 text-warning border border-warning/30'
                 }`}>
                 {gisConnected ? (
                   <>
                     <Wifi className="w-3.5 h-3.5" />
                     Live Data
+                  </>
+                ) : plots.length > 0 && plots.some(p => (p.rawAttributes as Record<string,unknown>)?._isFallbackPlot) ? (
+                  <>
+                    <Database className="w-3.5 h-3.5" />
+                    Fallback DB
                   </>
                 ) : (
                   <>
@@ -695,7 +703,7 @@ export function HyperPlotAI() {
                   <div>
                     <h3 className="font-bold text-base">Available Plots</h3>
                     <p className="text-sm text-muted-foreground">
-                      {gisConnected ? 'Live DDA GIS Data' : 'Demo Mode'} • Last 3
+                      {gisConnected ? 'Live DDA GIS Data' : plots.some(p => (p.rawAttributes as Record<string,unknown>)?._isFallbackPlot) ? 'Fallback DB' : 'Demo Mode'} • Last 3
                     </p>
                   </div>
                   <div className="px-2.5 py-1 bg-primary/20 rounded text-sm font-bold text-primary">

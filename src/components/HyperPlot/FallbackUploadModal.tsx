@@ -1,8 +1,8 @@
 import { useState, useRef } from 'react';
-import { Upload, FileSpreadsheet, Loader2, CheckCircle2, AlertCircle, X, Database } from 'lucide-react';
+import { Upload, FileSpreadsheet, Loader2, CheckCircle2, AlertCircle, X, Database, Trash2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { toast } from '@/hooks/use-toast';
-import { supabase } from '@/integrations/supabase/client';
+import { Input } from '@/components/ui/input';
 
 interface FallbackUploadModalProps {
   open: boolean;
@@ -13,6 +13,9 @@ export function FallbackUploadModal({ open, onClose }: FallbackUploadModalProps)
   const [isUploading, setIsUploading] = useState(false);
   const [result, setResult] = useState<{ total_parsed: number; valid_mapped: number; upserted: number; errors: number } | null>(null);
   const [stats, setStats] = useState<number | null>(null);
+  const [showReset, setShowReset] = useState(false);
+  const [resetKey, setResetKey] = useState('');
+  const [isResetting, setIsResetting] = useState(false);
   const fileRef = useRef<HTMLInputElement>(null);
 
   if (!open) return null;
@@ -75,6 +78,43 @@ export function FallbackUploadModal({ open, onClose }: FallbackUploadModalProps)
     }
   };
 
+  const handleReset = async () => {
+    if (!resetKey.trim()) {
+      toast({ title: 'Key Required', description: 'Enter the reset key to proceed.', variant: 'destructive' });
+      return;
+    }
+
+    setIsResetting(true);
+    try {
+      const resp = await fetch(
+        `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/fallback-plots?action=reset`,
+        {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            Authorization: `Bearer ${import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY}`,
+          },
+          body: JSON.stringify({ reset_key: resetKey.trim() }),
+        }
+      );
+
+      const data = await resp.json();
+
+      if (data.success) {
+        toast({ title: 'Database Reset', description: `All fallback plots have been deleted.` });
+        setStats(0);
+        setShowReset(false);
+        setResetKey('');
+      } else {
+        toast({ title: 'Reset Failed', description: data.error || 'Invalid reset key', variant: 'destructive' });
+      }
+    } catch {
+      toast({ title: 'Error', description: 'Failed to reset database.', variant: 'destructive' });
+    } finally {
+      setIsResetting(false);
+    }
+  };
+
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm">
       <div className="glass-card w-full max-w-lg mx-4 p-6 space-y-5">
@@ -96,10 +136,51 @@ export function FallbackUploadModal({ open, onClose }: FallbackUploadModalProps)
 
         {/* Stats */}
         {stats !== null && (
-          <div className="data-card flex items-center gap-3">
-            <Database className="w-4 h-4 text-primary" />
-            <span className="text-sm text-muted-foreground">Current database:</span>
-            <span className="text-foreground font-bold">{stats.toLocaleString()} plots</span>
+          <div className="data-card flex items-center justify-between">
+            <div className="flex items-center gap-3">
+              <Database className="w-4 h-4 text-primary" />
+              <span className="text-sm text-muted-foreground">Current database:</span>
+              <span className="text-foreground font-bold">{stats.toLocaleString()} plots</span>
+            </div>
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={() => setShowReset(!showReset)}
+              className="text-destructive hover:text-destructive gap-1.5"
+            >
+              <Trash2 className="w-3.5 h-3.5" />
+              Reset
+            </Button>
+          </div>
+        )}
+
+        {/* Reset Panel */}
+        {showReset && (
+          <div className="data-card border border-destructive/30 space-y-3">
+            <div className="flex items-center gap-2 text-destructive">
+              <AlertCircle className="w-4 h-4" />
+              <span className="font-bold text-sm">⚠️ This will delete ALL fallback plots</span>
+            </div>
+            <div className="flex gap-2">
+              <Input
+                type="password"
+                placeholder="Enter reset key"
+                value={resetKey}
+                onChange={(e) => setResetKey(e.target.value)}
+                className="flex-1 text-sm"
+                onKeyDown={(e) => e.key === 'Enter' && handleReset()}
+              />
+              <Button
+                variant="destructive"
+                size="sm"
+                onClick={handleReset}
+                disabled={isResetting}
+                className="gap-1.5"
+              >
+                {isResetting ? <Loader2 className="w-4 h-4 animate-spin" /> : <Trash2 className="w-4 h-4" />}
+                Confirm
+              </Button>
+            </div>
           </div>
         )}
 
