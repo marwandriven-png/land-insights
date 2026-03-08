@@ -46,7 +46,7 @@ export function LeafletMap({ plots, selectedPlot, onPlotClick, highlightedPlots,
       center: [25.075, 55.20],
       zoom: 13,
       minZoom: 8,
-      maxZoom: 17,
+      maxZoom: 16,
       zoomControl: false,
       attributionControl: false,
       maxBounds: UAE_BOUNDS,
@@ -61,8 +61,8 @@ export function LeafletMap({ plots, selectedPlot, onPlotClick, highlightedPlots,
 
     // High-res satellite base layer
     L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}', {
-      maxZoom: 17,
-      maxNativeZoom: 17,
+      maxZoom: 16,
+      maxNativeZoom: 16,
       noWrap: true,
       detectRetina: true,
       tileSize: 256,
@@ -71,8 +71,8 @@ export function LeafletMap({ plots, selectedPlot, onPlotClick, highlightedPlots,
 
     // Hybrid labels overlay for road names / landmarks
     L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/Reference/World_Transportation/MapServer/tile/{z}/{y}/{x}', {
-      maxZoom: 17,
-      maxNativeZoom: 17,
+      maxZoom: 16,
+      maxNativeZoom: 16,
       noWrap: true,
       detectRetina: true,
       opacity: 0.7,
