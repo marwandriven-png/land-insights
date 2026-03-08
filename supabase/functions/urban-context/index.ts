@@ -54,11 +54,43 @@ Return ONLY valid JSON (no markdown, no code fences) with this exact structure:
   "aiInsight": string
 }
 
-All scores 0-10. Distances should include units (e.g. "350m"). Use realistic Dubai urban planning knowledge. Be specific about infrastructure types commonly found near Dubai development plots. Infer urban context from plot location, zoning, nearby development patterns, and construction statuses.`;
+CRITICAL RULES:
 
-    const nearbyDesc = (nearbyPlots || []).map((p: any, i: number) =>
-      `${i + 1}. Plot ${p.id}: ${p.areaSqft} sqft, Zoning: ${p.zoning}, Status: ${p.status}, Floors: ${p.floors || 'N/A'}, Developer: ${p.developer || 'N/A'}, Location: ${p.location || 'N/A'}, Construction: ${p.constructionStatus || 'N/A'}, LandUse: ${p.landUseDetails || 'N/A'}`
+1. **Utilities & Infrastructure** — ONLY report facilities you can CONFIRM from the nearby plots data.
+   - Look at the "LandUse" field of EVERY nearby plot. If a plot's LandUse contains keywords like "COMMUNITY PARK", "PARK", "GARDEN", "MASJID", "MOSQUE", "SCHOOL", "HOSPITAL", "CLINIC", "RETAIL", "COMMERCIAL", "SUBSTATION", "UTILITY", "FACILITIES", "PETROL", "GAS STATION", "FIRE STATION", "POLICE" etc., report that as a real utility/infrastructure/green space.
+   - Include the actual plot ID of the source plot for each utility (e.g. "Community Park (Plot 6457687)").
+   - Do NOT invent or assume utilities that are not evidenced in the nearby plots data.
+
+2. **Green Spaces** — Extract ONLY from nearby plots whose LandUse contains "PARK", "GARDEN", "GREEN", "OPEN SPACE", "COMMUNITY PARK", "LANDSCAPE" etc. Reference the actual plot IDs.
+
+3. **Street Facing Analysis** — This is CRITICAL. Do NOT guess whether a plot is a "corner plot".
+   - A corner plot is one that has roads on TWO adjacent sides (not just one road frontage).
+   - To determine this: look at the plots that are ADJACENT to the selected plot (sharing a boundary). If there is a neighboring plot on a side, that side faces another plot, NOT a road.
+   - If adjacent plots exist on all sides, the selected plot is an INTERIOR plot (not corner, not road-facing on that side).
+   - Only if a side has NO adjacent plot can you infer it faces a road or open space.
+   - Use setback values as supporting evidence: larger setbacks usually indicate main road frontage, but setbacks alone do NOT confirm a corner plot.
+   - Be precise: say "Interior plot" or "Single road frontage" or "Corner plot" ONLY based on actual adjacent plot analysis.
+
+All scores 0-10. Distances should include units (e.g. "350m"). Be specific and data-driven. Never fabricate infrastructure that isn't evidenced in the provided data.`;
+
+    // Categorize nearby plots by land use for better analysis
+    const allNearby = nearbyPlots || [];
+    const facilitiesPlots = allNearby.filter((p: any) => {
+      const lu = (p.landUseDetails || '').toUpperCase();
+      return lu.includes('PARK') || lu.includes('GARDEN') || lu.includes('MASJID') || lu.includes('MOSQUE') ||
+        lu.includes('SCHOOL') || lu.includes('HOSPITAL') || lu.includes('CLINIC') || lu.includes('RETAIL') ||
+        lu.includes('FACILITIES') || lu.includes('SUBSTATION') || lu.includes('UTILITY') || lu.includes('PETROL') ||
+        lu.includes('FIRE') || lu.includes('POLICE') || lu.includes('COMMUNITY') || lu.includes('OPEN SPACE');
+    });
+
+    const nearbyDesc = allNearby.map((p: any, i: number) =>
+      `${i + 1}. Plot ${p.id}: ${p.areaSqft} sqft, Zoning: ${p.zoning}, Status: ${p.status}, Floors: ${p.floors || 'N/A'}, Developer: ${p.developer || 'N/A'}, Location: ${p.location || 'N/A'}, Construction: ${p.constructionStatus || 'N/A'}, LandUse: ${p.landUseDetails || 'N/A'}, Lat: ${p.lat || 'N/A'}, Lng: ${p.lng || 'N/A'}`
     ).join('\n');
+
+    const facilitiesDesc = facilitiesPlots.length > 0
+      ? `\n\nCONFIRMED FACILITIES/AMENITIES IN NEARBY PLOTS (extracted from GIS land use data):\n` +
+        facilitiesPlots.map((p: any) => `- Plot ${p.id}: LandUse="${p.landUseDetails}", Location="${p.location || 'N/A'}"`).join('\n')
+      : '\n\nNo confirmed facilities/amenities found in nearby plot land use data.';
 
     // Build setback info from real GIS data
     const setbackInfo = selectedPlot.buildingSetbacks
@@ -88,14 +120,25 @@ SELECTED PLOT:
 - Developer: ${selectedPlot.developer || 'N/A'}
 - Construction Status: ${selectedPlot.constructionStatus || 'N/A'}
 - Land Use Details: ${selectedPlot.landUseDetails || 'N/A'}
+- Coordinates: Lat ${selectedPlot.lat || 'N/A'}, Lng ${selectedPlot.lng || 'N/A'}
 ${setbackInfo}
 
-SURROUNDING PLOTS WITHIN 1KM (${(nearbyPlots || []).length} plots):
+SURROUNDING PLOTS WITHIN 1KM (${allNearby.length} plots):
 ${nearbyDesc || 'No nearby plots data available.'}
+${facilitiesDesc}
 
-IMPORTANT for Street Facing Analysis: Use the EXACT building setback values from the DDA Affection Plan data above. The setback values represent the mandatory distance (in meters) from each side of the plot boundary to the building line. Larger setbacks on a side typically indicate a main road frontage. A side with 0m podium setback means the podium can extend to the plot boundary on that side. Use these real values to determine road widths, frontage quality, and street hierarchy.
+CRITICAL INSTRUCTIONS:
 
-Based on the plot location, zoning patterns, and surrounding development context, generate a comprehensive urban environment analysis.`;
+1. For "utilities" and "greenSpaces": ONLY include items that are CONFIRMED by the nearby plots' LandUse data above. Reference the actual Plot ID. For example if Plot 6457687 has LandUse="COMMUNITY PARK", report it as a green space with "Community Park (Plot 6457687)". If Plot 6459272 has LandUse="FACILITIES: JUMA MASJID", report it as a utility/amenity.
+
+2. For "streetFacing": Do NOT assume the plot is a corner plot unless you can confirm it has roads on TWO adjacent sides. Check the coordinates of nearby plots — if there are plots directly adjacent on a side (very close coordinates), that side borders another plot, NOT a road. A plot that has a neighbor on the side is NOT a corner plot on that side. Only classify as "Corner Plot" if the plot genuinely has two road-facing sides with no adjacent plots.
+
+3. Use building setback values as supporting evidence: ${selectedPlot.buildingSetbacks ? 'Setback data is provided above.' : 'No setback data available.'}
+   - Larger setbacks usually indicate main road frontage
+   - But setbacks alone do NOT confirm corner status — adjacent plot positions are the primary indicator
+
+Based on the REAL data provided, generate a comprehensive and accurate urban environment analysis.`;
+
 
     const response = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
       method: "POST",

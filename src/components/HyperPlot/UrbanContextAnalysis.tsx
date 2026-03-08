@@ -75,6 +75,8 @@ export function UrbanContextAnalysis({ plot, onClose }: UrbanContextAnalysisProp
         landUseDetails: plot.landUseDetails || '',
         buildingSetbacks: buildingSetbacks || null,
         podiumSetbacks: podiumSetbacks || null,
+        lat: plot.y,
+        lng: plot.x,
       };
 
       const nearbyPlotsData = nearbyPlots.slice(0, 50).map(p => ({
@@ -88,6 +90,8 @@ export function UrbanContextAnalysis({ plot, onClose }: UrbanContextAnalysisProp
         developer: p.developer || '',
         constructionStatus: p.constructionStatus || '',
         landUseDetails: p.landUseDetails || '',
+        lat: p.y,
+        lng: p.x,
       }));
 
       const { data: result, error: fnError } = await supabase.functions.invoke('urban-context', {
