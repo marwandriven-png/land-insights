@@ -616,39 +616,38 @@ export function HyperPlotAI() {
                     {bottomPanel === 'recent' && (
                       <ScrollArea className="h-full">
                         {lastSeen.length === 0 ? (
-                          <div className="text-center py-6 text-muted-foreground">
-                            <Clock className="w-6 h-6 mx-auto mb-2 opacity-30" />
-                            <p className="text-xs">No recent plots</p>
+                          <div className="text-center py-8 text-muted-foreground">
+                            <Clock className="w-8 h-8 mx-auto mb-3 opacity-20" />
+                            <p className="text-sm font-medium">No recent plots</p>
+                            <p className="text-xs mt-1 opacity-60">Search or click a plot to start tracking</p>
                           </div>
                         ) : (
                           <div className="min-w-[600px]">
                             <Table>
                               <TableHeader>
-                                <TableRow>
-                                  <TableHead className="font-bold text-xs">Land Number</TableHead>
-                                  <TableHead className="font-bold text-xs">Location</TableHead>
-                                  <TableHead className="font-bold text-xs">Area (sqft)</TableHead>
-                                  <TableHead className="font-bold text-xs">GFA (sqft)</TableHead>
-                                  <TableHead className="font-bold text-xs">Zoning</TableHead>
-                                  <TableHead className="font-bold text-xs">Status</TableHead>
-                                  <TableHead className="font-bold text-xs">Viewed</TableHead>
+                                <TableRow className="border-border/30">
+                                  <TableHead className="font-semibold text-sm text-muted-foreground tracking-wide">Land Number</TableHead>
+                                  <TableHead className="font-semibold text-sm text-muted-foreground tracking-wide">Location</TableHead>
+                                  <TableHead className="font-semibold text-sm text-muted-foreground tracking-wide">Area (sqft)</TableHead>
+                                  <TableHead className="font-semibold text-sm text-muted-foreground tracking-wide">GFA (sqft)</TableHead>
+                                  <TableHead className="font-semibold text-sm text-muted-foreground tracking-wide">Zoning</TableHead>
+                                  <TableHead className="font-semibold text-sm text-muted-foreground tracking-wide">Status</TableHead>
+                                  <TableHead className="font-semibold text-sm text-muted-foreground tracking-wide">Viewed</TableHead>
                                 </TableRow>
                               </TableHeader>
                               <TableBody>
                                 {recentWithPlots.map(({ entry, plot: matchedPlot }) => (
                                   <TableRow
                                     key={entry.plotId}
-                                    className="cursor-pointer hover:bg-muted/30 transition-colors"
+                                    className="cursor-pointer hover:bg-primary/5 transition-all duration-200 border-border/20"
                                     onClick={async () => {
                                       if (matchedPlot) {
                                         handlePlotClick(matchedPlot, true);
                                       } else {
-                                        // Try GIS first
                                         try {
                                           const fetched = await gisService.fetchPlotById(entry.plotId);
                                           if (fetched) { handlePlotFound(fetched); return; }
                                         } catch { /* continue to fallback reconstruction */ }
-                                        // Reconstruct from saved entry (fallback/manual plots not in GIS)
                                         const reconstructed: PlotData = {
                                           id: entry.plotId,
                                           x: entry.coordinates.x,
@@ -675,18 +674,25 @@ export function HyperPlotAI() {
                                       }
                                     }}
                                   >
-                                    <TableCell className="font-bold text-sm">{entry.plotId}</TableCell>
-                                    <TableCell className="text-xs">{entry.location || '—'}</TableCell>
-                                    <TableCell className="font-mono text-xs">{Math.round(entry.area * SQM_TO_SQFT).toLocaleString()}</TableCell>
-                                    <TableCell className="font-mono text-xs">{Math.round(entry.gfa * SQM_TO_SQFT).toLocaleString()}</TableCell>
+                                    <TableCell className="font-bold text-sm text-foreground">{entry.plotId}</TableCell>
+                                    <TableCell className="text-sm text-muted-foreground">{entry.location || '—'}</TableCell>
+                                    <TableCell className="font-mono text-sm tabular-nums">{Math.round(entry.area * SQM_TO_SQFT).toLocaleString()}</TableCell>
+                                    <TableCell className="font-mono text-sm tabular-nums">{Math.round(entry.gfa * SQM_TO_SQFT).toLocaleString()}</TableCell>
                                     <TableCell>
-                                      <Badge variant="outline" className="text-[10px]">{entry.zoning}</Badge>
+                                      <Badge variant="outline" className="text-xs font-medium px-2 py-0.5">{entry.zoning}</Badge>
                                     </TableCell>
                                     <TableCell>
-                                      <Badge variant="outline" className="text-[10px]">{entry.status}</Badge>
+                                      <Badge
+                                        variant="outline"
+                                        className={`text-xs font-medium px-2 py-0.5 ${
+                                          entry.status === 'Available' ? 'border-success/40 text-success bg-success/10' :
+                                          entry.status === 'Frozen' ? 'border-destructive/40 text-destructive bg-destructive/10' :
+                                          'border-border'
+                                        }`}
+                                      >{entry.status}</Badge>
                                     </TableCell>
-                                    <TableCell className="text-xs text-muted-foreground">
-                                      {new Date(entry.timestamp).toLocaleDateString()}
+                                    <TableCell className="text-xs text-muted-foreground/70 font-medium">
+                                      {new Date(entry.timestamp).toLocaleDateString('en-GB', { day: '2-digit', month: 'short' })}
                                     </TableCell>
                                   </TableRow>
                                 ))}
