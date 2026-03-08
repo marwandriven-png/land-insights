@@ -64,16 +64,25 @@ Return ONLY valid JSON (no markdown, no code fences) with this exact structure:
   "aiInsight": string
 }
 
-All percentages as numbers (e.g. 48 not "48%"). Use real Dubai market knowledge. Be specific and data-driven.`;
+All percentages as numbers (e.g. 48 not "48%"). Use real Dubai market knowledge. Be specific and data-driven.
+
+CRITICAL INSTRUCTIONS:
+- For "comparablePlots": You MUST extract real plot IDs, sizes, zoning, and status from the NEARBY PLOTS data provided below. Only list plots that exist in the data. Do NOT invent fake plot IDs.
+- For "developmentPattern": Analyze the ACTUAL zoning, land use, and construction status from the nearby plots data to determine real development patterns. Count the real occurrences.
+- For "completedBenchmarks": Only include benchmarks from nearby plots that have construction status "Completed" or similar.
+- Always reference the area name (entity/project/location) in your insights.`;
+
+    const areaName = selectedPlot.location || selectedPlot.developer || 'Unknown Area';
 
     const nearbyDesc = (nearbyPlots || []).map((p: any, i: number) => 
       `${i+1}. Plot ${p.id}: ${p.areaSqft} sqft, GFA ${p.gfaSqft} sqft, Zoning: ${p.zoning}, Status: ${p.status}, Floors: ${p.floors || 'N/A'}, Developer: ${p.developer || 'N/A'}, Location: ${p.location || 'N/A'}, Construction: ${p.constructionStatus || 'N/A'}`
     ).join('\n');
 
-    const userPrompt = `Analyze this selected plot and its ${(nearbyPlots || []).length} nearby plots within 1km:
+    const userPrompt = `Analyze this selected plot and its ${(nearbyPlots || []).length} nearby plots within 1km in ${areaName}:
 
 SELECTED PLOT:
 - ID: ${selectedPlot.id}
+- Area Name: ${areaName}
 - Location: ${selectedPlot.location || 'N/A'}
 - Area: ${selectedPlot.areaSqft} sqft
 - GFA: ${selectedPlot.gfaSqft} sqft
@@ -83,10 +92,10 @@ SELECTED PLOT:
 - Developer: ${selectedPlot.developer || 'N/A'}
 - Construction Status: ${selectedPlot.constructionStatus || 'N/A'}
 
-NEARBY PLOTS (within 1km):
+NEARBY PLOTS (within 1km in ${areaName}):
 ${nearbyDesc || 'No nearby plots found.'}
 
-Generate a comprehensive land assembly and development intelligence report.`;
+Generate a comprehensive land assembly and development intelligence report for ${areaName}. For comparable plots and development patterns, use ONLY the real data from the nearby plots listed above.`;
 
     const response = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
       method: "POST",
