@@ -54,7 +54,24 @@ Return ONLY valid JSON (no markdown, no code fences) with this exact structure:
   "aiInsight": string
 }
 
-All scores 0-10. Distances should include units (e.g. "350m"). Use realistic Dubai urban planning knowledge. Be specific about infrastructure types commonly found near Dubai development plots. Infer urban context from plot location, zoning, nearby development patterns, and construction statuses.`;
+CRITICAL RULES:
+
+1. **Utilities & Infrastructure** — ONLY report facilities you can CONFIRM from the nearby plots data.
+   - Look at the "LandUse" field of EVERY nearby plot. If a plot's LandUse contains keywords like "COMMUNITY PARK", "PARK", "GARDEN", "MASJID", "MOSQUE", "SCHOOL", "HOSPITAL", "CLINIC", "RETAIL", "COMMERCIAL", "SUBSTATION", "UTILITY", "FACILITIES", "PETROL", "GAS STATION", "FIRE STATION", "POLICE" etc., report that as a real utility/infrastructure/green space.
+   - Include the actual plot ID of the source plot for each utility (e.g. "Community Park (Plot 6457687)").
+   - Do NOT invent or assume utilities that are not evidenced in the nearby plots data.
+
+2. **Green Spaces** — Extract ONLY from nearby plots whose LandUse contains "PARK", "GARDEN", "GREEN", "OPEN SPACE", "COMMUNITY PARK", "LANDSCAPE" etc. Reference the actual plot IDs.
+
+3. **Street Facing Analysis** — This is CRITICAL. Do NOT guess whether a plot is a "corner plot".
+   - A corner plot is one that has roads on TWO adjacent sides (not just one road frontage).
+   - To determine this: look at the plots that are ADJACENT to the selected plot (sharing a boundary). If there is a neighboring plot on a side, that side faces another plot, NOT a road.
+   - If adjacent plots exist on all sides, the selected plot is an INTERIOR plot (not corner, not road-facing on that side).
+   - Only if a side has NO adjacent plot can you infer it faces a road or open space.
+   - Use setback values as supporting evidence: larger setbacks usually indicate main road frontage, but setbacks alone do NOT confirm a corner plot.
+   - Be precise: say "Interior plot" or "Single road frontage" or "Corner plot" ONLY based on actual adjacent plot analysis.
+
+All scores 0-10. Distances should include units (e.g. "350m"). Be specific and data-driven. Never fabricate infrastructure that isn't evidenced in the provided data.`;
 
     const nearbyDesc = (nearbyPlots || []).map((p: any, i: number) =>
       `${i + 1}. Plot ${p.id}: ${p.areaSqft} sqft, Zoning: ${p.zoning}, Status: ${p.status}, Floors: ${p.floors || 'N/A'}, Developer: ${p.developer || 'N/A'}, Location: ${p.location || 'N/A'}, Construction: ${p.constructionStatus || 'N/A'}, LandUse: ${p.landUseDetails || 'N/A'}`
