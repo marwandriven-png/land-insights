@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { Loader2, MapPin, Layers, Building2, Search } from 'lucide-react';
 import { PlotData, gisService } from '@/services/DDAGISService';
+import { fetchNearbyPlots, getPlotAreaName } from '@/services/NearbyPlotsService';
 import { Button } from '@/components/ui/button';
 import { ScrollArea } from '@/components/ui/scroll-area';
 
@@ -25,31 +26,22 @@ export function SimilarLandPanel({ plot, onSelectPlot }: SimilarLandPanelProps) 
       const minGfa = plot.gfa * (1 - TOLERANCE);
       const maxGfa = plot.gfa * (1 + TOLERANCE);
 
-      const projectName = plot.project || plot.entity || plot.location || '';
+      const projectName = getPlotAreaName(plot);
 
       // Strategy 1: Search by area range + project name
       let found = await gisService.searchByArea(minArea, maxArea, projectName || undefined);
 
-      // Strategy 2: If few results, also try spatial search (nearby plots within 5km)
-      if (found.length < 5 && plot.x && plot.y) {
+      // Strategy 2: Use normalized nearby-plots service for spatial fallback
+      if (found.length < 5) {
         try {
-          const spatialPlots = await gisService.searchByLocation(
-            plot.y > 1000 ? 0 : plot.y, 
-            plot.x > 1000 ? 0 : plot.x, 
-            5000, 200
-          );
-          // If coordinates were projected, try converting
-          if (plot.x > 1000 && plot.y > 1000) {
-            const proj4Module = await import('proj4');
-            proj4Module.default.defs('EPSG:3997', '+proj=tmerc +lat_0=0 +lon_0=55.33333333333334 +k=1 +x_0=500000 +y_0=0 +ellps=WGS84 +towgs84=0,0,0,0,0,0,0 +units=m +no_defs');
-            const [lng, lat] = proj4Module.default('EPSG:3997', 'EPSG:4326', [plot.x, plot.y]);
-            const spatial2 = await gisService.searchByLocation(lat, lng, 5000, 200);
-            const existingIds = new Set(found.map(p => p.id));
-            spatial2.forEach(p => { if (!existingIds.has(p.id)) found.push(p); });
-          } else {
-            const existingIds = new Set(found.map(p => p.id));
-            spatialPlots.forEach(p => { if (!existingIds.has(p.id)) found.push(p); });
-          }
+          const { plots: spatialPlots } = await fetchNearbyPlots(plot, {
+            radiusMeters: 5000,
+            spatialLimit: 200,
+            outputLimit: 200,
+            includeAreaSearch: false, // already did area search above
+          });
+          const existingIds = new Set(found.map(p => p.id));
+          spatialPlots.forEach(p => { if (!existingIds.has(p.id)) found.push(p); });
         } catch (e) {
           console.log('Spatial fallback search failed:', e);
         }
@@ -58,9 +50,7 @@ export function SimilarLandPanel({ plot, onSelectPlot }: SimilarLandPanelProps) 
       // Client-side: filter by area ±6%, GFA ±6%, exclude current plot
       const filtered = found.filter(p => {
         if (p.id === plot.id) return false;
-        // Area must be within tolerance
         if (p.area < minArea || p.area > maxArea) return false;
-        // GFA must be within ±6% (skip check if either has 0 GFA)
         if (plot.gfa > 0 && p.gfa > 0) {
           if (p.gfa < minGfa || p.gfa > maxGfa) return false;
         }
@@ -96,7 +86,7 @@ export function SimilarLandPanel({ plot, onSelectPlot }: SimilarLandPanelProps) 
       {/* Context info */}
       {!searched && (
         <p className="text-xs text-muted-foreground mb-2">
-          Searches for plots with ±6% area & GFA in <span className="font-medium text-foreground">{plot.project || plot.location || 'same area'}</span>
+          Searches for plots with ±6% area & GFA in <span className="font-medium text-foreground">{getPlotAreaName(plot) || 'same area'}</span>
         </p>
       )}
 

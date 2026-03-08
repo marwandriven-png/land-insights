@@ -2,24 +2,12 @@ import { useState, useEffect } from 'react';
 import { createPortal } from 'react-dom';
 import { Loader2, AlertTriangle, X, TreePine, Zap, Eye, Star, CheckCircle2, AlertCircle, TrendingUp, Lightbulb, MapPin, Maximize2, Minimize2 } from 'lucide-react';
 import { PlotData, gisService } from '@/services/DDAGISService';
+import { fetchNearbyPlots, toEdgeFunctionPlot, resolveCoordinates } from '@/services/NearbyPlotsService';
 import { supabase } from '@/integrations/supabase/client';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
-import proj4 from 'proj4';
 
-proj4.defs('EPSG:3997', '+proj=tmerc +lat_0=0 +lon_0=55.33333333333334 +k=1 +x_0=500000 +y_0=0 +ellps=WGS84 +towgs84=0,0,0,0,0,0,0 +units=m +no_defs');
-
-const SQM_TO_SQFT = 10.7639;
-
-function toWGS84(x: number, y: number): [number, number] {
-  try {
-    const result = proj4('EPSG:3997', 'EPSG:4326', [x, y]);
-    return [result[1], result[0]]; // [lat, lng]
-  } catch {
-    return [0, 0];
-  }
-}
 interface UrbanContextAnalysisProps {
   plot: PlotData;
   onClose: () => void;
@@ -52,57 +40,14 @@ export function UrbanContextAnalysis({ plot, onClose }: UrbanContextAnalysisProp
     setLoading(true);
     setError(null);
     try {
-      const rawX = plot.x;
-      const rawY = plot.y;
-      let lat: number, lng: number;
-      
-      // Detect if coordinates are in EPSG:3997 (projected) vs WGS84
-      if (rawX > 1000 && rawY > 1000) {
-        [lat, lng] = toWGS84(rawX, rawY);
-      } else {
-        lat = rawY;
-        lng = rawX;
-      }
-      
-      let nearbyPlots: PlotData[] = [];
-
-      if (lat && lng && lat !== 0 && lng !== 0) {
-        nearbyPlots = await gisService.searchByLocation(lat, lng, 5000, 200);
-        nearbyPlots = nearbyPlots.filter(p => p.id !== plot.id);
-      }
-
-      // Also search by area name to ensure we get parks, commercial, facilities from the same community
-      const areaName = plot.location || plot.project || plot.entity || '';
-      if (areaName && areaName !== 'Dubai') {
-        try {
-          const areaPlots = await gisService.searchByArea(undefined, undefined, areaName);
-          const existingIds = new Set(nearbyPlots.map(p => p.id));
-          existingIds.add(plot.id);
-          const uniqueAreaPlots = areaPlots.filter(p => !existingIds.has(p.id));
-          nearbyPlots = [...nearbyPlots, ...uniqueAreaPlots];
-        } catch (e) {
-          console.log('Area search supplementary failed:', e);
-        }
-      }
-
-      // Smart sort: prioritize same-area plots and facilities/parks/commercial
-      const selectedArea = areaName.toUpperCase();
-      nearbyPlots.sort((a, b) => {
-        const aArea = (a.location || a.project || a.entity || '').toUpperCase();
-        const bArea = (b.location || b.project || b.entity || '').toUpperCase();
-        const aLU = (a.landUseDetails || '').toUpperCase();
-        const bLU = (b.landUseDetails || '').toUpperCase();
-        const isImportant = (lu: string) => lu.includes('COMMERCIAL') || lu.includes('SHOPPING') || lu.includes('RETAIL') || lu.includes('PARK') || lu.includes('GARDEN') || lu.includes('FACILITIES') || lu.includes('MASJID') || lu.includes('MOSQUE') || lu.includes('SCHOOL') || lu.includes('HOSPITAL') || lu.includes('COMMUNITY') || lu.includes('OPEN SPACE');
-        const aSameArea = aArea === selectedArea ? 1 : 0;
-        const bSameArea = bArea === selectedArea ? 1 : 0;
-        const aImportant = isImportant(aLU) ? 1 : 0;
-        const bImportant = isImportant(bLU) ? 1 : 0;
-        const aScore = aSameArea * 2 + aImportant;
-        const bScore = bSameArea * 2 + bImportant;
-        return bScore - aScore;
+      // Use normalized nearby-plots service
+      const { plots: nearbyPlots, lat, lng, totalFound } = await fetchNearbyPlots(plot, {
+        radiusMeters: 5000,
+        spatialLimit: 200,
+        outputLimit: 100,
       });
 
-      setNearbyCount(nearbyPlots.length);
+      setNearbyCount(totalFound);
 
       // Fetch real affection plan data for building setbacks
       let buildingSetbacks: Record<string, string | null> | null = null;
@@ -118,39 +63,14 @@ export function UrbanContextAnalysis({ plot, onClose }: UrbanContextAnalysisProp
       }
 
       const selectedPlot = {
-        id: plot.id,
-        location: plot.location || plot.project || plot.entity || '',
-        areaSqft: Math.round(plot.area * SQM_TO_SQFT),
-        gfaSqft: Math.round(plot.gfa * SQM_TO_SQFT),
-        zoning: plot.zoning,
-        status: plot.status,
-        floors: plot.floors,
-        developer: plot.developer || '',
-        constructionStatus: plot.constructionStatus || '',
-        landUseDetails: plot.landUseDetails || '',
+        ...toEdgeFunctionPlot(plot),
         buildingSetbacks: buildingSetbacks || null,
         podiumSetbacks: podiumSetbacks || null,
-        lat: lat,
-        lng: lng,
+        lat,
+        lng,
       };
 
-      const nearbyPlotsData = nearbyPlots.slice(0, 100).map(p => {
-        const [pLat, pLng] = (p.x > 1000 && p.y > 1000) ? toWGS84(p.x, p.y) : [p.y, p.x];
-        return {
-          id: p.id,
-          location: p.location || p.project || p.entity || '',
-          areaSqft: Math.round(p.area * SQM_TO_SQFT),
-          gfaSqft: Math.round(p.gfa * SQM_TO_SQFT),
-          zoning: p.zoning,
-          status: p.status,
-          floors: p.floors,
-          developer: p.developer || '',
-          constructionStatus: p.constructionStatus || '',
-          landUseDetails: p.landUseDetails || '',
-          lat: pLat,
-          lng: pLng,
-        };
-      });
+      const nearbyPlotsData = nearbyPlots.map(p => toEdgeFunctionPlot(p, true));
 
       const { data: result, error: fnError } = await supabase.functions.invoke('urban-context', {
         body: { selectedPlot, nearbyPlots: nearbyPlotsData }
