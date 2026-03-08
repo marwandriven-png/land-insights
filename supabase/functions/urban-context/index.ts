@@ -127,9 +127,18 @@ SURROUNDING PLOTS WITHIN 1KM (${allNearby.length} plots):
 ${nearbyDesc || 'No nearby plots data available.'}
 ${facilitiesDesc}
 
-IMPORTANT for Street Facing Analysis: Use the EXACT building setback values from the DDA Affection Plan data above. The setback values represent the mandatory distance (in meters) from each side of the plot boundary to the building line. Larger setbacks on a side typically indicate a main road frontage. A side with 0m podium setback means the podium can extend to the plot boundary on that side. Use these real values to determine road widths, frontage quality, and street hierarchy.
+CRITICAL INSTRUCTIONS:
 
-Based on the plot location, zoning patterns, and surrounding development context, generate a comprehensive urban environment analysis.`;
+1. For "utilities" and "greenSpaces": ONLY include items that are CONFIRMED by the nearby plots' LandUse data above. Reference the actual Plot ID. For example if Plot 6457687 has LandUse="COMMUNITY PARK", report it as a green space with "Community Park (Plot 6457687)". If Plot 6459272 has LandUse="FACILITIES: JUMA MASJID", report it as a utility/amenity.
+
+2. For "streetFacing": Do NOT assume the plot is a corner plot unless you can confirm it has roads on TWO adjacent sides. Check the coordinates of nearby plots — if there are plots directly adjacent on a side (very close coordinates), that side borders another plot, NOT a road. A plot that has a neighbor on the side is NOT a corner plot on that side. Only classify as "Corner Plot" if the plot genuinely has two road-facing sides with no adjacent plots.
+
+3. Use building setback values as supporting evidence: ${selectedPlot.buildingSetbacks ? 'Setback data is provided above.' : 'No setback data available.'}
+   - Larger setbacks usually indicate main road frontage
+   - But setbacks alone do NOT confirm corner status — adjacent plot positions are the primary indicator
+
+Based on the REAL data provided, generate a comprehensive and accurate urban environment analysis.`;
+
 
     const response = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
       method: "POST",
