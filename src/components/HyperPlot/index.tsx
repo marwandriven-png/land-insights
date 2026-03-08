@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback, useMemo, useRef } from 'react';
-import { Map, Home, Brain, AlertCircle, X, RefreshCw, Wifi, WifiOff, Target, Clock, Settings, Shield, GitCompareArrows, Plus, Minimize2, Maximize2, Database, Combine } from 'lucide-react';
+import { Map, Home, Brain, AlertCircle, X, RefreshCw, Wifi, WifiOff, Target, Clock, Settings, Shield, GitCompareArrows, Plus, Minimize2, Maximize2, Database, Combine, TreePine } from 'lucide-react';
 import { isPlotListed, markPlotListed, getDeletedBlacklist } from '@/services/LandMatchingService';
 import { lookupOwnerFromSheet, importPlotsFromSheet } from '@/services/SheetSyncService';
 import { Badge } from '@/components/ui/badge';
