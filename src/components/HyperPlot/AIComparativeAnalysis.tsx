@@ -302,16 +302,59 @@ function UrbanScoreRadar({ label, data }: { label: string; data: UrbanContextDat
 }
 
 function DimensionLoadingAnimation({ activeDimension }: { activeDimension: number }) {
+  const particlesRef = useRef<{ x: number; y: number; size: number; speed: number; opacity: number }[]>(
+    Array.from({ length: 24 }, () => ({
+      x: Math.random() * 100,
+      y: Math.random() * 100,
+      size: Math.random() * 3 + 1,
+      speed: Math.random() * 2 + 0.5,
+      opacity: Math.random() * 0.5 + 0.2,
+    }))
+  );
+
   return (
-    <div className="h-full flex flex-col items-center justify-center glass-card glow-border p-8">
-      <div className="w-16 h-16 rounded-2xl flex items-center justify-center mb-6 relative"
-        style={{ background: 'linear-gradient(135deg, hsl(var(--primary)), hsl(var(--secondary)))' }}>
-        <Brain className="w-8 h-8 text-primary-foreground animate-pulse" />
-        <div className="absolute inset-0 rounded-2xl border-2 border-primary/30 animate-ping" />
+    <div className="h-full flex flex-col items-center justify-center glass-card glow-border p-8 relative overflow-hidden">
+      {/* Ambient particles */}
+      <div className="absolute inset-0 pointer-events-none">
+        {particlesRef.current.map((p, i) => (
+          <div
+            key={i}
+            className="absolute rounded-full"
+            style={{
+              left: `${p.x}%`,
+              top: `${p.y}%`,
+              width: `${p.size}px`,
+              height: `${p.size}px`,
+              background: `hsl(var(--primary))`,
+              opacity: p.opacity * (0.3 + (activeDimension / ANALYSIS_DIMENSIONS.length) * 0.7),
+              animation: `float-particle ${3 + p.speed}s ease-in-out infinite alternate`,
+              animationDelay: `${i * 0.15}s`,
+            }}
+          />
+        ))}
       </div>
-      <h2 className="text-xl font-bold mb-1">AI Comparative Engine</h2>
-      <p className="text-xs text-muted-foreground mb-6">Analyzing Decision Confidence data across 9 dimensions</p>
-      <div className="w-full max-w-md space-y-2">
+
+      {/* Radial glow behind icon */}
+      <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[300px] h-[300px] rounded-full opacity-20 blur-3xl pointer-events-none"
+        style={{ background: `radial-gradient(circle, hsl(var(--primary)), transparent 70%)` }} />
+
+      {/* Main icon */}
+      <div className="relative z-10 mb-8">
+        <div className="w-20 h-20 rounded-2xl flex items-center justify-center relative"
+          style={{ background: 'linear-gradient(135deg, hsl(var(--primary)), hsl(var(--secondary)))' }}>
+          <Brain className="w-10 h-10 text-primary-foreground" />
+          <div className="absolute inset-0 rounded-2xl animate-ping opacity-20" style={{ background: 'linear-gradient(135deg, hsl(var(--primary)), hsl(var(--secondary)))' }} />
+        </div>
+        {/* Orbital ring */}
+        <div className="absolute inset-[-12px] rounded-full border border-primary/20 animate-spin" style={{ animationDuration: '8s' }}>
+          <div className="absolute top-0 left-1/2 -translate-x-1/2 -translate-y-1/2 w-2 h-2 rounded-full bg-primary shadow-lg shadow-primary/50" />
+        </div>
+      </div>
+
+      <h2 className="text-2xl font-bold mb-1 relative z-10 bg-gradient-to-r from-foreground to-foreground/70 bg-clip-text">AI Comparative Engine</h2>
+      <p className="text-xs text-muted-foreground mb-8 relative z-10">Analyzing Decision Confidence data across 9 dimensions</p>
+
+      <div className="w-full max-w-md space-y-1.5 relative z-10">
         {ANALYSIS_DIMENSIONS.map((dim, i) => {
           const isActive = i === activeDimension;
           const isDone = i < activeDimension;
@@ -321,31 +364,46 @@ function DimensionLoadingAnimation({ activeDimension }: { activeDimension: numbe
               key={dim.label}
               className={`flex items-center gap-3 px-4 py-2.5 rounded-xl border transition-all duration-500 ${
                 isActive
-                  ? 'border-primary/50 bg-primary/10 scale-[1.02] shadow-lg shadow-primary/10'
+                  ? 'border-primary/60 bg-primary/10 scale-[1.03] shadow-xl shadow-primary/15'
                   : isDone
-                  ? 'border-success/30 bg-success/5'
-                  : 'border-border/30 bg-card/30 opacity-40'
+                  ? 'border-primary/20 bg-primary/5'
+                  : 'border-border/20 bg-card/20 opacity-30'
               }`}
+              style={{
+                transitionDelay: isActive ? '0ms' : `${i * 30}ms`,
+              }}
             >
               <span className="text-base w-6 text-center">{dim.icon}</span>
-              <span className={`flex-1 text-sm font-medium ${isActive ? 'text-primary' : isDone ? 'text-success' : 'text-muted-foreground'}`}>
+              <span className={`flex-1 text-sm font-medium transition-colors duration-300 ${isActive ? 'text-primary' : isDone ? 'text-foreground' : 'text-muted-foreground'}`}>
                 {dim.label}
               </span>
-              {isDone && <CheckCircle className="w-4 h-4 text-success" />}
-              {isActive && <Loader2 className="w-4 h-4 text-primary animate-spin" />}
-              {isPending && <div className="w-4 h-4 rounded-full border border-border/50" />}
+              {isDone && <CheckCircle className="w-4 h-4 text-primary animate-scale-in" />}
+              {isActive && (
+                <div className="relative">
+                  <Loader2 className="w-4 h-4 text-primary animate-spin" />
+                  <div className="absolute inset-0 w-4 h-4 rounded-full bg-primary/20 animate-ping" />
+                </div>
+              )}
+              {isPending && <div className="w-4 h-4 rounded-full border border-border/30" />}
             </div>
           );
         })}
       </div>
-      <div className="mt-6 flex items-center gap-2">
-        <div className="w-48 bg-muted/50 rounded-full h-1.5 overflow-hidden">
+
+      {/* Premium progress bar */}
+      <div className="mt-8 flex items-center gap-3 relative z-10">
+        <div className="w-56 bg-muted/30 rounded-full h-2 overflow-hidden backdrop-blur-sm border border-border/20">
           <div
-            className="h-full bg-gradient-to-r from-primary to-secondary rounded-full transition-all duration-700"
-            style={{ width: `${((activeDimension + 1) / ANALYSIS_DIMENSIONS.length) * 100}%` }}
-          />
+            className="h-full rounded-full transition-all duration-700 ease-out relative overflow-hidden"
+            style={{
+              width: `${((activeDimension + 1) / ANALYSIS_DIMENSIONS.length) * 100}%`,
+              background: 'linear-gradient(90deg, hsl(var(--primary)), hsl(var(--secondary)))',
+            }}
+          >
+            <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/25 to-transparent animate-shimmer" />
+          </div>
         </div>
-        <span className="text-xs text-muted-foreground font-mono">{activeDimension + 1}/{ANALYSIS_DIMENSIONS.length}</span>
+        <span className="text-xs text-muted-foreground font-mono tabular-nums">{activeDimension + 1}/{ANALYSIS_DIMENSIONS.length}</span>
       </div>
     </div>
   );
