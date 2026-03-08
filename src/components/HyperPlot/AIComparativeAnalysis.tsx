@@ -414,6 +414,7 @@ export function AIComparativeAnalysis({ plotA, plotB, onClose }: Props) {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [activeDimension, setActiveDimension] = useState(0);
+  const [maximized, setMaximized] = useState(false);
 
   const plotALabel = plotA.id;
   const plotBLabel = plotB.id;
