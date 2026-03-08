@@ -461,13 +461,14 @@ class DDAGISService {
     }
   }
 
-  async searchByLocation(lat: number, lng: number, radiusMeters: number = 1000): Promise<PlotData[]> {
+  async searchByLocation(lat: number, lng: number, radiusMeters: number = 1000, limit: number = 100): Promise<PlotData[]> {
     try {
       const params = new URLSearchParams({
         action: 'spatial',
         lat: lat.toString(),
         lng: lng.toString(),
-        radius: radiusMeters.toString()
+        radius: radiusMeters.toString(),
+        limit: limit.toString()
       });
 
       const url = `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/dda-gis-proxy?${params}`;
