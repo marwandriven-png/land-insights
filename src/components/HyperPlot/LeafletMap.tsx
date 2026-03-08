@@ -55,9 +55,10 @@ export function LeafletMap({ plots, selectedPlot, onPlotClick, highlightedPlots,
       worldCopyJump: false
     });
 
-    L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}', {
+    L.tileLayer('https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png', {
       maxZoom: 19,
-      noWrap: true
+      noWrap: true,
+      subdomains: 'abcd'
     }).addTo(map);
 
     L.control.zoom({ position: 'topleft' }).addTo(map);
