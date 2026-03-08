@@ -555,8 +555,8 @@ Q1 2026 market conditions.`;
 
   let sectionNum = 0;
 
-  return (
-    <div className="h-full glass-card glow-border flex flex-col overflow-hidden">
+  const content = (
+    <div className={`${maximized ? 'fixed inset-0 z-50 bg-background' : 'h-full'} glass-card glow-border flex flex-col overflow-hidden`}>
       {/* Header */}
       <div className="p-4 border-b border-border/50 flex items-center justify-between shrink-0">
         <div className="flex items-center gap-3">
@@ -571,6 +571,9 @@ Q1 2026 market conditions.`;
         </div>
         <div className="flex items-center gap-2">
           <Button variant="outline" size="sm" onClick={runAnalysis} disabled={loading}>Re-analyze</Button>
+          <button onClick={() => setMaximized(m => !m)} className="p-1.5 rounded-md hover:bg-muted/50 transition-colors" title={maximized ? 'Minimize' : 'Maximize'}>
+            {maximized ? <Minimize2 className="w-4 h-4" /> : <Maximize2 className="w-4 h-4" />}
+          </button>
           <Button variant="ghost" size="sm" onClick={onClose}>Close</Button>
         </div>
       </div>
