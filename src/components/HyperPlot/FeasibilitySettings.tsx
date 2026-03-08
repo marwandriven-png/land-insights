@@ -442,6 +442,27 @@ export function FeasibilitySettings({ open, onClose, onSettingsChange, onOpenAdd
               </div>
             </div>
           </TabsContent>
+
+          {/* Fallback DB Tab */}
+          <TabsContent value="fallbackdb" className="flex-1 overflow-y-auto px-5 pb-3 mt-3">
+            <div className="text-center py-12">
+              <Database className="w-12 h-12 text-muted-foreground/30 mx-auto mb-3" />
+              <h3 className="text-lg font-bold mb-2">Fallback Plot Database</h3>
+              <p className="text-sm text-muted-foreground mb-4">
+                Upload CSV data to the fallback plot database for areas not covered by live GIS.
+              </p>
+              <Button
+                onClick={() => {
+                  onClose();
+                  onOpenFallbackDB?.();
+                }}
+                className="gap-2"
+              >
+                <Database className="w-4 h-4" />
+                Open Fallback DB Manager
+              </Button>
+            </div>
+          </TabsContent>
         </Tabs>
 
         {/* Footer */}
