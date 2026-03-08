@@ -236,7 +236,7 @@ export function LeafletMap({ plots, selectedPlot, onPlotClick, highlightedPlots,
     }
 
     map.invalidateSize();
-    map.setView([lat, lng], 17, { animate: true, duration: 1 });
+    map.setView([lat, lng], 16, { animate: true, duration: 1 });
   }, [selectedPlot]);
 
   const resetView = useCallback(() => {
