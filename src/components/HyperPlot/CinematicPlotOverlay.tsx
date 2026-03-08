@@ -143,8 +143,8 @@ export function CinematicPlotOverlay({ map, plot }: CinematicPlotOverlayProps) {
 
       const innerGlow = L.polygon(latLngs, {
         color: '#00e5ff',
-        weight: 16,
-        opacity: 0.25,
+        weight: 10,
+        opacity: 0.15,
         fillColor: 'transparent',
         fillOpacity: 0,
         interactive: false,
