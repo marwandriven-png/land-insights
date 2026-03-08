@@ -96,7 +96,7 @@ export function CinematicPlotOverlay({ map, plot }: CinematicPlotOverlayProps) {
     map.invalidateSize();
 
     const startZoom = map.getZoom();
-    const targetZoom = Math.min(startZoom + 2.5, map.getMaxZoom());
+    const targetZoom = Math.min(startZoom + 2, 16);
     const startCenter = map.getCenter();
     const totalFrames = 30;
     let frame = 0;
