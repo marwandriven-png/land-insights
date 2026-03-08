@@ -83,7 +83,7 @@ export function LandAssemblyIntelligence({ plot, onSelectPlot, onClose }: LandAs
           </div>
           <div>
             <h3 className="font-bold text-lg">Land Assembly Intelligence</h3>
-            <p className="text-sm text-muted-foreground mt-1">Scanning 5km radius & analyzing {nearbyCount > 0 ? `${nearbyCount} nearby plots` : 'surrounding area'}...</p>
+            <p className="text-sm text-muted-foreground mt-1">Scanning 2km radius & analyzing {nearbyCount > 0 ? `${nearbyCount} nearby plots` : 'surrounding area'}...</p>
           </div>
         </div>
       </div>
