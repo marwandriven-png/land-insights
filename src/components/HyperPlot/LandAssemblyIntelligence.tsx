@@ -227,6 +227,7 @@ export function LandAssemblyIntelligence({ plot, onSelectPlot, onClose }: LandAs
 
           {/* 5. Development Pattern */}
           <Section icon={<TrendingUp className="w-4 h-4" />} title="Matching Development Pattern" badge={data.developmentPattern.dominantType}>
+            <p className="text-[10px] text-primary font-medium mb-1.5">Based on {nearbyCount} real plots in {plot.location || plot.project || plot.entity || 'this area'}</p>
             <div className="space-y-1.5">
               {data.developmentPattern.patterns.map((p, i) => (
                 <div key={i} className="flex items-center justify-between text-xs">
