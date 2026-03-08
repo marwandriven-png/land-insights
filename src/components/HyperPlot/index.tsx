@@ -21,6 +21,7 @@ import { ManualLandForm } from './ManualLandForm';
 import { ListingsPage } from './ListingsPage';
 import { AIComparativeAnalysis } from './AIComparativeAnalysis';
 import { QuickAddLandModal } from './QuickAddLandModal';
+import { LandAssemblyIntelligence } from './LandAssemblyIntelligence';
 import { FallbackUploadModal } from './FallbackUploadModal';
 import { FeasibilityParams, DEFAULT_FEASIBILITY_PARAMS } from './FeasibilityCalculator';
 import { Button } from '@/components/ui/button';
