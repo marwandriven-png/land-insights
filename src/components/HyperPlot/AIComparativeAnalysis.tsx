@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { Brain, TrendingUp, Shield, AlertTriangle, DollarSign, Layers, Target, Loader2, BarChart3, CheckCircle, XCircle, Minus, Combine, TreePine, MapPin, ArrowRight, Lightbulb } from 'lucide-react';
 import { PlotData, gisService } from '@/services/DDAGISService';
 import { supabase } from '@/integrations/supabase/client';
@@ -6,6 +6,9 @@ import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { toast } from '@/hooks/use-toast';
+import { calcDSCFeasibility, MIX_TEMPLATES, fmt, fmtM, pct, type DSCPlotInput } from '@/lib/dscFeasibility';
+import { getAreaData, getCompetitorsAsComparables, getAreaSalesData, getAreaRentalData, generateAreaInsights } from '@/data/crossAreaMasterData';
+import { matchCLFFArea, getCLFFOverridesWithMasterData } from '@/lib/clffAreaDefaults';
 
 const SQM_TO_SQFT = 10.7639;
 
