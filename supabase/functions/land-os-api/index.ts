@@ -35,30 +35,50 @@ serve(async (req) => {
     }
     if (!authenticated) return json({ error: "Unauthorized. Invalid API key." }, 401);
 
-    const body = await req.json();
-    const action = body.action || "feasibility";
+    const raw = await req.json();
+    // Normalize keys to lowercase to handle uppercase payloads (e.g. "ACTION", "PLOTID")
+    const body: Record<string, unknown> = {};
+    for (const [k, v] of Object.entries(raw)) body[k.toLowerCase()] = v;
+    const action = (typeof body.action === "string" ? body.action : "feasibility").toLowerCase();
+
+    // Also support "lookup" as alias for "plots"
+    const resolvedAction = action === "lookup" ? "plots" : action;
 
     // ── Feasibility ──
-    if (action === "feasibility") {
-      if (!body.plotId || !body.areaSqft) return json({ error: "Required fields: plotId, areaSqft" }, 400);
-      if (body.allStrategies) {
+    if (resolvedAction === "feasibility") {
+      const plotId = body.plotid || body.plotId || body.plot_id;
+      const areaSqft = body.areasqft || body.areaSqft || body.area_sqft;
+      if (!plotId || !areaSqft) return json({ error: "Required fields: plotId, areaSqft" }, 400);
+      const feasBody = { ...body, plotId, areaSqft };
+      if (body.allstrategies || body.allStrategies) {
         const strategies: Record<string, unknown> = {};
-        for (const key of ["investor", "balanced", "family"]) strategies[key] = runFeasibility({ ...body, mixStrategy: key });
+        for (const key of ["investor", "balanced", "family"]) strategies[key] = runFeasibility({ ...feasBody, mixStrategy: key });
         return json({ action: "feasibility", strategies });
       }
-      return json({ action: "feasibility", result: runFeasibility(body) });
+      return json({ action: "feasibility", result: runFeasibility(feasBody) });
     }
 
-    // ── Plots ──
-    if (action === "plots") {
-      const { plotId, municipalityNumber, areaName, lat, lng, radiusMeters, limit: ql } = body;
+    // ── Plots (also handles "lookup" alias) ──
+    if (resolvedAction === "plots") {
+      const plotId = body.plotid || body.plotId || body.plot_id;
+      const municipalityNumber = body.municipalitynumber || body.municipalityNumber || body.municipality_number || body.plotnumber || body.plotNumber || body.plot_number;
+      const areaName = body.areaname || body.areaName || body.area_name;
+      const lat = body.lat;
+      const lng = body.lng;
+      const radiusMeters = body.radiusmeters || body.radiusMeters || body.radius_meters;
+      const ql = body.limit as number | undefined;
       const lim = Math.min(ql || 50, 200);
 
       if (plotId) {
+        // Try UUID lookup first, then municipality_number lookup
         const { data, error } = await supabase.from("fallback_plots").select("*").eq("id", plotId).maybeSingle();
         if (error) throw error;
-        if (!data) return json({ error: "Plot not found" }, 404);
-        return json({ action: "plots", plot: data });
+        if (data) return json({ action: "plots", plot: data });
+        // Fallback: treat plotId as municipality_number
+        const { data: mnData, error: mnErr } = await supabase.from("fallback_plots").select("*").or(`municipality_number.eq.${plotId},municipality_number_original.eq.${plotId}`).limit(lim);
+        if (mnErr) throw mnErr;
+        if (mnData && mnData.length > 0) return json({ action: "plots", count: mnData.length, plots: mnData });
+        return json({ error: "Plot not found" }, 404);
       }
       if (municipalityNumber) {
         const { data, error } = await supabase.from("fallback_plots").select("*").or(`municipality_number.eq.${municipalityNumber},municipality_number_original.eq.${municipalityNumber}`).limit(lim);
@@ -80,8 +100,12 @@ serve(async (req) => {
     }
 
     // ── DLD Lookup ──
-    if (action === "dld-lookup") {
-      const { landNumber, lat, lng, radiusMeters, limit: ql } = body;
+    if (resolvedAction === "dld-lookup") {
+      const landNumber = body.landnumber || body.landNumber || body.land_number;
+      const lat = body.lat;
+      const lng = body.lng;
+      const radiusMeters = body.radiusmeters || body.radiusMeters || body.radius_meters;
+      const ql = body.limit as number | undefined;
       const lim = Math.min(ql || 50, 200);
       if (landNumber) {
         const { data, error } = await supabase.from("dld_property_cache").select("*").eq("land_number", landNumber).limit(lim);
@@ -97,8 +121,9 @@ serve(async (req) => {
     }
 
     // ── Market ──
-    if (action === "market") {
-      const { areaCode, areaName } = body;
+    if (resolvedAction === "market") {
+      const areaCode = body.areacode || body.areaCode || body.area_code;
+      const areaName = body.areaname || body.areaName || body.area_name;
       if (areaCode || areaName) {
         let q = supabase.from("v_area_snapshot_latest").select("*");
         if (areaCode) q = q.eq("area_code", areaCode);
@@ -111,11 +136,11 @@ serve(async (req) => {
     }
 
     // ── Health ──
-    if (action === "health") {
-      return json({ status: "ok", version: "1.2.0", timestamp: new Date().toISOString(), actions: ["feasibility", "plots", "dld-lookup", "market", "health"] });
+    if (resolvedAction === "health") {
+      return json({ status: "ok", version: "1.3.0", timestamp: new Date().toISOString(), actions: ["feasibility", "plots", "lookup", "dld-lookup", "market", "health"] });
     }
 
-    return json({ error: `Unknown action: ${action}. Supported: feasibility, plots, dld-lookup, market, health` }, 400);
+    return json({ error: `Unknown action: ${action}. Supported: feasibility, plots, lookup, dld-lookup, market, health` }, 400);
   } catch (e) {
     console.error("land-os-api error:", e);
     return json({ error: e instanceof Error ? e.message : "Unknown error" }, 500);
