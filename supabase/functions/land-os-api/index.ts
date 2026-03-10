@@ -13,6 +13,15 @@ const json = (body: unknown, status = 200) =>
 
 const isUUID = (s: string) => /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(s);
 
+/** Merge two objects, preferring non-null values from the first */
+function mergeEnrich(primary: Record<string, any>, secondary: Record<string, any>): Record<string, any> {
+  const merged: Record<string, any> = { ...secondary };
+  for (const [k, v] of Object.entries(primary)) {
+    if (v !== null && v !== undefined && v !== "") merged[k] = v;
+  }
+  return merged;
+}
+
 serve(async (req) => {
   if (req.method === "OPTIONS") return new Response(null, { headers: corsHeaders });
 
@@ -47,7 +56,7 @@ serve(async (req) => {
     if (resolvedAction === "health") {
       return json({
         status: "ok",
-        version: "1.3.7",
+        version: "1.3.8",
         timestamp: new Date().toISOString(),
         actions: ["feasibility", "plots", "lookup", "dld-lookup", "market", "health"]
       });
@@ -57,7 +66,7 @@ serve(async (req) => {
     if (resolvedAction === "feasibility") {
       const plotId = (body.plotid || body.plot_id || body.query || body.search || body.q) as string;
       const areaSqft = (body.areasqft || body.area_sqft || body.area_sq_ft || body.area) as number;
-      if (!plotId || !areaSqft) return json({ error: "Required fields: plotId, areaSqft (supported aliases: query, search, q)" }, 400);
+      if (!plotId || !areaSqft) return json({ error: "Required fields: plotId, areaSqft" }, 400);
 
       const feasBody = { ...body, plotId, areaSqft };
       if (body.allstrategies) {
@@ -70,33 +79,74 @@ serve(async (req) => {
       return json({ action: "feasibility", result: runFeasibility(feasBody) });
     }
 
-    // ── Plots ──
+    // ── Plots (fully enriched) ──
     if (resolvedAction === "plots") {
-      const plotId = body.plotid || body.plot_id || body.query || body.search || body.q;
-      const municipalityNumber = body.municipalitynumber || body.municipality_number || body.plotnumber || body.plot_number || body.query || body.q;
+      const searchInput = body.plotid || body.plot_id || body.municipalitynumber || body.municipality_number ||
+        body.plotnumber || body.plot_number || body.query || body.search || body.q;
       const areaName = body.areaname || body.area_name;
       const lat = body.lat;
       const lng = body.lng;
       const radiusMeters = body.radiusmeters || body.radius_meters;
       const lim = Math.min((body.limit as number) || 50, 200);
 
-      const searchVal = (plotId || municipalityNumber)?.toString();
+      const searchVal = searchInput?.toString();
       if (searchVal) {
-        // Guarded exact ID lookup
+        // Search in fallback_plots
+        let fallbackData: any = null;
         if (isUUID(searchVal)) {
-          const { data: idMatch } = await supabase.from("fallback_plots").select("*").eq("id", searchVal).maybeSingle();
-          if (idMatch) return json({ action: "plots", plot: idMatch });
+          const { data } = await supabase.from("fallback_plots").select("*").eq("id", searchVal).maybeSingle();
+          fallbackData = data;
+        }
+        if (!fallbackData) {
+          const { data } = await supabase.from("fallback_plots").select("*")
+            .or(`municipality_number.eq.${searchVal},municipality_number_original.eq.${searchVal}`)
+            .limit(1).maybeSingle();
+          fallbackData = data;
         }
 
-        // Search OR filter with guarded ID
-        let filter = `municipality_number.eq.${searchVal},municipality_number_original.eq.${searchVal}`;
-        if (isUUID(searchVal)) filter += `,id.eq.${searchVal}`;
+        // Also search in dld_property_cache for enrichment (area, size_sqft, property_type)
+        let dldData: any = null;
+        {
+          const { data } = await supabase.from("dld_property_cache").select("*")
+            .or(`land_number.eq.${searchVal},land_number.eq.${searchVal.toUpperCase()}`)
+            .limit(1).maybeSingle();
+          dldData = data;
+        }
 
-        const { data, error } = await supabase.from("fallback_plots").select("*").or(filter).limit(lim);
-        if (error) throw error;
-        if (data && data.length > 0) return json({ action: "plots", count: data.length, plots: data });
+        // Also try plot_data_cache (legacy)
+        let legacyData: any = null;
+        {
+          const { data } = await supabase.from("plot_data_cache").select("*")
+            .or(`land_number.eq.${searchVal},land_number.eq.${searchVal.toUpperCase()}`)
+            .limit(1).maybeSingle();
+          legacyData = data;
+        }
 
-        return json({ error: "Plot not found", searched: searchVal, suggestion: "Check plotId or municipalityNumber" }, 404);
+        if (fallbackData || dldData || legacyData) {
+          // Merge all sources: fallback_plots is primary, enrich with dld + legacy
+          let merged: Record<string, any> = {};
+          if (legacyData) merged = { ...legacyData, ...(legacyData.raw_data || {}) };
+          if (dldData) merged = mergeEnrich(dldData, merged);
+          if (fallbackData) merged = mergeEnrich(fallbackData, merged);
+
+          // Normalize field names for the frontend
+          const enriched = {
+            ...merged,
+            // Ensure consistent field naming
+            area_name: merged.area_name || merged.area || merged.district || merged.community,
+            plot_area_sqm: merged.plot_area_sqm || merged.size_sqm || merged.area_sqm,
+            plot_area_sqft: merged.plot_area_sqft || merged.size_sqft,
+            gfa_sqm: merged.gfa_sqm,
+            zoning: merged.zoning || merged.property_type || merged.land_use,
+            floors: merged.floors,
+            land_status: merged.status || merged.land_status,
+            municipality_number: merged.municipality_number || merged.land_number,
+          };
+
+          return json({ action: "plots", plot: enriched, sources: { fallback: !!fallbackData, dld: !!dldData, legacy: !!legacyData } });
+        }
+
+        return json({ error: "Plot not found", searched: searchVal }, 404);
       }
 
       if (lat && lng) {
@@ -115,9 +165,10 @@ serve(async (req) => {
       return json({ error: "Provide plotId, municipalityNumber, areaName, query, or lat+lng" }, 400);
     }
 
-    // ── DLD Lookup ──
+    // ── DLD Lookup (enriched) ──
     if (resolvedAction === "dld-lookup") {
-      const landNumber = (body.landnumber || body.land_number || body.plotnumber || body.plot_number || body.plotid || body.plot_id || body.query || body.search || body.q || "") as string;
+      const landNumber = (body.landnumber || body.land_number || body.plotnumber || body.plot_number ||
+        body.plotid || body.plot_id || body.query || body.search || body.q || "") as string;
       const lat = body.lat;
       const lng = body.lng;
       const radiusMeters = body.radiusmeters || body.radius_meters;
@@ -127,12 +178,32 @@ serve(async (req) => {
         const val = landNumber.trim();
         const normalized = val.toUpperCase();
 
-        let filter = `land_number.eq.${normalized},certificate_no.eq.${normalized},land_number.eq.${val}`;
-        if (isUUID(val)) filter += `,id.eq.${val}`;
+        // Search dld_property_cache
+        const { data: dldData, error: dldErr } = await supabase.from("dld_property_cache").select("*")
+          .or(`land_number.eq.${normalized},certificate_no.eq.${normalized},land_number.eq.${val}`)
+          .limit(lim);
+        if (dldErr) throw dldErr;
 
-        const { data, error } = await supabase.from("dld_property_cache").select("*").or(filter).limit(lim);
-        if (error) throw error;
-        return json({ action: "dld-lookup", count: data?.length || 0, properties: data });
+        // Search fallback_plots for enrichment (GFA, floors, zoning)
+        const { data: fallbackData } = await supabase.from("fallback_plots").select("*")
+          .or(`municipality_number.eq.${val},municipality_number_original.eq.${val}`)
+          .limit(lim);
+
+        // Merge enrichment
+        const enrichedProperties = (dldData || []).map((dld: any) => {
+          const fb = (fallbackData || []).find((f: any) =>
+            f.municipality_number === val || f.municipality_number_original === val
+          );
+          if (!fb) return dld;
+          return mergeEnrich(fb, dld);
+        });
+
+        // If no dld results but fallback has data, return fallback
+        if (enrichedProperties.length === 0 && (fallbackData || []).length > 0) {
+          return json({ action: "dld-lookup", count: fallbackData!.length, properties: fallbackData });
+        }
+
+        return json({ action: "dld-lookup", count: enrichedProperties.length, properties: enrichedProperties });
       }
 
       if (lat && lng) {
@@ -143,7 +214,7 @@ serve(async (req) => {
         const sliced = (data || []).slice(0, lim);
         return json({ action: "dld-lookup", count: sliced.length, properties: sliced });
       }
-      return json({ error: "Provide landNumber, query, or lat+lng (supported keys: landNumber, plotNumber, query)" }, 400);
+      return json({ error: "Provide landNumber, query, or lat+lng" }, 400);
     }
 
     // ── Market ──
