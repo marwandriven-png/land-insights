@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from 'react';
-import { Settings, Save, RotateCcw, FileText, Plus, Link2, Upload, X, File, CheckCircle2, Loader2, Database } from 'lucide-react';
+import { Settings, Save, RotateCcw, FileText, Plus, Link2, Upload, X, File, CheckCircle2, Loader2, Database, Key, Copy, Eye, EyeOff, RefreshCw } from 'lucide-react';
 import mammoth from 'mammoth';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -317,6 +317,119 @@ function saveFeasibilitySettings(settings: FeasibilitySettingsData) {
   localStorage.setItem(STORAGE_KEY, JSON.stringify(settings));
 }
 
+const API_KEY_STORAGE = 'hyperplot_land_os_api_key';
+
+function generateApiKey(): string {
+  const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789';
+  const prefix = 'los_';
+  let key = prefix;
+  for (let i = 0; i < 48; i++) {
+    key += chars.charAt(Math.floor(Math.random() * chars.length));
+  }
+  return key;
+}
+
+function APIKeyManager() {
+  const [apiKey, setApiKey] = useState<string | null>(() => localStorage.getItem(API_KEY_STORAGE));
+  const [visible, setVisible] = useState(false);
+  const [justCopied, setJustCopied] = useState(false);
+
+  const handleGenerate = () => {
+    const newKey = generateApiKey();
+    setApiKey(newKey);
+    localStorage.setItem(API_KEY_STORAGE, newKey);
+    setVisible(true);
+    toast.success('New API key generated');
+  };
+
+  const handleRevoke = () => {
+    setApiKey(null);
+    localStorage.removeItem(API_KEY_STORAGE);
+    setVisible(false);
+    toast.info('API key revoked');
+  };
+
+  const handleCopy = () => {
+    if (!apiKey) return;
+    navigator.clipboard.writeText(apiKey);
+    setJustCopied(true);
+    toast.success('API key copied to clipboard');
+    setTimeout(() => setJustCopied(false), 2000);
+  };
+
+  const endpoint = `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/land-os-api`;
+
+  return (
+    <div className="space-y-5">
+      <div>
+        <h3 className="text-sm font-semibold text-foreground mb-1 flex items-center gap-1.5">
+          <Key className="w-4 h-4 text-primary" />
+          Land OS API Key
+        </h3>
+        <p className="text-[11px] text-muted-foreground mb-3">
+          Generate an API key to connect Land OS to your AI Broker Brain or any external system. Use it in the <code className="text-[10px] bg-muted/50 px-1 py-0.5 rounded">x-land-os-api-key</code> header.
+        </p>
+      </div>
+
+      {/* Key display */}
+      {apiKey ? (
+        <div className="space-y-3">
+          <div className="flex items-center gap-2">
+            <div className="flex-1 bg-muted/30 border border-border/50 rounded-lg px-3 py-2.5 font-mono text-xs text-foreground overflow-hidden">
+              {visible ? apiKey : '•'.repeat(32)}
+            </div>
+            <Button variant="ghost" size="icon" className="h-9 w-9 shrink-0" onClick={() => setVisible(!visible)}>
+              {visible ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+            </Button>
+            <Button variant="ghost" size="icon" className="h-9 w-9 shrink-0" onClick={handleCopy}>
+              {justCopied ? <CheckCircle2 className="w-4 h-4 text-primary" /> : <Copy className="w-4 h-4" />}
+            </Button>
+          </div>
+          <div className="flex gap-2">
+            <Button variant="outline" size="sm" onClick={handleGenerate} className="gap-1.5 text-xs">
+              <RefreshCw className="w-3.5 h-3.5" />
+              Regenerate
+            </Button>
+            <Button variant="destructive" size="sm" onClick={handleRevoke} className="gap-1.5 text-xs">
+              <X className="w-3.5 h-3.5" />
+              Revoke
+            </Button>
+          </div>
+        </div>
+      ) : (
+        <div className="text-center py-8">
+          <Key className="w-10 h-10 text-muted-foreground/30 mx-auto mb-3" />
+          <p className="text-sm text-muted-foreground mb-4">No API key generated yet</p>
+          <Button onClick={handleGenerate} className="gap-2">
+            <Key className="w-4 h-4" />
+            Generate API Key
+          </Button>
+        </div>
+      )}
+
+      {/* Endpoint info */}
+      <div className="p-3 rounded-xl bg-muted/20 border border-border/50 space-y-2">
+        <label className="text-xs font-semibold text-foreground">API Endpoint</label>
+        <div className="bg-muted/30 rounded-lg px-3 py-2 font-mono text-[10px] text-muted-foreground break-all select-all">
+          POST {endpoint}
+        </div>
+        <p className="text-[10px] text-muted-foreground leading-relaxed">
+          Send plot parameters (<code className="bg-muted/50 px-1 rounded">plotId</code>, <code className="bg-muted/50 px-1 rounded">areaSqft</code>, <code className="bg-muted/50 px-1 rounded">gfaSqft</code>) to get feasibility results. Set <code className="bg-muted/50 px-1 rounded">allStrategies: true</code> for investor, balanced &amp; family scenarios.
+        </p>
+      </div>
+
+      {/* Example */}
+      <div className="p-3 rounded-xl bg-muted/20 border border-border/50 space-y-2">
+        <label className="text-xs font-semibold text-foreground">Quick Example</label>
+        <pre className="bg-muted/30 rounded-lg px-3 py-2 font-mono text-[10px] text-muted-foreground overflow-x-auto whitespace-pre">{`curl -X POST ${endpoint} \\
+  -H "x-land-os-api-key: YOUR_KEY" \\
+  -H "Content-Type: application/json" \\
+  -d '{"action":"feasibility","plotId":"P-101","areaSqft":15000}'`}</pre>
+      </div>
+    </div>
+  );
+}
+
 interface FeasibilitySettingsProps {
   open: boolean;
   onClose: () => void;
@@ -383,6 +496,10 @@ export function FeasibilitySettings({ open, onClose, onSettingsChange, onOpenAdd
               <TabsTrigger value="fallbackdb" className="flex-1 gap-1.5">
                 <Database className="w-3.5 h-3.5" />
                 Fallback DB
+              </TabsTrigger>
+              <TabsTrigger value="apikey" className="flex-1 gap-1.5">
+                <Key className="w-3.5 h-3.5" />
+                API Key
               </TabsTrigger>
             </TabsList>
           </div>
@@ -462,6 +579,11 @@ export function FeasibilitySettings({ open, onClose, onSettingsChange, onOpenAdd
                 Open Fallback DB Manager
               </Button>
             </div>
+          </TabsContent>
+
+          {/* API Key Tab */}
+          <TabsContent value="apikey" className="flex-1 overflow-y-auto px-5 pb-3 mt-3">
+            <APIKeyManager />
           </TabsContent>
         </Tabs>
 
