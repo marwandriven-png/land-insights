@@ -430,7 +430,7 @@ function APIKeyManager() {
   );
 }
 
-
+interface FeasibilitySettingsProps {
   open: boolean;
   onClose: () => void;
   onSettingsChange?: (settings: FeasibilitySettingsData) => void;
