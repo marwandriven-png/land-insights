@@ -46,11 +46,11 @@ serve(async (req) => {
 
     // ── Feasibility ──
     if (resolvedAction === "feasibility") {
-      const plotId = body.plotid || body.plotId || body.plot_id;
-      const areaSqft = body.areasqft || body.areaSqft || body.area_sqft;
+      const plotId = (body.plotid || body.plot_id) as string;
+      const areaSqft = (body.areasqft || body.area_sqft) as number;
       if (!plotId || !areaSqft) return json({ error: "Required fields: plotId, areaSqft" }, 400);
       const feasBody = { ...body, plotId, areaSqft };
-      if (body.allstrategies || body.allStrategies) {
+      if (body.allstrategies) {
         const strategies: Record<string, unknown> = {};
         for (const key of ["investor", "balanced", "family"]) strategies[key] = runFeasibility({ ...feasBody, mixStrategy: key });
         return json({ action: "feasibility", strategies });
@@ -60,12 +60,12 @@ serve(async (req) => {
 
     // ── Plots (also handles "lookup" alias) ──
     if (resolvedAction === "plots") {
-      const plotId = body.plotid || body.plotId || body.plot_id;
-      const municipalityNumber = body.municipalitynumber || body.municipalityNumber || body.municipality_number || body.plotnumber || body.plotNumber || body.plot_number;
-      const areaName = body.areaname || body.areaName || body.area_name;
+      const plotId = body.plotid || body.plot_id;
+      const municipalityNumber = body.municipalitynumber || body.municipality_number || body.plotnumber || body.plot_number;
+      const areaName = body.areaname || body.area_name;
       const lat = body.lat;
       const lng = body.lng;
-      const radiusMeters = body.radiusmeters || body.radiusMeters || body.radius_meters;
+      const radiusMeters = body.radiusmeters || body.radius_meters;
       const ql = body.limit as number | undefined;
       const lim = Math.min(ql || 50, 200);
 
@@ -101,14 +101,19 @@ serve(async (req) => {
 
     // ── DLD Lookup ──
     if (resolvedAction === "dld-lookup") {
-      const landNumber = body.landnumber || body.landNumber || body.land_number;
-      const lat = body.lat;
-      const lng = body.lng;
-      const radiusMeters = body.radiusmeters || body.radiusMeters || body.radius_meters;
+      const landNumber = (body.landnumber || body.land_number || body.plotnumber || body.plot_number || body.plotid || body.plot_id || "") as string;
+      const lat = body.lat as number | undefined;
+      const lng = body.lng as number | undefined;
+      const radiusMeters = (body.radiusmeters || body.radius_meters) as number | undefined;
       const ql = body.limit as number | undefined;
       const lim = Math.min(ql || 50, 200);
-      if (landNumber) {
-        const { data, error } = await supabase.from("dld_property_cache").select("*").eq("land_number", landNumber).limit(lim);
+
+      if (landNumber && landNumber.trim()) {
+        const normalized = landNumber.trim().toUpperCase();
+        const { data, error } = await supabase.from("dld_property_cache")
+          .select("*")
+          .eq("land_number", normalized)
+          .limit(lim);
         if (error) throw error;
         return json({ action: "dld-lookup", count: data?.length || 0, properties: data });
       }
@@ -122,8 +127,8 @@ serve(async (req) => {
 
     // ── Market ──
     if (resolvedAction === "market") {
-      const areaCode = body.areacode || body.areaCode || body.area_code;
-      const areaName = body.areaname || body.areaName || body.area_name;
+      const areaCode = body.areacode || body.area_code;
+      const areaName = body.areaname || body.area_name;
       if (areaCode || areaName) {
         let q = supabase.from("v_area_snapshot_latest").select("*");
         if (areaCode) q = q.eq("area_code", areaCode);
