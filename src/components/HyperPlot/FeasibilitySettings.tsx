@@ -384,6 +384,10 @@ export function FeasibilitySettings({ open, onClose, onSettingsChange, onOpenAdd
                 <Database className="w-3.5 h-3.5" />
                 Fallback DB
               </TabsTrigger>
+              <TabsTrigger value="apikey" className="flex-1 gap-1.5">
+                <Key className="w-3.5 h-3.5" />
+                API Key
+              </TabsTrigger>
             </TabsList>
           </div>
 
