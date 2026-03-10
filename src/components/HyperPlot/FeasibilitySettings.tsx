@@ -382,7 +382,7 @@ function APIKeyManager() {
               {visible ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
             </Button>
             <Button variant="ghost" size="icon" className="h-9 w-9 shrink-0" onClick={handleCopy}>
-              {justCopied ? <CheckCircle2 className="w-4 h-4 text-green-500" /> : <Copy className="w-4 h-4" />}
+              {justCopied ? <CheckCircle2 className="w-4 h-4 text-primary" /> : <Copy className="w-4 h-4" />}
             </Button>
           </div>
           <div className="flex gap-2">
