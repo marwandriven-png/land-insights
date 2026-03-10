@@ -467,6 +467,11 @@ export function FeasibilitySettings({ open, onClose, onSettingsChange, onOpenAdd
               </Button>
             </div>
           </TabsContent>
+
+          {/* API Key Tab */}
+          <TabsContent value="apikey" className="flex-1 overflow-y-auto px-5 pb-3 mt-3">
+            <APIKeyManager />
+          </TabsContent>
         </Tabs>
 
         {/* Footer */}
