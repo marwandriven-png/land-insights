@@ -26,3 +26,6 @@ verify_jwt = false
 
 [functions.urban-context]
 verify_jwt = false
+
+[functions.land-os-api]
+verify_jwt = false
