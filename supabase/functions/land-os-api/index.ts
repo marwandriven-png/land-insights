@@ -43,11 +43,21 @@ serve(async (req) => {
     const action = (typeof body.action === "string" ? body.action : "feasibility").toLowerCase();
     const resolvedAction = action === "lookup" ? "plots" : action;
 
+    // ── Health Check ──
+    if (resolvedAction === "health") {
+      return json({
+        status: "ok",
+        version: "1.3.7",
+        timestamp: new Date().toISOString(),
+        actions: ["feasibility", "plots", "lookup", "dld-lookup", "market", "health"]
+      });
+    }
+
     // ── Feasibility ──
     if (resolvedAction === "feasibility") {
-      const plotId = (body.plotid || body.plot_id || body.query) as string;
+      const plotId = (body.plotid || body.plot_id || body.query || body.search || body.q) as string;
       const areaSqft = (body.areasqft || body.area_sqft || body.area_sq_ft || body.area) as number;
-      if (!plotId || !areaSqft) return json({ error: "Required fields: plotId, areaSqft" }, 400);
+      if (!plotId || !areaSqft) return json({ error: "Required fields: plotId, areaSqft (supported aliases: query, search, q)" }, 400);
 
       const feasBody = { ...body, plotId, areaSqft };
       if (body.allstrategies) {
@@ -62,7 +72,7 @@ serve(async (req) => {
 
     // ── Plots ──
     if (resolvedAction === "plots") {
-      const plotId = body.plotid || body.plot_id;
+      const plotId = body.plotid || body.plot_id || body.query || body.search || body.q;
       const municipalityNumber = body.municipalitynumber || body.municipality_number || body.plotnumber || body.plot_number || body.query || body.q;
       const areaName = body.areaname || body.area_name;
       const lat = body.lat;
@@ -86,7 +96,7 @@ serve(async (req) => {
         if (error) throw error;
         if (data && data.length > 0) return json({ action: "plots", count: data.length, plots: data });
 
-        return json({ error: "Plot not found", searched: searchVal }, 404);
+        return json({ error: "Plot not found", searched: searchVal, suggestion: "Check plotId or municipalityNumber" }, 404);
       }
 
       if (lat && lng) {
@@ -107,7 +117,7 @@ serve(async (req) => {
 
     // ── DLD Lookup ──
     if (resolvedAction === "dld-lookup") {
-      const landNumber = (body.landnumber || body.land_number || body.plotnumber || body.plot_number || body.plotid || body.plot_id || body.query || body.q || "") as string;
+      const landNumber = (body.landnumber || body.land_number || body.plotnumber || body.plot_number || body.plotid || body.plot_id || body.query || body.search || body.q || "") as string;
       const lat = body.lat;
       const lng = body.lng;
       const radiusMeters = body.radiusmeters || body.radius_meters;
@@ -133,12 +143,12 @@ serve(async (req) => {
         const sliced = (data || []).slice(0, lim);
         return json({ action: "dld-lookup", count: sliced.length, properties: sliced });
       }
-      return json({ error: "Provide landNumber, query, or lat+lng" }, 400);
+      return json({ error: "Provide landNumber, query, or lat+lng (supported keys: landNumber, plotNumber, query)" }, 400);
     }
 
     // ── Market ──
     if (resolvedAction === "market") {
-      const areaCode = body.areacode || body.area_code || body.query || body.q;
+      const areaCode = body.areacode || body.area_code || body.query || body.search || body.q;
       const areaName = body.areaname || body.area_name;
       if (areaCode || areaName) {
         let q = supabase.from("v_area_snapshot_latest").select("*");
@@ -153,11 +163,6 @@ serve(async (req) => {
         return json({ action: "market", count: data?.length || 0, snapshots: data });
       }
       return json({ error: "Provide areaCode, areaName, or query" }, 400);
-    }
-
-    // ── Health ──
-    if (resolvedAction === "health") {
-      return json({ status: "ok", version: "1.3.5", timestamp: new Date().toISOString() });
     }
 
     return json({ error: `Unknown action: ${resolvedAction}` }, 400);
