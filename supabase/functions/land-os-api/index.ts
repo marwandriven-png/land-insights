@@ -157,7 +157,7 @@ serve(async (req) => {
 
     // ── Health ──
     if (resolvedAction === "health") {
-      return json({ status: "ok", version: "1.3.1", timestamp: new Date().toISOString() });
+      return json({ status: "ok", version: "1.3.2", timestamp: new Date().toISOString() });
     }
 
     return json({ error: `Unknown action: ${resolvedAction}` }, 400);
