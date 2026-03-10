@@ -319,42 +319,67 @@ function saveFeasibilitySettings(settings: FeasibilitySettingsData) {
 
 const API_KEY_STORAGE = 'hyperplot_land_os_api_key';
 
-function generateApiKey(): string {
-  const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789';
-  const prefix = 'los_';
-  let key = prefix;
-  for (let i = 0; i < 48; i++) {
-    key += chars.charAt(Math.floor(Math.random() * chars.length));
-  }
-  return key;
-}
-
 function APIKeyManager() {
-  const [apiKey, setApiKey] = useState<string | null>(() => localStorage.getItem(API_KEY_STORAGE));
+  const [apiKey, setApiKey] = useState<string>(() => localStorage.getItem(API_KEY_STORAGE) || '');
   const [visible, setVisible] = useState(false);
   const [justCopied, setJustCopied] = useState(false);
+  const [testing, setTesting] = useState(false);
+  const [testResult, setTestResult] = useState<{ ok: boolean; message: string } | null>(null);
 
-  const handleGenerate = () => {
-    const newKey = generateApiKey();
-    setApiKey(newKey);
-    localStorage.setItem(API_KEY_STORAGE, newKey);
-    setVisible(true);
-    toast.success('New API key generated');
+  const handleSaveKey = () => {
+    if (!apiKey.trim()) {
+      toast.error('Please enter your API key');
+      return;
+    }
+    localStorage.setItem(API_KEY_STORAGE, apiKey.trim());
+    toast.success('API key saved locally');
+    setTestResult(null);
   };
 
-  const handleRevoke = () => {
-    setApiKey(null);
+  const handleClear = () => {
+    setApiKey('');
     localStorage.removeItem(API_KEY_STORAGE);
     setVisible(false);
-    toast.info('API key revoked');
+    setTestResult(null);
+    toast.info('API key removed');
   };
 
   const handleCopy = () => {
     if (!apiKey) return;
     navigator.clipboard.writeText(apiKey);
     setJustCopied(true);
-    toast.success('API key copied to clipboard');
+    toast.success('Copied to clipboard');
     setTimeout(() => setJustCopied(false), 2000);
+  };
+
+  const handleTest = async () => {
+    if (!apiKey.trim()) {
+      toast.error('Enter your API key first');
+      return;
+    }
+    setTesting(true);
+    setTestResult(null);
+    try {
+      const resp = await fetch(endpoint, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'x-land-os-api-key': apiKey.trim(),
+        },
+        body: JSON.stringify({ action: 'health' }),
+      });
+      const data = await resp.json();
+      if (resp.ok && data.status === 'ok') {
+        setTestResult({ ok: true, message: `Connected ✓ (v${data.version})` });
+        localStorage.setItem(API_KEY_STORAGE, apiKey.trim());
+      } else {
+        setTestResult({ ok: false, message: data.error || `HTTP ${resp.status}` });
+      }
+    } catch (err) {
+      setTestResult({ ok: false, message: err instanceof Error ? err.message : 'Network error' });
+    } finally {
+      setTesting(false);
+    }
   };
 
   const endpoint = `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/land-os-api`;
@@ -367,45 +392,53 @@ function APIKeyManager() {
           Land OS API Key
         </h3>
         <p className="text-[11px] text-muted-foreground mb-3">
-          Generate an API key to connect Land OS to your AI Broker Brain or any external system. Use it in the <code className="text-[10px] bg-muted/50 px-1 py-0.5 rounded">x-land-os-api-key</code> header.
+          Enter the API key configured in your backend. Use it in the <code className="text-[10px] bg-muted/50 px-1 py-0.5 rounded">x-land-os-api-key</code> header when calling the endpoint.
         </p>
       </div>
 
-      {/* Key display */}
-      {apiKey ? (
-        <div className="space-y-3">
-          <div className="flex items-center gap-2">
-            <div className="flex-1 bg-muted/30 border border-border/50 rounded-lg px-3 py-2.5 font-mono text-xs text-foreground overflow-hidden">
-              {visible ? apiKey : '•'.repeat(32)}
-            </div>
-            <Button variant="ghost" size="icon" className="h-9 w-9 shrink-0" onClick={() => setVisible(!visible)}>
-              {visible ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
-            </Button>
+      {/* Key input */}
+      <div className="space-y-3">
+        <div className="flex items-center gap-2">
+          <Input
+            type={visible ? 'text' : 'password'}
+            value={apiKey}
+            onChange={(e) => { setApiKey(e.target.value); setTestResult(null); }}
+            placeholder="Paste your LAND_OS_API_KEY here..."
+            className="flex-1 font-mono text-xs"
+          />
+          <Button variant="ghost" size="icon" className="h-9 w-9 shrink-0" onClick={() => setVisible(!visible)}>
+            {visible ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+          </Button>
+          {apiKey && (
             <Button variant="ghost" size="icon" className="h-9 w-9 shrink-0" onClick={handleCopy}>
               {justCopied ? <CheckCircle2 className="w-4 h-4 text-primary" /> : <Copy className="w-4 h-4" />}
             </Button>
-          </div>
-          <div className="flex gap-2">
-            <Button variant="outline" size="sm" onClick={handleGenerate} className="gap-1.5 text-xs">
-              <RefreshCw className="w-3.5 h-3.5" />
-              Regenerate
-            </Button>
-            <Button variant="destructive" size="sm" onClick={handleRevoke} className="gap-1.5 text-xs">
-              <X className="w-3.5 h-3.5" />
-              Revoke
-            </Button>
-          </div>
+          )}
         </div>
-      ) : (
-        <div className="text-center py-8">
-          <Key className="w-10 h-10 text-muted-foreground/30 mx-auto mb-3" />
-          <p className="text-sm text-muted-foreground mb-4">No API key generated yet</p>
-          <Button onClick={handleGenerate} className="gap-2">
-            <Key className="w-4 h-4" />
-            Generate API Key
+        <div className="flex gap-2">
+          <Button size="sm" onClick={handleSaveKey} className="gap-1.5 text-xs" disabled={!apiKey.trim()}>
+            <Save className="w-3.5 h-3.5" />
+            Save Key
           </Button>
+          <Button variant="outline" size="sm" onClick={handleTest} className="gap-1.5 text-xs" disabled={!apiKey.trim() || testing}>
+            {testing ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <CheckCircle2 className="w-3.5 h-3.5" />}
+            Test Connection
+          </Button>
+          {apiKey && (
+            <Button variant="destructive" size="sm" onClick={handleClear} className="gap-1.5 text-xs">
+              <X className="w-3.5 h-3.5" />
+              Clear
+            </Button>
+          )}
         </div>
-      )}
+
+        {/* Test result */}
+        {testResult && (
+          <div className={`p-2.5 rounded-lg border text-xs font-medium ${testResult.ok ? 'bg-emerald-500/10 border-emerald-500/30 text-emerald-400' : 'bg-destructive/10 border-destructive/30 text-destructive'}`}>
+            {testResult.message}
+          </div>
+        )}
+      </div>
 
       {/* Endpoint info */}
       <div className="p-3 rounded-xl bg-muted/20 border border-border/50 space-y-2">
