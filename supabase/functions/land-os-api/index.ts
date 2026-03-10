@@ -296,13 +296,138 @@ serve(async (req) => {
       });
     }
 
+    // ── Plot details: search / get by ID ──
+    if (action === "plots") {
+      const { plotId, municipalityNumber, areaName, lat, lng, radiusMeters, limit: queryLimit } = body;
+      const rowLimit = Math.min(queryLimit || 50, 200);
+
+      // Single plot by ID
+      if (plotId) {
+        const { data, error } = await supabase
+          .from("fallback_plots")
+          .select("*")
+          .eq("id", plotId)
+          .maybeSingle();
+        if (error) throw error;
+        if (!data) {
+          return new Response(JSON.stringify({ error: "Plot not found" }), {
+            status: 404, headers: { ...corsHeaders, "Content-Type": "application/json" },
+          });
+        }
+        return new Response(JSON.stringify({ action: "plots", plot: data }), {
+          headers: { ...corsHeaders, "Content-Type": "application/json" },
+        });
+      }
+
+      // Search by municipality number
+      if (municipalityNumber) {
+        const { data, error } = await supabase
+          .from("fallback_plots")
+          .select("*")
+          .or(`municipality_number.eq.${municipalityNumber},municipality_number_original.eq.${municipalityNumber}`)
+          .limit(rowLimit);
+        if (error) throw error;
+        return new Response(JSON.stringify({ action: "plots", count: data?.length || 0, plots: data }), {
+          headers: { ...corsHeaders, "Content-Type": "application/json" },
+        });
+      }
+
+      // Radius search
+      if (lat && lng) {
+        const radius = radiusMeters || 2000;
+        const { data, error } = await supabase.rpc("search_fallback_plots_by_radius", {
+          center_lat: lat,
+          center_lng: lng,
+          radius_meters: radius,
+        });
+        if (error) throw error;
+        const limited = (data || []).slice(0, rowLimit);
+        return new Response(JSON.stringify({ action: "plots", count: limited.length, plots: limited }), {
+          headers: { ...corsHeaders, "Content-Type": "application/json" },
+        });
+      }
+
+      // Search by area name
+      if (areaName) {
+        const { data, error } = await supabase
+          .from("fallback_plots")
+          .select("*")
+          .ilike("area_name", `%${areaName}%`)
+          .limit(rowLimit);
+        if (error) throw error;
+        return new Response(JSON.stringify({ action: "plots", count: data?.length || 0, plots: data }), {
+          headers: { ...corsHeaders, "Content-Type": "application/json" },
+        });
+      }
+
+      return new Response(JSON.stringify({ error: "Provide plotId, municipalityNumber, areaName, or lat+lng for plot search" }), {
+        status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
+
+    // ── DLD property lookup ──
+    if (action === "dld-lookup") {
+      const { landNumber, lat, lng, radiusMeters, limit: queryLimit } = body;
+      const rowLimit = Math.min(queryLimit || 50, 200);
+
+      if (landNumber) {
+        const { data, error } = await supabase
+          .from("dld_property_cache")
+          .select("*")
+          .eq("land_number", landNumber)
+          .limit(rowLimit);
+        if (error) throw error;
+        return new Response(JSON.stringify({ action: "dld-lookup", count: data?.length || 0, properties: data }), {
+          headers: { ...corsHeaders, "Content-Type": "application/json" },
+        });
+      }
+
+      if (lat && lng) {
+        const radius = radiusMeters || 2000;
+        const { data, error } = await supabase.rpc("search_dld_plots_by_radius", {
+          center_lat: lat,
+          center_lng: lng,
+          radius_meters: radius,
+        });
+        if (error) throw error;
+        const limited = (data || []).slice(0, rowLimit);
+        return new Response(JSON.stringify({ action: "dld-lookup", count: limited.length, properties: limited }), {
+          headers: { ...corsHeaders, "Content-Type": "application/json" },
+        });
+      }
+
+      return new Response(JSON.stringify({ error: "Provide landNumber or lat+lng for DLD lookup" }), {
+        status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
+
+    // ── Market snapshot ──
+    if (action === "market") {
+      const { areaCode, areaName } = body;
+
+      if (areaCode || areaName) {
+        let query = supabase.from("v_area_snapshot_latest").select("*");
+        if (areaCode) query = query.eq("area_code", areaCode);
+        else if (areaName) query = query.ilike("area_name", `%${areaName}%`);
+        const { data, error } = await query.limit(20);
+        if (error) throw error;
+        return new Response(JSON.stringify({ action: "market", count: data?.length || 0, snapshots: data }), {
+          headers: { ...corsHeaders, "Content-Type": "application/json" },
+        });
+      }
+
+      return new Response(JSON.stringify({ error: "Provide areaCode or areaName for market data" }), {
+        status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
+
     if (action === "health") {
-      return new Response(JSON.stringify({ status: "ok", version: "1.1.0", timestamp: new Date().toISOString() }), {
+      return new Response(JSON.stringify({ status: "ok", version: "1.2.0", timestamp: new Date().toISOString(), actions: ["feasibility", "plots", "dld-lookup", "market", "health"] }), {
         headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
     }
 
-    return new Response(JSON.stringify({ error: `Unknown action: ${action}. Supported: feasibility, health` }), {
+    return new Response(JSON.stringify({ error: `Unknown action: ${action}. Supported: feasibility, plots, dld-lookup, market, health` }), {
       status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" },
     });
   } catch (e) {
