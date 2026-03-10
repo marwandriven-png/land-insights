@@ -35,8 +35,14 @@ serve(async (req) => {
     }
     if (!authenticated) return json({ error: "Unauthorized. Invalid API key." }, 401);
 
-    const body = await req.json();
-    const action = body.action || "feasibility";
+    const raw = await req.json();
+    // Normalize keys to lowercase to handle uppercase payloads (e.g. "ACTION", "PLOTID")
+    const body: Record<string, unknown> = {};
+    for (const [k, v] of Object.entries(raw)) body[k.toLowerCase()] = v;
+    const action = (typeof body.action === "string" ? body.action : "feasibility").toLowerCase();
+
+    // Also support "lookup" as alias for "plots"
+    const resolvedAction = action === "lookup" ? "plots" : action;
 
     // ── Feasibility ──
     if (action === "feasibility") {
