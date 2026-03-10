@@ -1,11 +1,12 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
+import { createClient } from "https://esm.sh/@supabase/supabase-js@2.49.1";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
   "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type, x-land-os-api-key",
 };
 
-// ─── Feasibility constants (mirrored from dscFeasibility.ts) ─────────────────
+// ─── Feasibility constants ─────────────────
 const TXN_AVG_PSF = { studio: 1796, br1: 1531, br2: 1368, br3: 1449 };
 const UNIT_SIZES = { studio: 426, br1: 771, br2: 1208, br3: 1680 };
 const RENT_PSF_YR = { studio: 90, br1: 86, br2: 83, br3: 78 };
@@ -34,7 +35,7 @@ interface PlotParams {
   zoning?: string;
   area?: string;
   floors?: string;
-  mixStrategy?: string; // investor | balanced | family
+  mixStrategy?: string;
   overrides?: {
     landCostPsf?: number;
     landCost?: number;
@@ -48,6 +49,15 @@ interface PlotParams {
     unitRents?: { studio?: number; br1?: number; br2?: number; br3?: number };
     mix?: { studio?: number; br1?: number; br2?: number; br3?: number };
   };
+}
+
+// Simple hash function for API key validation
+async function hashKey(key: string): Promise<string> {
+  const encoder = new TextEncoder();
+  const data = encoder.encode(key);
+  const hashBuffer = await crypto.subtle.digest("SHA-256", data);
+  const hashArray = Array.from(new Uint8Array(hashBuffer));
+  return hashArray.map(b => b.toString(16).padStart(2, "0")).join("");
 }
 
 function runFeasibility(params: PlotParams) {
@@ -84,7 +94,6 @@ function runFeasibility(params: PlotParams) {
     br3: ov.unitRents?.br3 || RENT_PSF_YR.br3,
   };
 
-  // Units
   const avgUnitSize = mix.studio * sizes.studio + mix.br1 * sizes.br1 + mix.br2 * sizes.br2 + mix.br3 * sizes.br3;
   const totalUnits = Math.round(sellableArea / avgUnitSize);
   const units = {
@@ -96,7 +105,6 @@ function runFeasibility(params: PlotParams) {
   };
   units.total = units.studio + units.br1 + units.br2 + units.br3;
 
-  // Prices
   const prices = {
     studio: sizes.studio * psf.studio,
     br1: sizes.br1 * psf.br1,
@@ -104,7 +112,6 @@ function runFeasibility(params: PlotParams) {
     br3: sizes.br3 * psf.br3,
   };
 
-  // Revenue
   const grossSales =
     units.studio * prices.studio +
     units.br1 * prices.br1 +
@@ -113,7 +120,6 @@ function runFeasibility(params: PlotParams) {
 
   const avgPsfDerived = sellableArea > 0 ? grossSales / sellableArea : 0;
 
-  // Costs
   const landCostPsf = ov.landCostPsf || 148.23;
   const landCost = ov.landCost || gfa * landCostPsf;
   const constructionPsf = ov.constructionPsf || 420;
@@ -132,7 +138,6 @@ function runFeasibility(params: PlotParams) {
   const roi = totalCost > 0 ? grossProfit / totalCost : 0;
   const breakEvenPsf = sellableArea > 0 ? totalCost / sellableArea : 0;
 
-  // Rental yield
   const annualRent =
     units.studio * (sizes.studio * rents.studio) +
     units.br1 * (sizes.br1 * rents.br1) +
@@ -140,7 +145,6 @@ function runFeasibility(params: PlotParams) {
     units.br3 * (sizes.br3 * rents.br3);
   const grossYield = grossSales > 0 ? annualRent / grossSales : 0;
 
-  // Sensitivity
   const sensitivity = [-0.10, -0.05, 0, 0.05, 0.10].map(delta => {
     const rev = grossSales * (1 + delta);
     const prof = rev - totalCost;
@@ -223,16 +227,44 @@ serve(async (req) => {
   if (req.method === "OPTIONS") return new Response(null, { headers: corsHeaders });
 
   try {
-    // ── Auth check ──
     const apiKey = req.headers.get("x-land-os-api-key") || req.headers.get("authorization")?.replace("Bearer ", "");
-    const expectedKey = Deno.env.get("LAND_OS_API_KEY");
-    if (!expectedKey) {
-      return new Response(JSON.stringify({ error: "API key not configured on server" }), {
-        status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" },
+
+    // Validate against database
+    const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
+    const supabaseServiceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
+    const supabase = createClient(supabaseUrl, supabaseServiceKey);
+
+    if (!apiKey) {
+      return new Response(JSON.stringify({ error: "Unauthorized. Provide a valid API key via x-land-os-api-key header or Bearer token." }), {
+        status: 401, headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
     }
-    if (!apiKey || apiKey !== expectedKey) {
-      return new Response(JSON.stringify({ error: "Unauthorized. Provide a valid API key via x-land-os-api-key header or Bearer token." }), {
+
+    // Also check legacy env-based key
+    const envKey = Deno.env.get("LAND_OS_API_KEY");
+    let authenticated = false;
+
+    if (envKey && apiKey === envKey) {
+      authenticated = true;
+    } else {
+      // Check against hashed keys in DB
+      const keyHash = await hashKey(apiKey);
+      const { data: keyRow } = await supabase
+        .from("api_keys")
+        .select("id, is_active")
+        .eq("key_hash", keyHash)
+        .eq("is_active", true)
+        .maybeSingle();
+
+      if (keyRow) {
+        authenticated = true;
+        // Update last_used_at
+        await supabase.from("api_keys").update({ last_used_at: new Date().toISOString() }).eq("id", keyRow.id);
+      }
+    }
+
+    if (!authenticated) {
+      return new Response(JSON.stringify({ error: "Unauthorized. Invalid API key." }), {
         status: 401, headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
     }
@@ -248,7 +280,6 @@ serve(async (req) => {
         });
       }
 
-      // Run for all strategies if requested
       if (body.allStrategies) {
         const results: Record<string, ReturnType<typeof runFeasibility>> = {};
         for (const key of ["investor", "balanced", "family"]) {
@@ -266,7 +297,7 @@ serve(async (req) => {
     }
 
     if (action === "health") {
-      return new Response(JSON.stringify({ status: "ok", version: "1.0.0", timestamp: new Date().toISOString() }), {
+      return new Response(JSON.stringify({ status: "ok", version: "1.1.0", timestamp: new Date().toISOString() }), {
         headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
     }
