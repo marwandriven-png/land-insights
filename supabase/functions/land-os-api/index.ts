@@ -111,9 +111,10 @@ serve(async (req) => {
 
       if (landNumber && landNumber.trim()) {
         const normalized = landNumber.trim().toUpperCase();
+        // Search across several possible ID columns for robustness
         const { data, error } = await supabase.from("dld_property_cache")
           .select("*")
-          .or(`land_number.eq.${normalized},land_number.eq.${landNumber}`)
+          .or(`land_number.eq.${normalized},id.eq.${normalized},certificate_no.eq.${normalized},land_number.eq.${landNumber}`)
           .limit(lim);
         if (error) throw error;
         return json({ action: "dld-lookup", count: data?.length || 0, properties: data });
