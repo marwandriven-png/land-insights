@@ -319,42 +319,106 @@ function saveFeasibilitySettings(settings: FeasibilitySettingsData) {
 
 const API_KEY_STORAGE = 'hyperplot_land_os_api_key';
 
+async function hashKeyClient(key: string): Promise<string> {
+  const encoder = new TextEncoder();
+  const data = encoder.encode(key);
+  const hashBuffer = await crypto.subtle.digest("SHA-256", data);
+  const hashArray = Array.from(new Uint8Array(hashBuffer));
+  return hashArray.map(b => b.toString(16).padStart(2, "0")).join("");
+}
+
+function generateApiKey(): string {
+  const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789';
+  const prefix = 'los_';
+  let key = prefix;
+  for (let i = 0; i < 48; i++) {
+    key += chars.charAt(Math.floor(Math.random() * chars.length));
+  }
+  return key;
+}
+
+interface StoredKey {
+  id: string;
+  key_prefix: string;
+  label: string;
+  is_active: boolean;
+  created_at: string;
+  last_used_at: string | null;
+}
+
 function APIKeyManager() {
-  const [apiKey, setApiKey] = useState<string>(() => localStorage.getItem(API_KEY_STORAGE) || '');
+  const [keys, setKeys] = useState<StoredKey[]>([]);
+  const [newKeyValue, setNewKeyValue] = useState<string | null>(null);
   const [visible, setVisible] = useState(false);
   const [justCopied, setJustCopied] = useState(false);
+  const [generating, setGenerating] = useState(false);
   const [testing, setTesting] = useState(false);
   const [testResult, setTestResult] = useState<{ ok: boolean; message: string } | null>(null);
+  const [loading, setLoading] = useState(true);
 
-  const handleSaveKey = () => {
-    if (!apiKey.trim()) {
-      toast.error('Please enter your API key');
-      return;
+  const endpoint = `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/land-os-api`;
+
+  const loadKeys = useCallback(async () => {
+    try {
+      const { supabase } = await import('@/integrations/supabase/client');
+      const { data } = await (supabase as any).from('api_keys').select('id, key_prefix, label, is_active, created_at, last_used_at').order('created_at', { ascending: false });
+      setKeys(data || []);
+    } catch { }
+    setLoading(false);
+  }, []);
+
+  useEffect(() => { loadKeys(); }, [loadKeys]);
+
+  const handleGenerate = async () => {
+    setGenerating(true);
+    try {
+      const rawKey = generateApiKey();
+      const keyHash = await hashKeyClient(rawKey);
+      const keyPrefix = rawKey.slice(0, 8) + '...';
+
+      const { supabase } = await import('@/integrations/supabase/client');
+      const { error } = await (supabase as any).from('api_keys').insert({
+        key_hash: keyHash,
+        key_prefix: keyPrefix,
+        label: 'default',
+        is_active: true,
+      });
+
+      if (error) throw error;
+
+      setNewKeyValue(rawKey);
+      setVisible(true);
+      localStorage.setItem(API_KEY_STORAGE, rawKey);
+      toast.success('API key generated — copy it now, it won\'t be shown again!');
+      await loadKeys();
+    } catch (err) {
+      toast.error('Failed to generate key');
+      console.error(err);
     }
-    localStorage.setItem(API_KEY_STORAGE, apiKey.trim());
-    toast.success('API key saved locally');
-    setTestResult(null);
+    setGenerating(false);
   };
 
-  const handleClear = () => {
-    setApiKey('');
-    localStorage.removeItem(API_KEY_STORAGE);
-    setVisible(false);
-    setTestResult(null);
-    toast.info('API key removed');
+  const handleRevoke = async (id: string) => {
+    try {
+      const { supabase } = await import('@/integrations/supabase/client');
+      await (supabase as any).from('api_keys').update({ is_active: false, revoked_at: new Date().toISOString() }).eq('id', id);
+      toast.info('API key revoked');
+      await loadKeys();
+    } catch { toast.error('Failed to revoke'); }
   };
 
   const handleCopy = () => {
-    if (!apiKey) return;
-    navigator.clipboard.writeText(apiKey);
+    if (!newKeyValue) return;
+    navigator.clipboard.writeText(newKeyValue);
     setJustCopied(true);
-    toast.success('Copied to clipboard');
+    toast.success('API key copied — save it securely!');
     setTimeout(() => setJustCopied(false), 2000);
   };
 
   const handleTest = async () => {
-    if (!apiKey.trim()) {
-      toast.error('Enter your API key first');
+    const keyToTest = newKeyValue || localStorage.getItem(API_KEY_STORAGE);
+    if (!keyToTest) {
+      toast.error('No key available to test. Generate one first.');
       return;
     }
     setTesting(true);
@@ -362,80 +426,101 @@ function APIKeyManager() {
     try {
       const resp = await fetch(endpoint, {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'x-land-os-api-key': apiKey.trim(),
-        },
+        headers: { 'Content-Type': 'application/json', 'x-land-os-api-key': keyToTest },
         body: JSON.stringify({ action: 'health' }),
       });
       const data = await resp.json();
       if (resp.ok && data.status === 'ok') {
         setTestResult({ ok: true, message: `Connected ✓ (v${data.version})` });
-        localStorage.setItem(API_KEY_STORAGE, apiKey.trim());
       } else {
         setTestResult({ ok: false, message: data.error || `HTTP ${resp.status}` });
       }
     } catch (err) {
       setTestResult({ ok: false, message: err instanceof Error ? err.message : 'Network error' });
-    } finally {
-      setTesting(false);
     }
+    setTesting(false);
   };
-
-  const endpoint = `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/land-os-api`;
 
   return (
     <div className="space-y-5">
       <div>
         <h3 className="text-sm font-semibold text-foreground mb-1 flex items-center gap-1.5">
           <Key className="w-4 h-4 text-primary" />
-          Land OS API Key
+          Land OS API Keys
         </h3>
         <p className="text-[11px] text-muted-foreground mb-3">
-          Enter the API key configured in your backend. Use it in the <code className="text-[10px] bg-muted/50 px-1 py-0.5 rounded">x-land-os-api-key</code> header when calling the endpoint.
+          Generate API keys to connect Land OS with your AI Broker Brain or any external system. Keys are stored securely and validated on every request.
         </p>
       </div>
 
-      {/* Key input */}
-      <div className="space-y-3">
-        <div className="flex items-center gap-2">
-          <Input
-            type={visible ? 'text' : 'password'}
-            value={apiKey}
-            onChange={(e) => { setApiKey(e.target.value); setTestResult(null); }}
-            placeholder="Paste your LAND_OS_API_KEY here..."
-            className="flex-1 font-mono text-xs"
-          />
-          <Button variant="ghost" size="icon" className="h-9 w-9 shrink-0" onClick={() => setVisible(!visible)}>
-            {visible ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
-          </Button>
-          {apiKey && (
+      {/* Generate button */}
+      <Button onClick={handleGenerate} disabled={generating} className="gap-2 w-full">
+        {generating ? <Loader2 className="w-4 h-4 animate-spin" /> : <Key className="w-4 h-4" />}
+        Generate New API Key
+      </Button>
+
+      {/* Newly generated key (show once) */}
+      {newKeyValue && (
+        <div className="p-3 rounded-xl bg-emerald-500/10 border border-emerald-500/30 space-y-2">
+          <p className="text-xs font-semibold text-emerald-400">⚠ Copy this key now — it won't be shown again!</p>
+          <div className="flex items-center gap-2">
+            <div className="flex-1 bg-muted/30 border border-border/50 rounded-lg px-3 py-2.5 font-mono text-xs text-foreground overflow-hidden">
+              {visible ? newKeyValue : '•'.repeat(32)}
+            </div>
+            <Button variant="ghost" size="icon" className="h-9 w-9 shrink-0" onClick={() => setVisible(!visible)}>
+              {visible ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+            </Button>
             <Button variant="ghost" size="icon" className="h-9 w-9 shrink-0" onClick={handleCopy}>
               {justCopied ? <CheckCircle2 className="w-4 h-4 text-primary" /> : <Copy className="w-4 h-4" />}
             </Button>
-          )}
+          </div>
         </div>
-        <div className="flex gap-2">
-          <Button size="sm" onClick={handleSaveKey} className="gap-1.5 text-xs" disabled={!apiKey.trim()}>
-            <Save className="w-3.5 h-3.5" />
-            Save Key
-          </Button>
-          <Button variant="outline" size="sm" onClick={handleTest} className="gap-1.5 text-xs" disabled={!apiKey.trim() || testing}>
-            {testing ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <CheckCircle2 className="w-3.5 h-3.5" />}
-            Test Connection
-          </Button>
-          {apiKey && (
-            <Button variant="destructive" size="sm" onClick={handleClear} className="gap-1.5 text-xs">
-              <X className="w-3.5 h-3.5" />
-              Clear
-            </Button>
-          )}
-        </div>
+      )}
 
-        {/* Test result */}
-        {testResult && (
-          <div className={`p-2.5 rounded-lg border text-xs font-medium ${testResult.ok ? 'bg-emerald-500/10 border-emerald-500/30 text-emerald-400' : 'bg-destructive/10 border-destructive/30 text-destructive'}`}>
-            {testResult.message}
+      {/* Test connection */}
+      <div className="flex gap-2">
+        <Button variant="outline" size="sm" onClick={handleTest} className="gap-1.5 text-xs" disabled={testing}>
+          {testing ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <CheckCircle2 className="w-3.5 h-3.5" />}
+          Test Connection
+        </Button>
+      </div>
+      {testResult && (
+        <div className={`p-2.5 rounded-lg border text-xs font-medium ${testResult.ok ? 'bg-emerald-500/10 border-emerald-500/30 text-emerald-400' : 'bg-destructive/10 border-destructive/30 text-destructive'}`}>
+          {testResult.message}
+        </div>
+      )}
+
+      {/* Existing keys list */}
+      <div className="space-y-2">
+        <label className="text-xs font-semibold text-foreground">Active Keys</label>
+        {loading ? (
+          <div className="flex items-center gap-2 text-xs text-muted-foreground py-3">
+            <Loader2 className="w-3.5 h-3.5 animate-spin" /> Loading...
+          </div>
+        ) : keys.length === 0 ? (
+          <p className="text-xs text-muted-foreground py-3">No keys generated yet.</p>
+        ) : (
+          <div className="space-y-1.5">
+            {keys.map(k => (
+              <div key={k.id} className={`flex items-center justify-between p-2.5 rounded-lg border text-xs ${k.is_active ? 'border-border/50 bg-muted/10' : 'border-destructive/20 bg-destructive/5 opacity-60'}`}>
+                <div className="flex-1">
+                  <span className="font-mono text-foreground">{k.key_prefix}</span>
+                  <span className={`ml-2 text-[10px] px-1.5 py-0.5 rounded ${k.is_active ? 'bg-emerald-500/20 text-emerald-400' : 'bg-destructive/20 text-destructive'}`}>
+                    {k.is_active ? 'Active' : 'Revoked'}
+                  </span>
+                  {k.last_used_at && (
+                    <span className="ml-2 text-[10px] text-muted-foreground">
+                      Last used: {new Date(k.last_used_at).toLocaleDateString()}
+                    </span>
+                  )}
+                </div>
+                {k.is_active && (
+                  <Button variant="ghost" size="icon" className="h-7 w-7 text-destructive hover:text-destructive" onClick={() => handleRevoke(k.id)}>
+                    <Trash2 className="w-3.5 h-3.5" />
+                  </Button>
+                )}
+              </div>
+            ))}
           </div>
         )}
       </div>
@@ -447,7 +532,7 @@ function APIKeyManager() {
           POST {endpoint}
         </div>
         <p className="text-[10px] text-muted-foreground leading-relaxed">
-          Send plot parameters (<code className="bg-muted/50 px-1 rounded">plotId</code>, <code className="bg-muted/50 px-1 rounded">areaSqft</code>, <code className="bg-muted/50 px-1 rounded">gfaSqft</code>) to get feasibility results. Set <code className="bg-muted/50 px-1 rounded">allStrategies: true</code> for investor, balanced &amp; family scenarios.
+          Use header <code className="bg-muted/50 px-1 rounded">x-land-os-api-key: YOUR_KEY</code> to authenticate.
         </p>
       </div>
 
