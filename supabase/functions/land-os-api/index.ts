@@ -46,8 +46,8 @@ serve(async (req) => {
 
     // ── Feasibility ──
     if (resolvedAction === "feasibility") {
-      const plotId = (body.plotid || body.plot_id) as string;
-      const areaSqft = (body.areasqft || body.area_sqft) as number;
+      const plotId = (body.plotid || body.plot_id || body.query) as string;
+      const areaSqft = (body.areasqft || body.area_sqft || body.area) as number;
       if (!plotId || !areaSqft) return json({ error: "Required fields: plotId, areaSqft" }, 400);
       const feasBody = { ...body, plotId, areaSqft };
       if (body.allstrategies) {
@@ -61,7 +61,7 @@ serve(async (req) => {
     // ── Plots (also handles "lookup" alias) ──
     if (resolvedAction === "plots") {
       const plotId = body.plotid || body.plot_id;
-      const municipalityNumber = body.municipalitynumber || body.municipality_number || body.plotnumber || body.plot_number;
+      const municipalityNumber = body.municipalitynumber || body.municipality_number || body.plotnumber || body.plot_number || body.query || body.q;
       const areaName = body.areaname || body.area_name;
       const lat = body.lat;
       const lng = body.lng;
@@ -69,21 +69,22 @@ serve(async (req) => {
       const ql = body.limit as number | undefined;
       const lim = Math.min(ql || 50, 200);
 
-      if (plotId) {
-        // Try UUID lookup first, then municipality_number lookup
-        const { data, error } = await supabase.from("fallback_plots").select("*").eq("id", plotId).maybeSingle();
+      // Search by ID or Municipality Number
+      const searchVal = plotId || municipalityNumber;
+      if (searchVal) {
+        // Try exact ID match first
+        const { data: idMatch, error: idErr } = await supabase.from("fallback_plots").select("*").eq("id", searchVal.toString()).maybeSingle();
+        if (idMatch) return json({ action: "plots", plot: idMatch });
+
+        // Fallback to municipality_number or municipality_number_original
+        const { data, error } = await supabase.from("fallback_plots")
+          .select("*")
+          .or(`municipality_number.eq.${searchVal},municipality_number_original.eq.${searchVal},id.eq.${searchVal}`)
+          .limit(lim);
         if (error) throw error;
-        if (data) return json({ action: "plots", plot: data });
-        // Fallback: treat plotId as municipality_number
-        const { data: mnData, error: mnErr } = await supabase.from("fallback_plots").select("*").or(`municipality_number.eq.${plotId},municipality_number_original.eq.${plotId}`).limit(lim);
-        if (mnErr) throw mnErr;
-        if (mnData && mnData.length > 0) return json({ action: "plots", count: mnData.length, plots: mnData });
-        return json({ error: "Plot not found" }, 404);
-      }
-      if (municipalityNumber) {
-        const { data, error } = await supabase.from("fallback_plots").select("*").or(`municipality_number.eq.${municipalityNumber},municipality_number_original.eq.${municipalityNumber}`).limit(lim);
-        if (error) throw error;
-        return json({ action: "plots", count: data?.length || 0, plots: data });
+        if (data && data.length > 0) return json({ action: "plots", count: data.length, plots: data });
+
+        return json({ error: "Plot not found", searched: searchVal }, 404);
       }
       if (lat && lng) {
         const { data, error } = await supabase.rpc("search_fallback_plots_by_radius", { center_lat: lat, center_lng: lng, radius_meters: radiusMeters || 2000 });
@@ -96,12 +97,12 @@ serve(async (req) => {
         if (error) throw error;
         return json({ action: "plots", count: data?.length || 0, plots: data });
       }
-      return json({ error: "Provide plotId, municipalityNumber, areaName, or lat+lng" }, 400);
+      return json({ error: "Provide plotId, municipalityNumber, areaName, query, or lat+lng" }, 400);
     }
 
     // ── DLD Lookup ──
     if (resolvedAction === "dld-lookup") {
-      const landNumber = (body.landnumber || body.land_number || body.plotnumber || body.plot_number || body.plotid || body.plot_id || "") as string;
+      const landNumber = (body.landnumber || body.land_number || body.plotnumber || body.plot_number || body.plotid || body.plot_id || body.query || body.q || "") as string;
       const lat = body.lat as number | undefined;
       const lng = body.lng as number | undefined;
       const radiusMeters = (body.radiusmeters || body.radius_meters) as number | undefined;
@@ -112,7 +113,7 @@ serve(async (req) => {
         const normalized = landNumber.trim().toUpperCase();
         const { data, error } = await supabase.from("dld_property_cache")
           .select("*")
-          .eq("land_number", normalized)
+          .or(`land_number.eq.${normalized},land_number.eq.${landNumber}`)
           .limit(lim);
         if (error) throw error;
         return json({ action: "dld-lookup", count: data?.length || 0, properties: data });
@@ -120,24 +121,32 @@ serve(async (req) => {
       if (lat && lng) {
         const { data, error } = await supabase.rpc("search_dld_plots_by_radius", { center_lat: lat, center_lng: lng, radius_meters: radiusMeters || 2000 });
         if (error) throw error;
-        return json({ action: "dld-lookup", count: (data || []).slice(0, lim).length, properties: (data || []).slice(0, lim) });
+        const results = (data || []).slice(0, lim);
+        return json({ action: "dld-lookup", count: results.length, properties: results });
       }
-      return json({ error: "Provide landNumber or lat+lng for DLD lookup" }, 400);
+      return json({ error: "Provide landNumber, query, or lat+lng for DLD lookup" }, 400);
     }
 
     // ── Market ──
     if (resolvedAction === "market") {
-      const areaCode = body.areacode || body.area_code;
+      const areaCode = body.areacode || body.area_code || body.query || body.q;
       const areaName = body.areaname || body.area_name;
       if (areaCode || areaName) {
         let q = supabase.from("v_area_snapshot_latest").select("*");
-        if (areaCode) q = q.eq("area_code", areaCode);
+        if (areaCode) {
+          // If areaCode is a number-ish string, assume code, otherwise name
+          if (/^\d+$/.test(areaCode.toString())) {
+            q = q.eq("area_code", areaCode);
+          } else {
+            q = q.ilike("area_name", `%${areaCode}%`);
+          }
+        }
         else q = q.ilike("area_name", `%${areaName}%`);
         const { data, error } = await q.limit(20);
         if (error) throw error;
         return json({ action: "market", count: data?.length || 0, snapshots: data });
       }
-      return json({ error: "Provide areaCode or areaName" }, 400);
+      return json({ error: "Provide areaCode, areaName, or query" }, 400);
     }
 
     // ── Health ──
