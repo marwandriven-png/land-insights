@@ -11,6 +11,8 @@ const corsHeaders = {
 const json = (body: unknown, status = 200) =>
   new Response(JSON.stringify(body), { status, headers: { ...corsHeaders, "Content-Type": "application/json" } });
 
+const isUUID = (s: string) => /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(s);
+
 serve(async (req) => {
   if (req.method === "OPTIONS") return new Response(null, { headers: corsHeaders });
 
@@ -18,9 +20,8 @@ serve(async (req) => {
     const apiKey = req.headers.get("x-land-os-api-key") || req.headers.get("authorization")?.replace("Bearer ", "");
     const supabase = createClient(Deno.env.get("SUPABASE_URL")!, Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!);
 
-    if (!apiKey) return json({ error: "Unauthorized. Provide a valid API key via x-land-os-api-key header or Bearer token." }, 401);
+    if (!apiKey) return json({ error: "Unauthorized. Provide a valid API key." }, 401);
 
-    // Auth: legacy env key or DB hash
     let authenticated = false;
     const envKey = Deno.env.get("LAND_OS_API_KEY");
     if (envKey && apiKey === envKey) {
@@ -36,29 +37,30 @@ serve(async (req) => {
     if (!authenticated) return json({ error: "Unauthorized. Invalid API key." }, 401);
 
     const raw = await req.json();
-    // Normalize keys to lowercase to handle uppercase payloads (e.g. "ACTION", "PLOTID")
-    const body: Record<string, unknown> = {};
+    const body: Record<string, any> = {};
     for (const [k, v] of Object.entries(raw)) body[k.toLowerCase()] = v;
-    const action = (typeof body.action === "string" ? body.action : "feasibility").toLowerCase();
 
-    // Also support "lookup" as alias for "plots"
+    const action = (typeof body.action === "string" ? body.action : "feasibility").toLowerCase();
     const resolvedAction = action === "lookup" ? "plots" : action;
 
     // ── Feasibility ──
     if (resolvedAction === "feasibility") {
       const plotId = (body.plotid || body.plot_id || body.query) as string;
-      const areaSqft = (body.areasqft || body.area_sqft || body.area) as number;
+      const areaSqft = (body.areasqft || body.area_sqft || body.area_sq_ft || body.area) as number;
       if (!plotId || !areaSqft) return json({ error: "Required fields: plotId, areaSqft" }, 400);
+
       const feasBody = { ...body, plotId, areaSqft };
       if (body.allstrategies) {
         const strategies: Record<string, unknown> = {};
-        for (const key of ["investor", "balanced", "family"]) strategies[key] = runFeasibility({ ...feasBody, mixStrategy: key });
+        for (const key of ["investor", "balanced", "family"]) {
+          strategies[key] = runFeasibility({ ...feasBody, mixStrategy: key });
+        }
         return json({ action: "feasibility", strategies });
       }
       return json({ action: "feasibility", result: runFeasibility(feasBody) });
     }
 
-    // ── Plots (also handles "lookup" alias) ──
+    // ── Plots ──
     if (resolvedAction === "plots") {
       const plotId = body.plotid || body.plot_id;
       const municipalityNumber = body.municipalitynumber || body.municipality_number || body.plotnumber || body.plot_number || body.query || body.q;
@@ -66,32 +68,35 @@ serve(async (req) => {
       const lat = body.lat;
       const lng = body.lng;
       const radiusMeters = body.radiusmeters || body.radius_meters;
-      const ql = body.limit as number | undefined;
-      const lim = Math.min(ql || 50, 200);
+      const lim = Math.min((body.limit as number) || 50, 200);
 
-      // Search by ID or Municipality Number
-      const searchVal = plotId || municipalityNumber;
+      const searchVal = (plotId || municipalityNumber)?.toString();
       if (searchVal) {
-        // Try exact ID match first
-        const { data: idMatch, error: idErr } = await supabase.from("fallback_plots").select("*").eq("id", searchVal.toString()).maybeSingle();
-        if (idMatch) return json({ action: "plots", plot: idMatch });
+        // Guarded exact ID lookup
+        if (isUUID(searchVal)) {
+          const { data: idMatch } = await supabase.from("fallback_plots").select("*").eq("id", searchVal).maybeSingle();
+          if (idMatch) return json({ action: "plots", plot: idMatch });
+        }
 
-        // Fallback to municipality_number or municipality_number_original
-        const { data, error } = await supabase.from("fallback_plots")
-          .select("*")
-          .or(`municipality_number.eq.${searchVal},municipality_number_original.eq.${searchVal},id.eq.${searchVal}`)
-          .limit(lim);
+        // Search OR filter with guarded ID
+        let filter = `municipality_number.eq.${searchVal},municipality_number_original.eq.${searchVal}`;
+        if (isUUID(searchVal)) filter += `,id.eq.${searchVal}`;
+
+        const { data, error } = await supabase.from("fallback_plots").select("*").or(filter).limit(lim);
         if (error) throw error;
         if (data && data.length > 0) return json({ action: "plots", count: data.length, plots: data });
 
         return json({ error: "Plot not found", searched: searchVal }, 404);
       }
+
       if (lat && lng) {
-        const { data, error } = await supabase.rpc("search_fallback_plots_by_radius", { center_lat: lat, center_lng: lng, radius_meters: radiusMeters || 2000 });
+        const { data, error } = await supabase.rpc("search_fallback_plots_by_radius", {
+          center_lat: lat, center_lng: lng, radius_meters: radiusMeters || 2000
+        });
         if (error) throw error;
-        const limited = (data || []).slice(0, lim);
-        return json({ action: "plots", count: limited.length, plots: limited });
+        return json({ action: "plots", count: (data || []).length, plots: (data || []).slice(0, lim) });
       }
+
       if (areaName) {
         const { data, error } = await supabase.from("fallback_plots").select("*").ilike("area_name", `%${areaName}%`).limit(lim);
         if (error) throw error;
@@ -103,29 +108,32 @@ serve(async (req) => {
     // ── DLD Lookup ──
     if (resolvedAction === "dld-lookup") {
       const landNumber = (body.landnumber || body.land_number || body.plotnumber || body.plot_number || body.plotid || body.plot_id || body.query || body.q || "") as string;
-      const lat = body.lat as number | undefined;
-      const lng = body.lng as number | undefined;
-      const radiusMeters = (body.radiusmeters || body.radius_meters) as number | undefined;
-      const ql = body.limit as number | undefined;
-      const lim = Math.min(ql || 50, 200);
+      const lat = body.lat;
+      const lng = body.lng;
+      const radiusMeters = body.radiusmeters || body.radius_meters;
+      const lim = Math.min((body.limit as number) || 50, 200);
 
       if (landNumber && landNumber.trim()) {
-        const normalized = landNumber.trim().toUpperCase();
-        // Search across several possible ID columns for robustness
-        const { data, error } = await supabase.from("dld_property_cache")
-          .select("*")
-          .or(`land_number.eq.${normalized},id.eq.${normalized},certificate_no.eq.${normalized},land_number.eq.${landNumber}`)
-          .limit(lim);
+        const val = landNumber.trim();
+        const normalized = val.toUpperCase();
+
+        let filter = `land_number.eq.${normalized},certificate_no.eq.${normalized},land_number.eq.${val}`;
+        if (isUUID(val)) filter += `,id.eq.${val}`;
+
+        const { data, error } = await supabase.from("dld_property_cache").select("*").or(filter).limit(lim);
         if (error) throw error;
         return json({ action: "dld-lookup", count: data?.length || 0, properties: data });
       }
+
       if (lat && lng) {
-        const { data, error } = await supabase.rpc("search_dld_plots_by_radius", { center_lat: lat, center_lng: lng, radius_meters: radiusMeters || 2000 });
+        const { data, error } = await supabase.rpc("search_dld_plots_by_radius", {
+          center_lat: lat, center_lng: lng, radius_meters: radiusMeters || 2000
+        });
         if (error) throw error;
-        const results = (data || []).slice(0, lim);
-        return json({ action: "dld-lookup", count: results.length, properties: results });
+        const sliced = (data || []).slice(0, lim);
+        return json({ action: "dld-lookup", count: sliced.length, properties: sliced });
       }
-      return json({ error: "Provide landNumber, query, or lat+lng for DLD lookup" }, 400);
+      return json({ error: "Provide landNumber, query, or lat+lng" }, 400);
     }
 
     // ── Market ──
@@ -135,14 +143,11 @@ serve(async (req) => {
       if (areaCode || areaName) {
         let q = supabase.from("v_area_snapshot_latest").select("*");
         if (areaCode) {
-          // If areaCode is a number-ish string, assume code, otherwise name
-          if (/^\d+$/.test(areaCode.toString())) {
-            q = q.eq("area_code", areaCode);
-          } else {
-            q = q.ilike("area_name", `%${areaCode}%`);
-          }
+          if (/^\d+$/.test(areaCode.toString())) q = q.eq("area_code", areaCode);
+          else q = q.ilike("area_name", `%${areaCode}%`);
+        } else {
+          q = q.ilike("area_name", `%${areaName}%`);
         }
-        else q = q.ilike("area_name", `%${areaName}%`);
         const { data, error } = await q.limit(20);
         if (error) throw error;
         return json({ action: "market", count: data?.length || 0, snapshots: data });
@@ -152,12 +157,12 @@ serve(async (req) => {
 
     // ── Health ──
     if (resolvedAction === "health") {
-      return json({ status: "ok", version: "1.3.0", timestamp: new Date().toISOString(), actions: ["feasibility", "plots", "lookup", "dld-lookup", "market", "health"] });
+      return json({ status: "ok", version: "1.3.1", timestamp: new Date().toISOString() });
     }
 
-    return json({ error: `Unknown action: ${action}. Supported: feasibility, plots, lookup, dld-lookup, market, health` }, 400);
+    return json({ error: `Unknown action: ${resolvedAction}` }, 400);
   } catch (e) {
     console.error("land-os-api error:", e);
-    return json({ error: e instanceof Error ? e.message : "Unknown error" }, 500);
+    return json({ error: e instanceof Error ? e.message : "Internal Server Error" }, 500);
   }
 });
