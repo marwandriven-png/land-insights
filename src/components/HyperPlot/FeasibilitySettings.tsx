@@ -1,5 +1,5 @@
-import { useState, useEffect, useRef } from 'react';
-import { Settings, Save, RotateCcw, FileText, Plus, Link2, Upload, X, File, CheckCircle2, Loader2, Database, Key, Copy, Eye, EyeOff, RefreshCw } from 'lucide-react';
+import { useState, useEffect, useRef, useCallback } from 'react';
+import { Settings, Save, RotateCcw, FileText, Plus, Link2, Upload, X, File, CheckCircle2, Loader2, Database, Key, Copy, Eye, EyeOff, RefreshCw, Trash2 } from 'lucide-react';
 import mammoth from 'mammoth';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
