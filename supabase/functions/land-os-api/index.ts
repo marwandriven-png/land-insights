@@ -13,6 +13,34 @@ const json = (body: unknown, status = 200) =>
 
 const isUUID = (s: string) => /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(s);
 
+/** Parse floor string like "G+2" into numeric floor count */
+function parseFloors(f: string): number {
+  if (!f) return 0;
+  const m = f.match(/[Gg]\s*\+\s*(\d+)/);
+  if (m) return parseInt(m[1], 10) + 1; // G+2 = 3 floors
+  const n = parseInt(f, 10);
+  return isNaN(n) ? 0 : n;
+}
+
+/** Estimate GFA from plot area and floor string */
+function estimateGFA(areaSqm: number, floors: string): number | null {
+  const fc = parseFloors(floors);
+  if (!fc) return null;
+  // Ground coverage ~60% for villas (G+1/G+2), ~65% for towers
+  const coverage = fc <= 3 ? 0.60 : 0.65;
+  return Math.round(areaSqm * coverage * fc);
+}
+
+/** Derive land use from zoning string */
+function deriveLandUse(zoning: string): string {
+  const z = zoning.toLowerCase();
+  if (z.includes("villa") || z.includes("residential")) return "Residential";
+  if (z.includes("commercial") || z.includes("retail")) return "Commercial";
+  if (z.includes("mixed")) return "Mixed Use";
+  if (z.includes("industrial")) return "Industrial";
+  return "Residential";
+}
+
 /** Merge two objects, preferring non-null values from the first */
 function mergeEnrich(primary: Record<string, any>, secondary: Record<string, any>): Record<string, any> {
   const merged: Record<string, any> = { ...secondary };
