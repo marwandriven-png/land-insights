@@ -248,6 +248,23 @@ serve(async (req) => {
           if (fallbackData) merged = mergeEnrich(fallbackData, merged);
 
           const enriched = buildEnrichedPlot(merged);
+
+          const areaSqft = enriched.plot_area_sqft || (enriched.plot_area_sqm ? enriched.plot_area_sqm * 10.764 : 0);
+          if (areaSqft) {
+            try {
+              const f = runFeasibility({
+                plotId: enriched.municipality_number || "unknown",
+                areaSqft,
+                gfaSqft: enriched.gfa_sqm ? enriched.gfa_sqm * 10.764 : undefined,
+                zoning: enriched.zoning,
+                floors: enriched.floors
+              });
+              enriched.estimatedGDV = f?.revenue?.grossDevelopmentValue;
+              enriched.targetIRR = f?.profitability?.roiPct;
+              enriched.feasibility = f;
+            } catch (e) { }
+          }
+
           console.log(`[land-os-api] Plot found (DB): ${searchVal} | fb=${!!fallbackData} dld=${!!dldData} | quality=${enriched.data_quality}`);
           return json({ action: "plots", plot: enriched, data_quality: enriched.data_quality, sources: { fallback: !!fallbackData, dld: !!dldData, gis: false } });
         }
@@ -309,13 +326,49 @@ serve(async (req) => {
           const fb = (fallbackData || []).find((f: any) =>
             f.municipality_number === val || f.municipality_number_original === val
           );
-          if (!fb) return dld;
-          return mergeEnrich(fb, dld);
+          const merged = fb ? mergeEnrich(fb, dld) : dld;
+          const enriched = buildEnrichedPlot(merged);
+
+          const areaSqft = enriched.plot_area_sqft || (enriched.plot_area_sqm ? enriched.plot_area_sqm * 10.764 : 0);
+          if (areaSqft) {
+            try {
+              const f = runFeasibility({
+                plotId: enriched.municipality_number || val,
+                areaSqft,
+                gfaSqft: enriched.gfa_sqm ? enriched.gfa_sqm * 10.764 : undefined,
+                zoning: enriched.zoning,
+                floors: enriched.floors
+              });
+              enriched.estimatedGDV = f?.revenue?.grossDevelopmentValue;
+              enriched.targetIRR = f?.profitability?.roiPct;
+              enriched.feasibility = f;
+            } catch (e) { }
+          }
+          return enriched;
         });
 
         // If no dld results but fallback has data, return fallback
         if (enrichedProperties.length === 0 && (fallbackData || []).length > 0) {
-          return json({ action: "dld-lookup", count: fallbackData!.length, properties: fallbackData, sources: { dld: false, fallback: true, gis: false } });
+          const fbProps = fallbackData!.map((fb: any) => {
+            const enriched = buildEnrichedPlot(fb);
+            const areaSqft = enriched.plot_area_sqft || (enriched.plot_area_sqm ? enriched.plot_area_sqm * 10.764 : 0);
+            if (areaSqft) {
+              try {
+                const f = runFeasibility({
+                  plotId: enriched.municipality_number || val,
+                  areaSqft,
+                  gfaSqft: enriched.gfa_sqm ? enriched.gfa_sqm * 10.764 : undefined,
+                  zoning: enriched.zoning,
+                  floors: enriched.floors
+                });
+                enriched.estimatedGDV = f?.revenue?.grossDevelopmentValue;
+                enriched.targetIRR = f?.profitability?.roiPct;
+                enriched.feasibility = f;
+              } catch (e) { }
+            }
+            return enriched;
+          });
+          return json({ action: "dld-lookup", count: fbProps.length, properties: fbProps, sources: { dld: false, fallback: true, gis: false } });
         }
 
         // If local DB has results, return them
