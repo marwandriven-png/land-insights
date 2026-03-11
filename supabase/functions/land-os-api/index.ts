@@ -273,6 +273,23 @@ serve(async (req) => {
         const gisData = await queryDDAGIS(searchVal);
         if (gisData) {
           const enriched = buildEnrichedPlot(gisData);
+
+          const areaSqft = enriched.plot_area_sqft || (enriched.plot_area_sqm ? enriched.plot_area_sqm * 10.764 : 0);
+          if (areaSqft) {
+            try {
+              const f = runFeasibility({
+                plotId: enriched.municipality_number || searchVal,
+                areaSqft,
+                gfaSqft: enriched.gfa_sqm ? enriched.gfa_sqm * 10.764 : undefined,
+                zoning: enriched.zoning,
+                floors: enriched.floors
+              });
+              enriched.estimatedGDV = f?.revenue?.grossDevelopmentValue;
+              enriched.targetIRR = f?.profitability?.roiPct;
+              enriched.feasibility = f;
+            } catch (e) { }
+          }
+
           console.log(`[land-os-api] Plot found (GIS): ${searchVal} | quality=${enriched.data_quality}`);
           return json({ action: "plots", plot: enriched, data_quality: enriched.data_quality, sources: { fallback: false, dld: false, gis: true } });
         }
@@ -380,6 +397,23 @@ serve(async (req) => {
         const gisData = await queryDDAGIS(val);
         if (gisData) {
           const enriched = buildEnrichedPlot(gisData);
+
+          const areaSqft = enriched.plot_area_sqft || (enriched.plot_area_sqm ? enriched.plot_area_sqm * 10.764 : 0);
+          if (areaSqft) {
+            try {
+              const f = runFeasibility({
+                plotId: enriched.municipality_number || val,
+                areaSqft,
+                gfaSqft: enriched.gfa_sqm ? enriched.gfa_sqm * 10.764 : undefined,
+                zoning: enriched.zoning,
+                floors: enriched.floors
+              });
+              enriched.estimatedGDV = f?.revenue?.grossDevelopmentValue;
+              enriched.targetIRR = f?.profitability?.roiPct;
+              enriched.feasibility = f;
+            } catch (e) { }
+          }
+
           console.log(`[land-os-api] DLD-Lookup found (GIS): ${val}`);
           return json({ action: "dld-lookup", count: 1, properties: [enriched], sources: { dld: false, fallback: false, gis: true } });
         }
