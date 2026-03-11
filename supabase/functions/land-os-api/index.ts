@@ -13,11 +13,13 @@ const json = (body: unknown, status = 200) =>
 
 const isUUID = (s: string) => /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(s);
 
+const DDA_GIS_BASE = "https://gis.dda.gov.ae/server/rest/services/DDA/BASIC_LAND_BASE/MapServer";
+
 /** Parse floor string like "G+2" into numeric floor count */
 function parseFloors(f: string): number {
   if (!f) return 0;
   const m = f.match(/[Gg]\s*\+\s*(\d+)/);
-  if (m) return parseInt(m[1], 10) + 1; // G+2 = 3 floors
+  if (m) return parseInt(m[1], 10) + 1;
   const n = parseInt(f, 10);
   return isNaN(n) ? 0 : n;
 }
@@ -26,7 +28,6 @@ function parseFloors(f: string): number {
 function estimateGFA(areaSqm: number, floors: string): number | null {
   const fc = parseFloors(floors);
   if (!fc) return null;
-  // Ground coverage ~60% for villas (G+1/G+2), ~65% for towers
   const coverage = fc <= 3 ? 0.60 : 0.65;
   return Math.round(areaSqm * coverage * fc);
 }
@@ -48,6 +49,105 @@ function mergeEnrich(primary: Record<string, any>, secondary: Record<string, any
     if (v !== null && v !== undefined && v !== "") merged[k] = v;
   }
   return merged;
+}
+
+/** Query DDA GIS API for a plot by PLOT_NUMBER */
+async function queryDDAGIS(plotNumber: string): Promise<Record<string, any> | null> {
+  try {
+    const sanitized = plotNumber.replace(/[^a-zA-Z0-9_\-]/g, "");
+    const params = new URLSearchParams({
+      where: `PLOT_NUMBER='${sanitized}'`,
+      outFields: "*",
+      returnGeometry: "true",
+      outSR: "4326",
+      f: "json",
+    });
+    console.log(`[land-os-api] DDA GIS fallback for: ${sanitized}`);
+    const resp = await fetch(`${DDA_GIS_BASE}/2/query?${params}`, {
+      method: "GET",
+      headers: { Accept: "application/json", "User-Agent": "LandOS-API/1.5" },
+    });
+    if (!resp.ok) {
+      console.log(`[land-os-api] DDA GIS HTTP ${resp.status}`);
+      return null;
+    }
+    const data = await resp.json();
+    const features = data?.features;
+    if (!features || features.length === 0) {
+      console.log(`[land-os-api] DDA GIS: no features for ${sanitized}`);
+      return null;
+    }
+    const f = features[0];
+    const attrs = f.attributes || {};
+    const geom = f.geometry || {};
+
+    // Map DDA GIS fields to our standard schema
+    const areaSqm = parseFloat(attrs.AREA_SQM) || null;
+    const areaSqft = parseFloat(attrs.AREA_SQFT) || (areaSqm ? Math.round(areaSqm * 10.7639) : null);
+    const gfaSqm = parseFloat(attrs.GFA_SQM) || null;
+    const floors = attrs.MAX_HEIGHT_FLOORS || null;
+    const zoning = attrs.LANDUSE_DETAILS || attrs.LANDUSE_CATEGORY || attrs.MAIN_LANDUSE || null;
+    const landUse = attrs.MAIN_LANDUSE || (zoning ? deriveLandUse(zoning) : null);
+    const computedGfa = gfaSqm || (areaSqm && floors ? estimateGFA(areaSqm, String(floors)) : null);
+
+    const result: Record<string, any> = {
+      municipality_number: sanitized,
+      area_name: attrs.ENTITY_NAME || null,
+      plot_area_sqm: areaSqm,
+      plot_area_sqft: areaSqft,
+      gfa_sqm: computedGfa,
+      zoning,
+      floors: floors ? String(floors) : null,
+      land_use: landUse,
+      sub_land_use: attrs.SUB_LANDUSE || null,
+      developer: attrs.DEVELOPER_NAME || null,
+      project_name: attrs.PROJECT_NAME || null,
+      status: attrs.SITE_STATUS || attrs.CONSTRUCTION_STATUS || "Available",
+      latitude: geom.y || geom.latitude || null,
+      longitude: geom.x || geom.longitude || null,
+      max_plot_coverage: parseFloat(attrs.MAX_PLOT_COVERAGE) || null,
+      plot_coverage: parseFloat(attrs.PLOT_COVERAGE) || null,
+      is_frozen: attrs.IS_FROZEN === "Yes" || attrs.IS_FROZEN === true,
+      freeze_reason: attrs.FREEZE_REASON || null,
+      data_source: "DDA_GIS_Live",
+    };
+
+    console.log(`[land-os-api] DDA GIS hit: ${sanitized} | area=${areaSqm} | zoning=${zoning}`);
+    return result;
+  } catch (err) {
+    console.error(`[land-os-api] DDA GIS error:`, err);
+    return null;
+  }
+}
+
+/** Build enriched plot response with data_quality flag */
+function buildEnrichedPlot(merged: Record<string, any>): Record<string, any> {
+  const areaSqm = parseFloat(merged.plot_area_sqm || merged.size_sqm || merged.area_sqm) || null;
+  const areaSqft = parseFloat(merged.plot_area_sqft || merged.size_sqft) || (areaSqm ? Math.round(areaSqm * 10.7639) : null);
+  const zoning = merged.zoning || merged.property_type || merged.land_use || null;
+  const floors = merged.floors || null;
+  const gfaSqm = parseFloat(merged.gfa_sqm) || (areaSqm && floors ? estimateGFA(areaSqm, floors) : null);
+  const landUse = merged.land_use || (zoning ? deriveLandUse(zoning) : null);
+
+  const criticalFields = [areaSqm, areaSqft, gfaSqm, zoning, floors];
+  const filledCount = criticalFields.filter(f => f !== null && f !== undefined).length;
+  const dataQuality = filledCount === criticalFields.length ? "complete" : filledCount >= 3 ? "partial" : "fallback";
+
+  return {
+    ...merged,
+    area_name: merged.area_name || merged.area || merged.district || merged.community,
+    plot_area_sqm: areaSqm,
+    plot_area_sqft: areaSqft,
+    gfa_sqm: gfaSqm,
+    zoning,
+    floors,
+    land_use: landUse,
+    land_status: merged.status || merged.land_status,
+    municipality_number: merged.municipality_number || merged.land_number,
+    developer: merged.developer || null,
+    project_name: merged.project_name || null,
+    data_quality: dataQuality,
+  };
 }
 
 serve(async (req) => {
@@ -84,9 +184,10 @@ serve(async (req) => {
     if (resolvedAction === "health") {
       return json({
         status: "ok",
-        version: "1.4.0",
+        version: "1.5.0",
         timestamp: new Date().toISOString(),
-        actions: ["feasibility", "plots", "lookup", "dld-lookup", "market", "health"]
+        actions: ["feasibility", "plots", "lookup", "dld-lookup", "market", "health"],
+        features: ["dda_gis_fallback", "multi_source_enrichment", "data_quality_flag"],
       });
     }
 
@@ -107,7 +208,7 @@ serve(async (req) => {
       return json({ action: "feasibility", result: runFeasibility(feasBody) });
     }
 
-    // ── Plots (fully enriched) ──
+    // ── Plots (fully enriched with DDA GIS fallback) ──
     if (resolvedAction === "plots") {
       const searchInput = body.plotid || body.plot_id || body.municipalitynumber || body.municipality_number ||
         body.plotnumber || body.plot_number || body.query || body.search || body.q;
@@ -132,7 +233,7 @@ serve(async (req) => {
           fallbackData = data;
         }
 
-        // Also search in dld_property_cache for enrichment (area, size_sqft, property_type)
+        // Also search in dld_property_cache
         let dldData: any = null;
         {
           const { data } = await supabase.from("dld_property_cache").select("*")
@@ -141,57 +242,26 @@ serve(async (req) => {
           dldData = data;
         }
 
-        // Also try plot_data_cache (legacy)
-        let legacyData: any = null;
-        {
-          const { data } = await supabase.from("plot_data_cache").select("*")
-            .or(`land_number.eq.${searchVal},land_number.eq.${searchVal.toUpperCase()}`)
-            .limit(1).maybeSingle();
-          legacyData = data;
-        }
-
-        if (fallbackData || dldData || legacyData) {
-          // Merge all sources: fallback_plots is primary, enrich with dld + legacy
+        if (fallbackData || dldData) {
           let merged: Record<string, any> = {};
-          if (legacyData) merged = { ...legacyData, ...(legacyData.raw_data || {}) };
           if (dldData) merged = mergeEnrich(dldData, merged);
           if (fallbackData) merged = mergeEnrich(fallbackData, merged);
 
-          // Resolve core fields
-          const areaSqm = parseFloat(merged.plot_area_sqm || merged.size_sqm || merged.area_sqm) || null;
-          const areaSqft = parseFloat(merged.plot_area_sqft || merged.size_sqft) || (areaSqm ? Math.round(areaSqm * 10.7639) : null);
-          const zoning = merged.zoning || merged.property_type || merged.land_use || null;
-          const floors = merged.floors || null;
-          const gfaSqm = parseFloat(merged.gfa_sqm) || (areaSqm && floors ? estimateGFA(areaSqm, floors) : null);
-          const landUse = merged.land_use || (zoning ? deriveLandUse(zoning) : null);
-
-          // Determine data quality
-          const criticalFields = [areaSqm, areaSqft, gfaSqm, zoning, floors];
-          const filledCount = criticalFields.filter(f => f !== null && f !== undefined).length;
-          const dataQuality = filledCount === criticalFields.length ? "complete" : filledCount >= 3 ? "partial" : "fallback";
-
-          const enriched = {
-            ...merged,
-            area_name: merged.area_name || merged.area || merged.district || merged.community,
-            plot_area_sqm: areaSqm,
-            plot_area_sqft: areaSqft,
-            gfa_sqm: gfaSqm,
-            zoning,
-            floors,
-            land_use: landUse,
-            land_status: merged.status || merged.land_status,
-            municipality_number: merged.municipality_number || merged.land_number,
-            developer: merged.developer || null,
-            project_name: merged.project_name || null,
-            data_quality: dataQuality,
-          };
-
-          console.log(`[land-os-api] Plot found: ${searchVal} | sources: fb=${!!fallbackData} dld=${!!dldData} legacy=${!!legacyData} | quality=${dataQuality}`);
-          return json({ action: "plots", plot: enriched, data_quality: dataQuality, sources: { fallback: !!fallbackData, dld: !!dldData, legacy: !!legacyData } });
+          const enriched = buildEnrichedPlot(merged);
+          console.log(`[land-os-api] Plot found (DB): ${searchVal} | fb=${!!fallbackData} dld=${!!dldData} | quality=${enriched.data_quality}`);
+          return json({ action: "plots", plot: enriched, data_quality: enriched.data_quality, sources: { fallback: !!fallbackData, dld: !!dldData, gis: false } });
         }
 
-        console.log(`[land-os-api] Plot not found: ${searchVal}`);
-        return json({ error: "Plot not found", searched: searchVal }, 404);
+        // ── DDA GIS Fallback ──
+        const gisData = await queryDDAGIS(searchVal);
+        if (gisData) {
+          const enriched = buildEnrichedPlot(gisData);
+          console.log(`[land-os-api] Plot found (GIS): ${searchVal} | quality=${enriched.data_quality}`);
+          return json({ action: "plots", plot: enriched, data_quality: enriched.data_quality, sources: { fallback: false, dld: false, gis: true } });
+        }
+
+        console.log(`[land-os-api] Plot not found in any source: ${searchVal}`);
+        return json({ error: "Plot not found", searched: searchVal, sources_checked: ["fallback_plots", "dld_property_cache", "dda_gis"] }, 404);
       }
 
       if (lat && lng) {
@@ -210,7 +280,7 @@ serve(async (req) => {
       return json({ error: "Provide plotId, municipalityNumber, areaName, query, or lat+lng" }, 400);
     }
 
-    // ── DLD Lookup (enriched) ──
+    // ── DLD Lookup (enriched with DDA GIS fallback) ──
     if (resolvedAction === "dld-lookup") {
       const landNumber = (body.landnumber || body.land_number || body.plotnumber || body.plot_number ||
         body.plotid || body.plot_id || body.query || body.search || body.q || "") as string;
@@ -229,13 +299,13 @@ serve(async (req) => {
           .limit(lim);
         if (dldErr) throw dldErr;
 
-        // Search fallback_plots for enrichment (GFA, floors, zoning)
+        // Search fallback_plots for enrichment
         const { data: fallbackData } = await supabase.from("fallback_plots").select("*")
           .or(`municipality_number.eq.${val},municipality_number_original.eq.${val}`)
           .limit(lim);
 
         // Merge enrichment
-        const enrichedProperties = (dldData || []).map((dld: any) => {
+        let enrichedProperties = (dldData || []).map((dld: any) => {
           const fb = (fallbackData || []).find((f: any) =>
             f.municipality_number === val || f.municipality_number_original === val
           );
@@ -245,10 +315,23 @@ serve(async (req) => {
 
         // If no dld results but fallback has data, return fallback
         if (enrichedProperties.length === 0 && (fallbackData || []).length > 0) {
-          return json({ action: "dld-lookup", count: fallbackData!.length, properties: fallbackData });
+          return json({ action: "dld-lookup", count: fallbackData!.length, properties: fallbackData, sources: { dld: false, fallback: true, gis: false } });
         }
 
-        return json({ action: "dld-lookup", count: enrichedProperties.length, properties: enrichedProperties });
+        // If local DB has results, return them
+        if (enrichedProperties.length > 0) {
+          return json({ action: "dld-lookup", count: enrichedProperties.length, properties: enrichedProperties, sources: { dld: true, fallback: !!(fallbackData?.length), gis: false } });
+        }
+
+        // ── DDA GIS Fallback ──
+        const gisData = await queryDDAGIS(val);
+        if (gisData) {
+          const enriched = buildEnrichedPlot(gisData);
+          console.log(`[land-os-api] DLD-Lookup found (GIS): ${val}`);
+          return json({ action: "dld-lookup", count: 1, properties: [enriched], sources: { dld: false, fallback: false, gis: true } });
+        }
+
+        return json({ action: "dld-lookup", count: 0, properties: [], sources_checked: ["dld_property_cache", "fallback_plots", "dda_gis"] });
       }
 
       if (lat && lng) {
