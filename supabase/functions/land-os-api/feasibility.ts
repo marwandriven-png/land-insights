@@ -55,7 +55,12 @@ export function runFeasibility(params: PlotParams) {
   const buaMultiplier = ov.buaMultiplier || 1.45;
   const bua = gfa * buaMultiplier;
 
-  const mix = { ...tmpl.mix, ...ov.mix };
+  const mix = {
+    studio: ov.mix?.studio ?? tmpl.mix.studio,
+    br1: ov.mix?.br1 ?? tmpl.mix.br1,
+    br2: ov.mix?.br2 ?? tmpl.mix.br2,
+    br3: ov.mix?.br3 ?? tmpl.mix.br3,
+  };
 
   const sizes = {
     studio: ov.unitSizes?.studio || UNIT_SIZES.studio,
