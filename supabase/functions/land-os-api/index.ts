@@ -84,7 +84,7 @@ serve(async (req) => {
     if (resolvedAction === "health") {
       return json({
         status: "ok",
-        version: "1.3.8",
+        version: "1.4.0",
         timestamp: new Date().toISOString(),
         actions: ["feasibility", "plots", "lookup", "dld-lookup", "market", "health"]
       });
