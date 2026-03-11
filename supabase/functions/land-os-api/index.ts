@@ -3,6 +3,28 @@ import { createClient } from "https://esm.sh/@supabase/supabase-js@2.49.1";
 import { runFeasibility } from "./feasibility.ts";
 import { hashKey } from "./auth.ts";
 
+// ── Helper: Feasibility Enrichment ──────────────────────────────────────────
+function enrichWithFeasibility(plot: any, searchVal?: string) {
+  const areaSqft = plot.plot_area_sqft || (plot.plot_area_sqm ? plot.plot_area_sqm * 10.764 : 0);
+  if (areaSqft) {
+    try {
+      const f = runFeasibility({
+        plotId: plot.municipality_number || searchVal || "unknown",
+        areaSqft,
+        gfaSqft: plot.gfa_sqm ? plot.gfa_sqm * 10.764 : undefined,
+        zoning: plot.zoning,
+        floors: plot.floors
+      });
+      plot.estimatedGDV = f?.revenue?.grossDevelopmentValue;
+      plot.targetIRR = f?.profitability?.roiPct;
+      plot.feasibility = f;
+    } catch (e) {
+      console.error("[land-os-api] Feasibility error:", e);
+    }
+  }
+  return plot;
+}
+
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
   "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type, x-land-os-api-key",
@@ -247,23 +269,7 @@ serve(async (req) => {
           if (dldData) merged = mergeEnrich(dldData, merged);
           if (fallbackData) merged = mergeEnrich(fallbackData, merged);
 
-          const enriched = buildEnrichedPlot(merged);
-
-          const areaSqft = enriched.plot_area_sqft || (enriched.plot_area_sqm ? enriched.plot_area_sqm * 10.764 : 0);
-          if (areaSqft) {
-            try {
-              const f = runFeasibility({
-                plotId: enriched.municipality_number || "unknown",
-                areaSqft,
-                gfaSqft: enriched.gfa_sqm ? enriched.gfa_sqm * 10.764 : undefined,
-                zoning: enriched.zoning,
-                floors: enriched.floors
-              });
-              enriched.estimatedGDV = f?.revenue?.grossDevelopmentValue;
-              enriched.targetIRR = f?.profitability?.roiPct;
-              enriched.feasibility = f;
-            } catch (e) { }
-          }
+          const enriched = enrichWithFeasibility(buildEnrichedPlot(merged), searchVal);
 
           console.log(`[land-os-api] Plot found (DB): ${searchVal} | fb=${!!fallbackData} dld=${!!dldData} | quality=${enriched.data_quality}`);
           return json({ action: "plots", plot: enriched, data_quality: enriched.data_quality, sources: { fallback: !!fallbackData, dld: !!dldData, gis: false } });
@@ -272,23 +278,7 @@ serve(async (req) => {
         // ── DDA GIS Fallback ──
         const gisData = await queryDDAGIS(searchVal);
         if (gisData) {
-          const enriched = buildEnrichedPlot(gisData);
-
-          const areaSqft = enriched.plot_area_sqft || (enriched.plot_area_sqm ? enriched.plot_area_sqm * 10.764 : 0);
-          if (areaSqft) {
-            try {
-              const f = runFeasibility({
-                plotId: enriched.municipality_number || searchVal,
-                areaSqft,
-                gfaSqft: enriched.gfa_sqm ? enriched.gfa_sqm * 10.764 : undefined,
-                zoning: enriched.zoning,
-                floors: enriched.floors
-              });
-              enriched.estimatedGDV = f?.revenue?.grossDevelopmentValue;
-              enriched.targetIRR = f?.profitability?.roiPct;
-              enriched.feasibility = f;
-            } catch (e) { }
-          }
+          const enriched = enrichWithFeasibility(buildEnrichedPlot(gisData), searchVal);
 
           console.log(`[land-os-api] Plot found (GIS): ${searchVal} | quality=${enriched.data_quality}`);
           return json({ action: "plots", plot: enriched, data_quality: enriched.data_quality, sources: { fallback: false, dld: false, gis: true } });
@@ -344,46 +334,13 @@ serve(async (req) => {
             f.municipality_number === val || f.municipality_number_original === val
           );
           const merged = fb ? mergeEnrich(fb, dld) : dld;
-          const enriched = buildEnrichedPlot(merged);
-
-          const areaSqft = enriched.plot_area_sqft || (enriched.plot_area_sqm ? enriched.plot_area_sqm * 10.764 : 0);
-          if (areaSqft) {
-            try {
-              const f = runFeasibility({
-                plotId: enriched.municipality_number || val,
-                areaSqft,
-                gfaSqft: enriched.gfa_sqm ? enriched.gfa_sqm * 10.764 : undefined,
-                zoning: enriched.zoning,
-                floors: enriched.floors
-              });
-              enriched.estimatedGDV = f?.revenue?.grossDevelopmentValue;
-              enriched.targetIRR = f?.profitability?.roiPct;
-              enriched.feasibility = f;
-            } catch (e) { }
-          }
-          return enriched;
+          return enrichWithFeasibility(buildEnrichedPlot(merged), val);
         });
 
         // If no dld results but fallback has data, return fallback
         if (enrichedProperties.length === 0 && (fallbackData || []).length > 0) {
           const fbProps = fallbackData!.map((fb: any) => {
-            const enriched = buildEnrichedPlot(fb);
-            const areaSqft = enriched.plot_area_sqft || (enriched.plot_area_sqm ? enriched.plot_area_sqm * 10.764 : 0);
-            if (areaSqft) {
-              try {
-                const f = runFeasibility({
-                  plotId: enriched.municipality_number || val,
-                  areaSqft,
-                  gfaSqft: enriched.gfa_sqm ? enriched.gfa_sqm * 10.764 : undefined,
-                  zoning: enriched.zoning,
-                  floors: enriched.floors
-                });
-                enriched.estimatedGDV = f?.revenue?.grossDevelopmentValue;
-                enriched.targetIRR = f?.profitability?.roiPct;
-                enriched.feasibility = f;
-              } catch (e) { }
-            }
-            return enriched;
+            return enrichWithFeasibility(buildEnrichedPlot(fb), val);
           });
           return json({ action: "dld-lookup", count: fbProps.length, properties: fbProps, sources: { dld: false, fallback: true, gis: false } });
         }
@@ -396,23 +353,7 @@ serve(async (req) => {
         // ── DDA GIS Fallback ──
         const gisData = await queryDDAGIS(val);
         if (gisData) {
-          const enriched = buildEnrichedPlot(gisData);
-
-          const areaSqft = enriched.plot_area_sqft || (enriched.plot_area_sqm ? enriched.plot_area_sqm * 10.764 : 0);
-          if (areaSqft) {
-            try {
-              const f = runFeasibility({
-                plotId: enriched.municipality_number || val,
-                areaSqft,
-                gfaSqft: enriched.gfa_sqm ? enriched.gfa_sqm * 10.764 : undefined,
-                zoning: enriched.zoning,
-                floors: enriched.floors
-              });
-              enriched.estimatedGDV = f?.revenue?.grossDevelopmentValue;
-              enriched.targetIRR = f?.profitability?.roiPct;
-              enriched.feasibility = f;
-            } catch (e) { }
-          }
+          const enriched = enrichWithFeasibility(buildEnrichedPlot(gisData), val);
 
           console.log(`[land-os-api] DLD-Lookup found (GIS): ${val}`);
           return json({ action: "dld-lookup", count: 1, properties: [enriched], sources: { dld: false, fallback: false, gis: true } });
