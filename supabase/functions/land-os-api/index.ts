@@ -129,23 +129,40 @@ serve(async (req) => {
           if (dldData) merged = mergeEnrich(dldData, merged);
           if (fallbackData) merged = mergeEnrich(fallbackData, merged);
 
-          // Normalize field names for the frontend
+          // Resolve core fields
+          const areaSqm = parseFloat(merged.plot_area_sqm || merged.size_sqm || merged.area_sqm) || null;
+          const areaSqft = parseFloat(merged.plot_area_sqft || merged.size_sqft) || (areaSqm ? Math.round(areaSqm * 10.7639) : null);
+          const zoning = merged.zoning || merged.property_type || merged.land_use || null;
+          const floors = merged.floors || null;
+          const gfaSqm = parseFloat(merged.gfa_sqm) || (areaSqm && floors ? estimateGFA(areaSqm, floors) : null);
+          const landUse = merged.land_use || (zoning ? deriveLandUse(zoning) : null);
+
+          // Determine data quality
+          const criticalFields = [areaSqm, areaSqft, gfaSqm, zoning, floors];
+          const filledCount = criticalFields.filter(f => f !== null && f !== undefined).length;
+          const dataQuality = filledCount === criticalFields.length ? "complete" : filledCount >= 3 ? "partial" : "fallback";
+
           const enriched = {
             ...merged,
-            // Ensure consistent field naming
             area_name: merged.area_name || merged.area || merged.district || merged.community,
-            plot_area_sqm: merged.plot_area_sqm || merged.size_sqm || merged.area_sqm,
-            plot_area_sqft: merged.plot_area_sqft || merged.size_sqft,
-            gfa_sqm: merged.gfa_sqm,
-            zoning: merged.zoning || merged.property_type || merged.land_use,
-            floors: merged.floors,
+            plot_area_sqm: areaSqm,
+            plot_area_sqft: areaSqft,
+            gfa_sqm: gfaSqm,
+            zoning,
+            floors,
+            land_use: landUse,
             land_status: merged.status || merged.land_status,
             municipality_number: merged.municipality_number || merged.land_number,
+            developer: merged.developer || null,
+            project_name: merged.project_name || null,
+            data_quality: dataQuality,
           };
 
-          return json({ action: "plots", plot: enriched, sources: { fallback: !!fallbackData, dld: !!dldData, legacy: !!legacyData } });
+          console.log(`[land-os-api] Plot found: ${searchVal} | sources: fb=${!!fallbackData} dld=${!!dldData} legacy=${!!legacyData} | quality=${dataQuality}`);
+          return json({ action: "plots", plot: enriched, data_quality: dataQuality, sources: { fallback: !!fallbackData, dld: !!dldData, legacy: !!legacyData } });
         }
 
+        console.log(`[land-os-api] Plot not found: ${searchVal}`);
         return json({ error: "Plot not found", searched: searchVal }, 404);
       }
 
