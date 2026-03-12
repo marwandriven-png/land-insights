@@ -129,9 +129,14 @@ async function queryDDAGIS(plotNumber: string): Promise<Record<string, any> | nu
     const landUse = attrs.MAIN_LANDUSE || (zoning ? deriveLandUse(zoning) : null);
     const gfaSqm = parseFloat(attrs.GFA_SQM) || null;
 
+    // ENTITY_NAME is the developer/owner entity, NOT the area name
+    // COMMUNITY_NAME or PROJECT_NAME is the actual area/community
+    const resolvedAreaName = attrs.COMMUNITY_NAME || attrs.PROJECT_NAME || attrs.COMMON_NAME || null;
+    const resolvedDeveloper = attrs.ENTITY_NAME || attrs.DEVELOPER_NAME || attrs.OWNER_NAME || null;
+
     return {
       municipality_number: sanitized,
-      area_name: attrs.ENTITY_NAME || attrs.COMMUNITY_NAME || attrs.PROJECT_NAME || null,
+      area_name: resolvedAreaName,
       area_code: attrs.AREA_CODE || null,
       common_name: attrs.COMMON_NAME || null,
       plot_area_sqm: areaSqm,
@@ -141,7 +146,7 @@ async function queryDDAGIS(plotNumber: string): Promise<Record<string, any> | nu
       floors: floors ? String(floors) : null,
       land_use: landUse,
       sub_land_use: attrs.SUB_LANDUSE || null,
-      developer: attrs.DEVELOPER_NAME || attrs.OWNER_NAME || null,
+      developer: resolvedDeveloper,
       project_name: attrs.PROJECT_NAME || attrs.COMMON_NAME || null,
       status: attrs.SITE_STATUS || attrs.CONSTRUCTION_STATUS || null,
       latitude: geom.y || geom.latitude || null,
