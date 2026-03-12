@@ -118,7 +118,7 @@ function buildSensitivity(
   baseSalePSF: number,
   totalDevCost: number,
 ): SensitivityScenario[] {
-  return [-15, -10, 0, +10, +15].map((pct) => {
+  return [-15, -10, 0, 10, 15].map((pct) => {
     const adjPSF    = baseSalePSF * (1 + pct / 100);
     const adjGDV    = sellableSqft * adjPSF;
     const profit    = adjGDV - totalDevCost;

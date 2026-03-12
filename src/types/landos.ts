@@ -38,9 +38,20 @@ export interface LandOSPlotData {
   floors: number | null;
   zoneCode?: string;
   permitClass?: string;
+  zoning?: string;
+
+  // Project info
+  developer?: string;
+  projectName?: string;
+  commonName?: string;
 
   // Location
   coordinates?: { lat: number; lng: number };
+
+  // Data quality
+  dataQuality?: 'complete' | 'partial' | 'fallback';
+  gfaSource?: string;
+  sources?: { fallback: boolean; dld: boolean; gis: boolean };
 
   // Meta
   source: 'LAND_OS' | 'GIS_DLD' | 'DLD_OPENDATA';

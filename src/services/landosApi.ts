@@ -144,11 +144,11 @@ function normalisePlot(
   const plotSqm  = toFloat(p.plot_area_sqm  ?? p.plot_size_sqm  ?? p.area_sqm  ?? 0);
   const plotSqft = toFloat(p.plot_area_sqft ?? 0) || Math.round(plotSqm * 10.7639);
   const gfaSqm   = toFloat(p.gfa_sqm        ?? p.gross_floor_area_sqm          ?? 0);
-  const gfaSqft  = toFloat(p.gfa_sqft       ?? 0) || Math.round(gfaSqm * 10.7639);
+  const gfaSqft  = toFloat(p.gfa_sqft       ?? p.gfa_sqft ?? 0) || Math.round(gfaSqm * 10.7639);
   const floors   = toInt(p.floors ?? p.max_floors ?? p.num_floors ?? 0);
 
   return {
-    plotNumber:       toStr(p.plot_number   ?? p.plotNumber   ?? query.plotNumber  ?? ''),
+    plotNumber:       toStr(p.plot_number   ?? p.plotNumber   ?? p.municipality_number ?? query.plotNumber ?? ''),
     municipalityNumber: toStr(p.municipality_number ?? p.mun_no ?? query.municipalityNumber ?? ''),
     area:             toStr(p.area_name     ?? p.area         ?? query.area        ?? ''),
     plotAreaSqm:      plotSqm,
@@ -162,12 +162,19 @@ function normalisePlot(
     floors:           floors || null,
     zoneCode:         toStr(p.zone_code  ?? p.zone         ?? ''),
     permitClass:      toStr(p.permit_class                 ?? ''),
+    zoning:           toStr(p.zoning ?? ''),
+    developer:        toStr(p.developer ?? ''),
+    projectName:      toStr(p.project_name ?? p.common_name ?? ''),
+    commonName:       toStr(p.common_name ?? ''),
     coordinates:
       p.lat && p.lng
         ? { lat: toFloat(p.lat), lng: toFloat(p.lng) }
         : p.latitude && p.longitude
         ? { lat: toFloat(p.latitude), lng: toFloat(p.longitude) }
         : (query.coordinates ?? undefined),
+    dataQuality:      (p.data_quality as 'complete' | 'partial' | 'fallback') ?? undefined,
+    gfaSource:        toStr(p.gfa_source ?? ''),
+    sources:          (raw?.sources as { fallback: boolean; dld: boolean; gis: boolean }) ?? undefined,
     source: 'LAND_OS',
     fetchedAt: new Date().toISOString(),
     raw: p,

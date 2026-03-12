@@ -56,29 +56,29 @@ export function runFeasibility(params: PlotParams) {
   const bua = gfa * buaMultiplier;
 
   const mix = {
-    studio: ov.mix?.studio ?? tmpl.mix.studio,
-    br1: ov.mix?.br1 ?? tmpl.mix.br1,
-    br2: ov.mix?.br2 ?? tmpl.mix.br2,
-    br3: ov.mix?.br3 ?? tmpl.mix.br3,
+    studio: ov.mix?.studio ?? tmpl.mix.studio ?? 0.35,
+    br1: ov.mix?.br1 ?? tmpl.mix.br1 ?? 0.35,
+    br2: ov.mix?.br2 ?? tmpl.mix.br2 ?? 0.25,
+    br3: ov.mix?.br3 ?? tmpl.mix.br3 ?? 0.05,
   };
 
   const sizes = {
-    studio: ov.unitSizes?.studio || UNIT_SIZES.studio,
-    br1: ov.unitSizes?.br1 || UNIT_SIZES.br1,
-    br2: ov.unitSizes?.br2 || UNIT_SIZES.br2,
-    br3: ov.unitSizes?.br3 || UNIT_SIZES.br3,
+    studio: ov.unitSizes?.studio ?? UNIT_SIZES.studio,
+    br1: ov.unitSizes?.br1 ?? UNIT_SIZES.br1,
+    br2: ov.unitSizes?.br2 ?? UNIT_SIZES.br2,
+    br3: ov.unitSizes?.br3 ?? UNIT_SIZES.br3,
   };
   const psf = {
-    studio: ov.unitPsf?.studio || TXN_AVG_PSF.studio,
-    br1: ov.unitPsf?.br1 || TXN_AVG_PSF.br1,
-    br2: ov.unitPsf?.br2 || TXN_AVG_PSF.br2,
-    br3: ov.unitPsf?.br3 || TXN_AVG_PSF.br3,
+    studio: ov.unitPsf?.studio ?? TXN_AVG_PSF.studio,
+    br1: ov.unitPsf?.br1 ?? TXN_AVG_PSF.br1,
+    br2: ov.unitPsf?.br2 ?? TXN_AVG_PSF.br2,
+    br3: ov.unitPsf?.br3 ?? TXN_AVG_PSF.br3,
   };
   const rents = {
-    studio: ov.unitRents?.studio || RENT_PSF_YR.studio,
-    br1: ov.unitRents?.br1 || RENT_PSF_YR.br1,
-    br2: ov.unitRents?.br2 || RENT_PSF_YR.br2,
-    br3: ov.unitRents?.br3 || RENT_PSF_YR.br3,
+    studio: ov.unitRents?.studio ?? RENT_PSF_YR.studio,
+    br1: ov.unitRents?.br1 ?? RENT_PSF_YR.br1,
+    br2: ov.unitRents?.br2 ?? RENT_PSF_YR.br2,
+    br3: ov.unitRents?.br3 ?? RENT_PSF_YR.br3,
   };
 
   const avgUnitSize = mix.studio * sizes.studio + mix.br1 * sizes.br1 + mix.br2 * sizes.br2 + mix.br3 * sizes.br3;
@@ -111,14 +111,16 @@ export function runFeasibility(params: PlotParams) {
   const landCost = ov.landCost || gfa * landCostPsf;
   const constructionPsf = ov.constructionPsf || 420;
   const constructionCost = bua * constructionPsf;
+  const profFees = (landCost + constructionCost) * 0.07;
   const authorityFees = landCost * 0.04;
   const consultantFees = constructionCost * 0.03;
-  const marketing = grossSales * 0.02;
+  const marketingPct = 0.03;
+  const marketing = grossSales > 0 ? Math.round(grossSales * marketingPct) : 0;
   const contingencyPct = ov.contingencyPct ?? 0.05;
   const financePct = ov.financePct ?? 0.03;
   const contingency = constructionCost * contingencyPct;
-  const financing = grossSales * financePct;
-  const totalCost = landCost + constructionCost + authorityFees + consultantFees + marketing + contingency + financing;
+  const financing = (landCost + constructionCost) * financePct;
+  const totalCost = landCost + constructionCost + profFees + financing + marketing + contingency;
 
   const grossProfit = grossSales - totalCost;
   const grossMargin = grossSales > 0 ? grossProfit / grossSales : 0;
@@ -132,15 +134,16 @@ export function runFeasibility(params: PlotParams) {
     units.br3 * (sizes.br3 * rents.br3);
   const grossYield = grossSales > 0 ? annualRent / grossSales : 0;
 
-  const sensitivity = [-0.10, -0.05, 0, 0.05, 0.10].map(delta => {
+  // 5-scenario sensitivity: -15%, -10%, base, +10%, +15%
+  const sensitivity = [-0.15, -0.10, 0, 0.10, 0.15].map(delta => {
     const rev = grossSales * (1 + delta);
     const prof = rev - totalCost;
     return {
       psfChange: `${delta >= 0 ? "+" : ""}${(delta * 100).toFixed(0)}%`,
       revenue: Math.round(rev),
       profit: Math.round(prof),
-      margin: +(prof / rev * 100).toFixed(1),
-      roi: +(prof / totalCost * 100).toFixed(1),
+      margin: rev > 0 ? +(prof / rev * 100).toFixed(1) : 0,
+      roi: totalCost > 0 ? +(prof / totalCost * 100).toFixed(1) : 0,
     };
   });
 
@@ -187,6 +190,7 @@ export function runFeasibility(params: PlotParams) {
       landCostPsf: +landCostPsf.toFixed(2),
       constructionCost: Math.round(constructionCost),
       constructionPsf,
+      profFees: Math.round(profFees),
       authorityFees: Math.round(authorityFees),
       consultantFees: Math.round(consultantFees),
       marketing: Math.round(marketing),
@@ -198,6 +202,7 @@ export function runFeasibility(params: PlotParams) {
       grossProfit: Math.round(grossProfit),
       grossMarginPct: +(grossMargin * 100).toFixed(1),
       roiPct: +(roi * 100).toFixed(1),
+      irrProxy: +(roi * 0.68 * 100 / 100).toFixed(1),
       breakEvenPsf: Math.round(breakEvenPsf),
     },
     rentalAnalysis: {
