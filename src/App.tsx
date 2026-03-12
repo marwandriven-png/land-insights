@@ -7,6 +7,7 @@ import Index from "./pages/Index";
 import ColdCalls from "./pages/ColdCalls";
 import NotFound from "./pages/NotFound";
 import DCReport from "./pages/DCReport";
+import LandOSPage from "./pages/LandOSPage";
 
 const queryClient = new QueryClient();
 
