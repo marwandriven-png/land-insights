@@ -25,6 +25,12 @@ import { LandAssemblyIntelligence } from './LandAssemblyIntelligence';
 import { UrbanContextAnalysis } from './UrbanContextAnalysis';
 import { FallbackUploadModal } from './FallbackUploadModal';
 import { FeasibilityParams, DEFAULT_FEASIBILITY_PARAMS } from './FeasibilityCalculator';
+import {
+  VillaIntelligenceEngine,
+  applyVillaFilters,
+  plotsToVillaInputs,
+  resolveAmenities,
+} from '@/services/VillaIntelligenceEngine';
 import { Button } from '@/components/ui/button';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import {
@@ -80,6 +86,24 @@ export function HyperPlotAI() {
     minGFA: null,
     maxGFA: null
   });
+
+  // ── Villa Intelligence Engine ──────────────────────────────────────────────
+  // Built once when plots load; auto-selects community amenities by GPS location.
+  const villaEngine = useMemo(() => {
+    if (plots.length === 0) return null;
+    const inputs = plotsToVillaInputs(plots);
+    // Pick amenity set closest to centroid of loaded plots
+    const midLat = plots.reduce((s, p) => s + p.y, 0) / plots.length;
+    const midLng = plots.reduce((s, p) => s + p.x, 0) / plots.length;
+    const amenities = resolveAmenities(midLat, midLng);
+    return new VillaIntelligenceEngine(inputs, amenities);
+  }, [plots]);
+
+  // Map of plotId → VillaIntelTags — lazily computed, cached inside engine
+  const villaTagsMap = useMemo(() => {
+    if (!villaEngine || plots.length === 0) return new Map();
+    return villaEngine.analyzeAll(plotsToVillaInputs(plots));
+  }, [villaEngine, plots]);
 
   // Auto-scroll to selected plot in sidebar
   useEffect(() => {
@@ -179,34 +203,57 @@ export function HyperPlotAI() {
     }
   }, [selectedPlot]);
 
-  // Filter plots based on search and filters
+  // ── Filtered Plots ─────────────────────────────────────────────────────────
+  // Layer 1: text search + status + zoning + area/GFA
+  // Layer 2: villa intelligence (layout, position, back facing, vastu, amenities)
   const filteredPlots = useMemo(() => {
-    return plots.filter(plot => {
+    // Check if any villa intelligence filter is active
+    const hasVillaFilters =
+      !!filters.layoutType || !!filters.position || !!filters.backFacing ||
+      !!filters.vastuCompliant || !!filters.vastuDirection ||
+      (filters.nearAmenity?.length ?? 0) > 0;
+
+    // ── Base layer: standard attribute filters ─────────────────────────────
+    const base = plots.filter(plot => {
+      // Text search — plot id, zoning, developer, project, location
       if (searchQuery) {
-        const query = searchQuery.toLowerCase();
-        const matchesSearch =
-          plot.id.toLowerCase().includes(query) ||
-          plot.zoning.toLowerCase().includes(query) ||
-          (plot.developer && plot.developer.toLowerCase().includes(query)) ||
-          (plot.project && plot.project.toLowerCase().includes(query)) ||
-          (plot.location && plot.location.toLowerCase().includes(query));
-        if (!matchesSearch) return false;
+        const q = searchQuery.toLowerCase();
+        const textMatch =
+          plot.id.toLowerCase().includes(q) ||
+          plot.zoning.toLowerCase().includes(q) ||
+          (plot.developer && plot.developer.toLowerCase().includes(q)) ||
+          (plot.project  && plot.project.toLowerCase().includes(q)) ||
+          (plot.location && plot.location.toLowerCase().includes(q));
+        // Also run NL query through villa tags if available
+        const villaTagMatch = villaTagsMap.size > 0 &&
+          (villaTagsMap.get(plot.id)?.smartTags.some(t => t.toLowerCase().includes(q)) ?? false);
+        if (!textMatch && !villaTagMatch) return false;
       }
-      if (filters.status.length > 0 && !filters.status.includes(plot.status)) return false;
-      if (filters.zoning.length > 0 && !filters.zoning.includes(plot.zoning)) return false;
-      if (filters.minArea !== null) {
-        const minWithTolerance = filters.minArea * 0.98;
-        if (plot.area < minWithTolerance) return false;
-      }
-      if (filters.maxArea !== null) {
-        const maxWithTolerance = filters.maxArea * 1.02;
-        if (plot.area > maxWithTolerance) return false;
-      }
-      if (filters.minGFA !== null && plot.gfa < filters.minGFA) return false;
-      if (filters.maxGFA !== null && plot.gfa > filters.maxGFA) return false;
+      if (filters.status.length > 0 && !filters.status.includes(plot.status))           return false;
+      if (filters.zoning.length > 0 && !filters.zoning.includes(plot.zoning))           return false;
+      if (filters.minArea !== null && plot.area < filters.minArea * 0.98)                return false;
+      if (filters.maxArea !== null && plot.area > filters.maxArea * 1.02)                return false;
+      if (filters.minGFA  !== null && plot.gfa  < filters.minGFA)                       return false;
+      if (filters.maxGFA  !== null && plot.gfa  > filters.maxGFA)                       return false;
       return true;
     });
-  }, [plots, searchQuery, filters]);
+
+    // ── Villa intelligence layer ───────────────────────────────────────────
+    if (hasVillaFilters && villaTagsMap.size > 0) {
+      const results = applyVillaFilters(villaTagsMap, base, {
+        layoutType:     filters.layoutType,
+        position:       filters.position    as 'Corner' | 'EndUnit' | undefined,
+        backFacing:     filters.backFacing  as 'Park' | 'Road' | 'OpenLand' | undefined,
+        vastuCompliant: filters.vastuCompliant,
+        vastuDirection: filters.vastuDirection,
+        nearAmenity:    filters.nearAmenity as import('@/services/VillaIntelligenceEngine').AmenityType[] | undefined,
+        maxAmenityDist: filters.maxAmenityDist,
+      });
+      return results.map(r => r.plot);
+    }
+
+    return base;
+  }, [plots, searchQuery, filters, villaTagsMap]);
 
   useEffect(() => {
     if (selectedPlot) {
@@ -856,6 +903,7 @@ export function HyperPlotAI() {
                               onEdit={plot.verificationSource === 'Manual' ? handleEditManualLand : undefined}
                               onDelete={plot.verificationSource === 'Manual' ? handleDeleteManualLand : undefined}
                               onQuickAdd={isPlotListed(plot.id) ? undefined : () => handleQuickAddFromPlot(plot)}
+                              villaIntel={villaTagsMap.get(plot.id)}
                             />
                             <button
                               onClick={(e) => {
@@ -886,6 +934,7 @@ export function HyperPlotAI() {
                           onEdit={plot.verificationSource === 'Manual' ? handleEditManualLand : undefined}
                           onDelete={plot.verificationSource === 'Manual' ? handleDeleteManualLand : undefined}
                           onQuickAdd={isPlotListed(plot.id) ? undefined : () => handleQuickAddFromPlot(plot)}
+                          villaIntel={villaTagsMap.get(plot.id)}
                         />
                         <button
                           onClick={(e) => {
