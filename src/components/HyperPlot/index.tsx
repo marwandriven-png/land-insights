@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback, useMemo, useRef } from 'react';
-import { Map, Home, Brain, AlertCircle, X, RefreshCw, Wifi, WifiOff, Target, Clock, Settings, Shield, GitCompareArrows, Plus, Minimize2, Maximize2, Database, Combine, TreePine } from 'lucide-react';
+import { Map as MapIcon, Home, Brain, AlertCircle, X, RefreshCw, Wifi, WifiOff, Target, Clock, Settings, Shield, GitCompareArrows, Plus, Minimize2, Maximize2, Database, Combine, TreePine } from 'lucide-react';
 import { isPlotListed, markPlotListed, getDeletedBlacklist } from '@/services/LandMatchingService';
 import { lookupOwnerFromSheet, importPlotsFromSheet } from '@/services/SheetSyncService';
 import { Badge } from '@/components/ui/badge';
@@ -45,7 +45,7 @@ import {
 const SQM_TO_SQFT = 10.7639;
 
 const TABS = [
-  { id: 'map', icon: Map, label: 'Map' },
+  { id: 'map', icon: MapIcon, label: 'Map' },
   { id: 'feasibility', icon: Shield, label: 'Decision' },
   { id: 'assembly', icon: Combine, label: 'Assembly' },
   { id: 'urban', icon: TreePine, label: 'Urban' },
@@ -959,7 +959,7 @@ export function HyperPlotAI() {
                     ))}
                     {filteredPlots.length === 0 && (
                       <div className="text-center py-8 text-muted-foreground">
-                        <Map className="w-8 h-8 mx-auto mb-2 opacity-50" />
+                        <MapIcon className="w-8 h-8 mx-auto mb-2 opacity-50" />
                         <p className="text-sm">No plots match your criteria</p>
                       </div>
                     )}
