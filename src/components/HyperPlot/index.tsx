@@ -45,7 +45,7 @@ import {
 const SQM_TO_SQFT = 10.7639;
 
 const TABS = [
-  { id: 'map', icon: Map, label: 'Map' },
+  { id: 'map', icon: MapIcon, label: 'Map' },
   { id: 'feasibility', icon: Shield, label: 'Decision' },
   { id: 'assembly', icon: Combine, label: 'Assembly' },
   { id: 'urban', icon: TreePine, label: 'Urban' },
